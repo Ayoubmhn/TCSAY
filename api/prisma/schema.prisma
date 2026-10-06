@@ -1,0 +1,31 @@
+// Schéma TCSAY : enrichi sprint après sprint (S0 : saisons).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SeasonStatus {
+  DRAFT // Brouillon
+  ACTIVE // Active (une seule à la fois, R2)
+  CLOSED // Clôturée (verrouillée, R1)
+  HISTORICAL // Historique (verrouillée, R1)
+}
+
+model Season {
+  id         String       @id @default(uuid()) @db.Uuid
+  label      String       @unique // ex. « 2026-2027 »
+  startDate  DateTime     @db.Date
+  endDate    DateTime     @db.Date
+  status     SeasonStatus @default(DRAFT)
+  archivedAt DateTime? // R8 : suppression = archivage
+  version    Int          @default(1) // R13 : verrouillage optimiste
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([status])
+}
