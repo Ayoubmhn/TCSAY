@@ -79,7 +79,7 @@ export class SeasonsService {
     assertNotArchived(season);
     if (LOCKED.includes(season.status)) {
       throw new ConflictException(
-        `Saison ${STATUS_LABEL[season.status]} verrouillée : rouvrez-la avec un motif avant de la modifier (R1).`,
+        `R1 · Saison ${STATUS_LABEL[season.status]} verrouillée : rouvrez-la avec un motif avant de la modifier.`,
       );
     }
     assertVersion(season, dto.version);
@@ -117,7 +117,7 @@ export class SeasonsService {
         const reopening = LOCKED.includes(from) && !LOCKED.includes(to);
         if (reopening && !dto.reason?.trim()) {
           throw new BadRequestException(
-            'Un motif est obligatoire pour rouvrir une saison clôturée ou historique (R1).',
+            'R1 · Le motif est obligatoire pour rouvrir une saison clôturée ou historique.',
           );
         }
 
@@ -127,7 +127,7 @@ export class SeasonsService {
           });
           if (active) {
             throw new ConflictException(
-              `La saison « ${active.label} » est déjà active : clôturez-la d’abord (R2).`,
+              `R2 · Une seule saison active : clôturez d’abord la saison ${active.label}.`,
             );
           }
         }
@@ -154,7 +154,7 @@ export class SeasonsService {
     assertNotArchived(season);
     assertVersion(season, version);
     if (season.status === SeasonStatus.ACTIVE) {
-      throw new ConflictException('Impossible d’archiver la saison active : clôturez-la d’abord.');
+      throw new ConflictException('R8 · Impossible d’archiver la saison active : clôturez-la d’abord.');
     }
     return this.writeWithVersion(id, version, { archivedAt: new Date() });
   }
@@ -195,6 +195,6 @@ function assertVersion(season: Season, version: number): void {
 
 function versionConflict(): ConflictException {
   return new ConflictException(
-    'Cette saison a été modifiée par un autre administrateur : rechargez-la puis recommencez (R13).',
+    'R13 · Cette saison a été modifiée par un autre administrateur : rechargez-la puis recommencez.',
   );
 }

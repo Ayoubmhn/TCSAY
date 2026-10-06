@@ -4,9 +4,9 @@ type ToastFn = (message: string) => void;
 
 const ToastContext = createContext<ToastFn | null>(null);
 
-const DURATION_MS = 3500;
+const DURATION_MS = 3600;
 
-/** Toast : pilule --fg, texte --bg, 3,5 s. Les erreurs métier passent toutes par ici. */
+/** Toast (.toast) : pilule --fg, texte --bg, 3,6 s. Toutes les erreurs métier passent par ici. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<{ id: number; message: string }[]>([]);
   const nextId = useRef(0);
@@ -22,10 +22,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex flex-col items-center gap-2 px-4"
+        className="pointer-events-none fixed bottom-[calc(24px+env(safe-area-inset-bottom,0px))] left-1/2 z-[80] flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 flex-col gap-2"
       >
         {toasts.map((t) => (
-          <div key={t.id} role="status" className="max-w-md rounded-full bg-fg px-5 py-3 text-center text-sm font-medium text-bg">
+          <div key={t.id} role="status" className="toast-in rounded-full bg-fg px-5 py-3 text-sm font-medium text-bg">
             {t.message}
           </div>
         ))}

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { PillTone } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
 
 export type SeasonStatus = 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'HISTORICAL';
@@ -19,26 +20,31 @@ export type SeasonFilters = { status?: SeasonStatus; includeArchived?: boolean }
 
 export type SeasonInput = { label: string; startDate: string; endDate: string; status?: 'DRAFT' | 'HISTORICAL' };
 
-export const STATUS_LABEL: Record<SeasonStatus, string> = {
-  DRAFT: 'Brouillon',
-  ACTIVE: 'Active',
-  CLOSED: 'Clôturée',
-  HISTORICAL: 'Historique',
+/** Libellé et couleur de pastille par statut (ST du prototype). */
+export const STATUS: Record<SeasonStatus, { label: string; tone: PillTone; text: string }> = {
+  DRAFT: { label: 'Brouillon', tone: 's', text: 'Préparation : tarifs et groupes en cours.' },
+  ACTIVE: { label: 'Active', tone: 'g', text: 'Saison en cours : inscriptions et paiements ouverts.' },
+  CLOSED: { label: 'Clôturée', tone: 'r', text: 'Verrouillée : aucune modification sans réouverture.' },
+  HISTORICAL: { label: 'Historique', tone: 'b', text: 'Créée pour l’import des cahiers.' },
 };
 
-/** Statuts verrouillés (R1). */
+/** Statuts verrouillés (R1) : ni modification ni archivage sans réouverture. */
 export const LOCKED_STATUSES: SeasonStatus[] = ['CLOSED', 'HISTORICAL'];
 
-/** Transitions autorisées, identiques à l'API. */
-export const TRANSITIONS: Record<SeasonStatus, SeasonStatus[]> = {
-  DRAFT: ['ACTIVE', 'HISTORICAL'],
-  ACTIVE: ['CLOSED'],
-  CLOSED: ['ACTIVE', 'HISTORICAL'],
-  HISTORICAL: ['DRAFT'],
-};
+/** Action proposée sur la carte, comme dans le prototype. */
+export type SeasonAction = { kind: 'activate' | 'close' | 'reopen'; target: SeasonStatus; label: string };
 
-export function isReopening(from: SeasonStatus, to: SeasonStatus): boolean {
-  return LOCKED_STATUSES.includes(from) && !LOCKED_STATUSES.includes(to);
+export function seasonAction(status: SeasonStatus): SeasonAction {
+  switch (status) {
+    case 'DRAFT':
+      return { kind: 'activate', target: 'ACTIVE', label: 'Activer' };
+    case 'ACTIVE':
+      return { kind: 'close', target: 'CLOSED', label: 'Clôturer' };
+    case 'CLOSED':
+      return { kind: 'reopen', target: 'ACTIVE', label: 'Rouvrir (motif)' };
+    case 'HISTORICAL':
+      return { kind: 'reopen', target: 'DRAFT', label: 'Rouvrir (motif)' };
+  }
 }
 
 const KEY = ['seasons'] as const;
@@ -47,6 +53,14 @@ export function useSeasons(filters: SeasonFilters) {
   return useQuery({
     queryKey: [...KEY, filters],
     queryFn: () => api.get<Season[]>('/seasons', filters),
+  });
+}
+
+export function useActiveSeason() {
+  return useQuery({
+    queryKey: [...KEY, 'active'],
+    queryFn: () => api.get<Season>('/seasons/active'),
+    retry: false,
   });
 }
 

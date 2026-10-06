@@ -6,7 +6,8 @@ Tu es mon assistant de développement pour **TCSAY (Tennis Club de Sayada, Tunis
 - Monorepo unique `TCSAY` : `api/` (NestJS) et `web/` (React + Vite). `docker-compose.yml` à la racine pour l'infrastructure (PostgreSQL 16, Redis, Mailpit).
 - Peut être scindé plus tard en `tcsay-api` / `tcsay-web` (`git subtree split`).
 - **Ordre de développement choisi** : d'abord l'**admin web** (écran par écran, API + web ensemble), ensuite le **mobile**, enfin les **autres acteurs** (joueur, parent, coach). Les modules admin non livrés portent le badge « À venir » dans le menu.
-- Les sources du design (`docs/TCSAY_design_system.md`, `docs/tcsay-prototype-v3.html`) doivent être déposées dans `docs/`.
+- `docs/tcsay-prototype-v4.html` : prototype cliquable, **référence figée, ne jamais le modifier**. `docs/PROMPTS_SPRINTS.md` : prompts par sprint (rédigés pour deux dépôts ; ici, `tcsay-api` = `api/` et `tcsay-web` = `web/`). `docs/TCSAY_design_system.md` est **manquant** : en attendant, le prototype v4 fait foi.
+- Données de démo : `cd api && npx prisma db seed` (les 4 saisons du prototype).
 
 ## 1. Le projet
 Plateforme web et mobile qui remplace les cahiers papier et les paiements en espèces du club : réservation des terrains, cotisations par tranches, groupes d'entraînement, membres, coachs, salaires. L'historique du club est écrit à la main dans des cahiers depuis 2010 : il sera numérisé plus tard (OCR / vision par IA) avec validation humaine. Domaine souhaité : `tennisclubdesayada.tn` (à enregistrer au nom du club, disponibilité non vérifiée).
@@ -78,7 +79,7 @@ Entités : User, Player, ParentLink, Coach, Season, Category, Enrollment, Traini
 - Authentification JWT globale (`@Public`, `@Roles`), gardes de rôles, filtre d'erreurs Prisma (409 unicité, 404, 400), Swagger.
 
 ## 9. Design system (obligatoire)
-La source de vérité est `docs/TCSAY_design_system.md` et le prototype `docs/tcsay-prototype-v3.html` : en cas de différence, c'est l'écran qui a tort. Résumé :
+La source de vérité est `docs/TCSAY_design_system.md` et le prototype `docs/tcsay-prototype-v4.html` (voir §13) : en cas de différence, c'est l'écran qui a tort. Résumé :
 - **Principes** : clair, aéré, très arrondi, **sans ombres portées**, pas de dégradés sauf la grande carte d'accueil. Infos courtes = pastilles ; blocs = cartes à bordure 1,5px ; filtres = selects gris arrondis. Une seule police (**Montserrat** 400/500/600), une seule couleur d'action (indigo `#5a5acd`).
 - **Jetons clairs / sombres** : `--bg` #fafafa / #121212 ; `--fg` #1a1a1a / #f2f2f2 ; `--mut` #8a8a8f / #9a9aa0 ; `--card` #fff / #1c1c1e ; `--line` #e6e6ea / #333 ; `--fld` #f3f4f8 / #26272b ; `--btn` #ebebeb / #2e2e32 ; `--pri` #5a5acd ; `--sel` #0000e0 ; `--dr` #f7f8fb / #17181b ; `--day` #f1f2f6 / #2a2b30 ; tranche payée #e9f7e1 / #1f2e1a ; à payer #ffe8e8 / #3a2224.
 - **Pastilles** (texte toujours `#111`, rayon 99px, padding 5px 13px) : bleu `#c9e9fb` = date, heure, information ; vert `#dff3a8` = libre, confirmé, présent, payé, lieu ; rose `#fdb3b0` = pris, absent, à payer, erreur ; sable `#f0d9a8` = neutre, maintenance, brouillon, type, « À venir ».
@@ -102,3 +103,26 @@ Calcul de la catégorie (âge atteint ou année de naissance, date de référenc
 - Si une information manque, pose **une seule question**.
 - À la fin de chaque tâche : commandes pour lancer et tester (Swagger ou écran concerné) et message de commit.
 - Si l'écran dérive du design, compare-le au prototype, liste les écarts, puis corrige.
+
+## 13. Utiliser le prototype `docs/tcsay-prototype-v4.html`
+- C'est une **maquette fonctionnelle en HTML/JS vanilla**, pas du code à copier. On le **reconstruit** en composants React + Tailwind v4 (web) et React Native + NativeWind (mobile), avec de vraies données de l'API.
+- **À reprendre tel quel** : les jetons CSS (`:root` et blocs sombres, déjà copiés dans `web/src/index.css`), les tailles, rayons, pastilles, textes et libellés français, l'ordre des sections de chaque écran, les comportements (toasts, confirmations, catégorie proposée en direct, grille au clavier), la bascule « ☾ Sombre / ☀ Clair ».
+- **À ne pas reprendre** : les données en dur (`PLAYERS`, `INST`, `RES`…), le routage maison, `innerHTML`, la date figée `NOW`, le bandeau « PROTOTYPE · MONTANTS DÉMO ». Les montants du prototype sont des valeurs de **démonstration**.
+- Les règles R1–R14 sont simulées côté client dans le prototype ; dans le vrai code elles vivent **côté API** (messages au format « R2 · … »), l'interface affiche l'erreur renvoyée en toast.
+- Pour lire un écran, cherche sa fonction dans le `<script>` : `vLogin`, `vChangePw`, `vHome`, `vPay`, `vSes`, `vAbs`, `vBook`, `vCSes`, `vCSal`, `vDash`, `vPlayers` (+ `playerForm`), `vParents`, `vCoaches`, `vGroups`, `vCourts`, `vCats`, `vSeasons`, `vFees`, `vCtar`, `vAres`, `vSal`, `vApay`, `vMails`, `vAudit`.
+- Composants web déjà reconstruits (`web/src/components/ui`) : `Button` (.btn / .btn2 / danger), `IconButton` (.ico), `Pill` / `Pills` / `Badge`, `Card` (+ `CardRow`, `CardSubtitle`, `CardText`, `CardActions`, `Kpi`, `CardGrid`, `EmptyState`), `TextField` / `TextArea` / `SelectField` / `FilterSelect` / `Filters` / `FormGrid`, `Note`, `Modal`, `Toast`, `MenuButton`, `ThemeToggle`, `PageHeader`.
+
+| Écran du prototype | Route web | Rôles | État |
+|---|---|---|---|
+| vSeasons | `/admin/saisons` | admin | ✅ fait |
+| vDash | `/admin` | admin | en-tête fait, KPI à venir |
+| vCats, vCourts, vCoaches | `/admin/categories`, `/admin/terrains`, `/admin/entraineurs` | admin | à faire |
+| vPlayers, vParents, vGroups | `/admin/joueurs`, `/admin/parents`, `/admin/groupes` | admin | à faire |
+| vAres, vCtar | `/admin/reservations`, `/admin/tarifs-terrains` | admin | à faire |
+| vApay, vFees | `/admin/paiements`, `/admin/tarifs` | admin | à faire |
+| vSal, vMails, vAudit | `/admin/salaires`, `/admin/emails`, `/admin/audit` | admin | à faire |
+| vLogin / vChangePw | `/connexion`, `/mot-de-passe` | tous | à faire |
+| vHome, vPay, vSes, vAbs, vBook | `/`, `/paiements`, `/seances`, `/absences`, `/reserver` | joueur, parent | après le mobile |
+| vCSes, vCSal | `/coach/seances`, `/coach/salaires` | coach | après le mobile |
+
+- Quand tu construis un écran : ouvre sa fonction dans le prototype, liste les éléments visibles, construis-les, puis compare (captures prototype / application) et liste les écarts avant de conclure.

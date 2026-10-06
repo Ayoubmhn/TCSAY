@@ -1,81 +1,66 @@
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
-import { Card, CardGrid, CardSubtitle, CardTitle } from '../../components/ui/Card';
-import { FilterSelect } from '../../components/ui/Field';
+import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
+import { Filters, FilterSelect } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { Pill, type PillTone } from '../../components/ui/Pill';
+import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import {
   LOCKED_STATUSES,
-  STATUS_LABEL,
-  TRANSITIONS,
+  STATUS,
+  seasonAction,
   useArchiveSeason,
   useSeasons,
   type Season,
+  type SeasonAction,
   type SeasonStatus,
 } from './api';
 import { SeasonFormModal } from './SeasonFormModal';
-import { SeasonStatusModal, statusActionLabel } from './SeasonStatusModal';
+import { SeasonStatusModal } from './SeasonStatusModal';
 
-const STATUS_TONE: Record<SeasonStatus, PillTone> = {
-  ACTIVE: 'green',
-  DRAFT: 'sand',
-  CLOSED: 'blue',
-  HISTORICAL: 'blue',
+type CardProps = {
+  season: Season;
+  onAction: (action: SeasonAction) => void;
+  onEdit: () => void;
+  onArchive: () => void;
 };
 
-function SeasonCard({
-  season,
-  onEdit,
-  onStatus,
-  onArchive,
-}: {
-  season: Season;
-  onEdit: () => void;
-  onStatus: (to: SeasonStatus) => void;
-  onArchive: () => void;
-}) {
+function SeasonCard({ season, onAction, onEdit, onArchive }: CardProps) {
+  const { label, tone, text } = STATUS[season.status];
   const archived = Boolean(season.archivedAt);
-  const locked = LOCKED_STATUSES.includes(season.status);
+  const editable = !archived && !LOCKED_STATUSES.includes(season.status);
+  const action = seasonAction(season.status);
 
   return (
-    <Card className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <CardTitle>Saison {season.label}</CardTitle>
-          <CardSubtitle>{locked ? 'Verrouillée' : 'Modifiable'}</CardSubtitle>
-        </div>
-        {archived ? <Pill tone="rose">Archivée</Pill> : <Pill tone={STATUS_TONE[season.status]}>{STATUS_LABEL[season.status]}</Pill>}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Pill tone="blue">Du {formatDate(season.startDate)}</Pill>
-        <Pill tone="blue">Au {formatDate(season.endDate)}</Pill>
-      </div>
-
-      {!archived && (
-        <div className="mt-auto flex flex-wrap gap-2">
-          {TRANSITIONS[season.status].map((to) => (
-            <Button key={to} variant={to === 'ACTIVE' ? 'primary' : 'secondary'} onClick={() => onStatus(to)} className="px-4 py-2">
-              {statusActionLabel(season.status, to)}
-            </Button>
-          ))}
-          {!locked && (
-            <Button onClick={onEdit} className="px-4 py-2">
-              Modifier
-            </Button>
-          )}
-          {season.status !== 'ACTIVE' && (
-            <Button variant="ghost" onClick={onArchive} className="px-4 py-2">
-              Archiver
-            </Button>
-          )}
-        </div>
-      )}
+    <Card>
+      <CardRow>
+        <h3>Saison {season.label}</h3>
+        <Pill tone={tone}>{label}</Pill>
+      </CardRow>
+      <Pills>
+        <Pill tone="b">Du {formatDate(season.startDate)}</Pill>
+        <Pill tone="b">Au {formatDate(season.endDate)}</Pill>
+      </Pills>
+      <CardText>{text}</CardText>
+      <CardActions>
+        {archived ? (
+          <Pill tone="s">Archivée</Pill>
+        ) : (
+          <>
+            <Button onClick={() => onAction(action)}>{action.label}</Button>
+            {editable && <Button onClick={onEdit}>Modifier</Button>}
+            {editable && season.status !== 'ACTIVE' && (
+              <Button variant="danger" onClick={onArchive}>
+                Archiver
+              </Button>
+            )}
+          </>
+        )}
+      </CardActions>
     </Card>
   );
 }
@@ -90,7 +75,7 @@ export function SeasonsPage() {
   });
 
   const [form, setForm] = useState<{ open: boolean; season?: Season }>({ open: false });
-  const [statusChange, setStatusChange] = useState<{ season?: Season; target?: SeasonStatus }>({});
+  const [pending, setPending] = useState<{ season?: Season; action?: SeasonAction }>({});
   const [toArchive, setToArchive] = useState<Season>();
   const archive = useArchiveSeason();
 
@@ -98,7 +83,7 @@ export function SeasonsPage() {
     if (!toArchive) return;
     try {
       await archive.mutateAsync({ id: toArchive.id, version: toArchive.version });
-      toast(`Saison ${toArchive.label} archivée.`);
+      toast('Saison archivée.');
       setToArchive(undefined);
     } catch (err) {
       toast(errorMessage(err));
@@ -109,20 +94,20 @@ export function SeasonsPage() {
     <>
       <PageHeader
         title="Saisons"
-        subtitle="Découvrez vos saisons"
+        subtitle="Découvrez les saisons du club, de l’historique à la prochaine."
         action={
           <Button variant="primary" onClick={() => setForm({ open: true })}>
-            Nouvelle saison
+            + Nouvelle saison
           </Button>
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
+      <Filters>
         <FilterSelect label="Filtrer par statut" value={status} onChange={(e) => setStatus(e.target.value as SeasonStatus | '')}>
           <option value="">Tous les statuts</option>
-          {(Object.keys(STATUS_LABEL) as SeasonStatus[]).map((s) => (
+          {(Object.keys(STATUS) as SeasonStatus[]).map((s) => (
             <option key={s} value={s}>
-              {STATUS_LABEL[s]}
+              {STATUS[s].label}
             </option>
           ))}
         </FilterSelect>
@@ -135,63 +120,59 @@ export function SeasonsPage() {
           <option value="all">Avec les archivées</option>
         </FilterSelect>
         {seasons && (
-          <span className="text-sm text-mut">
+          <Pill tone="b">
             {seasons.length} saison{seasons.length > 1 ? 's' : ''}
-          </span>
+          </Pill>
+        )}
+      </Filters>
+
+      <div className="mt-2.5">
+        {isPending && <EmptyState>Chargement…</EmptyState>}
+        {isError && (
+          <EmptyState>
+            <p className="mt-0">{errorMessage(error)}</p>
+            <Button onClick={() => refetch()}>Réessayer</Button>
+          </EmptyState>
+        )}
+        {seasons?.length === 0 && <EmptyState>Aucune saison.</EmptyState>}
+        {seasons && seasons.length > 0 && (
+          <CardGrid>
+            {seasons.map((season) => (
+              <SeasonCard
+                key={season.id}
+                season={season}
+                onAction={(action) => setPending({ season, action })}
+                onEdit={() => setForm({ open: true, season })}
+                onArchive={() => setToArchive(season)}
+              />
+            ))}
+          </CardGrid>
         )}
       </div>
 
-      {isPending && <p className="text-mut">Chargement…</p>}
-
-      {isError && (
-        <Card className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm">{errorMessage(error)}</p>
-          <Button onClick={() => refetch()}>Réessayer</Button>
-        </Card>
-      )}
-
-      {seasons?.length === 0 && (
-        <Card className="text-center">
-          <CardTitle>Aucune saison</CardTitle>
-          <p className="mt-1 text-sm text-mut">Créez la première saison du club.</p>
-        </Card>
-      )}
-
-      {seasons && seasons.length > 0 && (
-        <CardGrid>
-          {seasons.map((season) => (
-            <SeasonCard
-              key={season.id}
-              season={season}
-              onEdit={() => setForm({ open: true, season })}
-              onStatus={(target) => setStatusChange({ season, target })}
-              onArchive={() => setToArchive(season)}
-            />
-          ))}
-        </CardGrid>
-      )}
-
       <Note>
-        Une seule saison peut être active à la fois. Une saison clôturée ou historique est verrouillée : sa réouverture
-        exige un motif. Supprimer une saison l’archive, ses données restent conservées.
+        Une seule saison active (R2). Saison clôturée ou historique verrouillée ; réouverture par l’admin avec motif (R1).
+        Suppression = <b>archivage</b> (R8).
       </Note>
 
       <SeasonFormModal open={form.open} season={form.season} onClose={() => setForm({ open: false })} />
-      <SeasonStatusModal season={statusChange.season} target={statusChange.target} onClose={() => setStatusChange({})} />
+      <SeasonStatusModal season={pending.season} action={pending.action} onClose={() => setPending({})} />
       <Modal
         open={Boolean(toArchive)}
-        title={`Archiver la saison ${toArchive?.label ?? ''} ?`}
+        title="Archiver cette saison ?"
         onClose={() => setToArchive(undefined)}
         footer={
           <>
             <Button onClick={() => setToArchive(undefined)}>Annuler</Button>
-            <Button variant="primary" onClick={confirmArchive} disabled={archive.isPending}>
+            <Button variant="primary" data-primary onClick={confirmArchive} disabled={archive.isPending}>
               Archiver
             </Button>
           </>
         }
       >
-        <p className="text-sm text-mut">La saison n’apparaîtra plus dans les listes. Ses données sont conservées.</p>
+        <p className="m-0 text-mut">
+          La saison {toArchive?.label} sera archivée, pas supprimée (R8). Elle n’apparaîtra plus dans les listes.
+        </p>
       </Modal>
     </>
   );

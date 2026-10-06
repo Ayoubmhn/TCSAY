@@ -1,63 +1,62 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { TextArea } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
-import { STATUS_LABEL, isReopening, useChangeSeasonStatus, type Season, type SeasonStatus } from './api';
+import { STATUS, useChangeSeasonStatus, type Season, type SeasonAction } from './api';
 
-const ACTION_TEXT: Record<SeasonStatus, string> = {
-  ACTIVE: 'Activer',
-  CLOSED: 'Clôturer',
-  HISTORICAL: 'Passer en historique',
-  DRAFT: 'Repasser en brouillon',
+const TEXTS: Record<SeasonAction['kind'], { title: string; text: string; cta: string; done: string }> = {
+  activate: {
+    title: 'Activer la saison',
+    text: 'Elle deviendra la saison en cours : inscriptions et paiements ouverts. Une seule saison peut être active (R2).',
+    cta: 'Activer',
+    done: 'Saison activée.',
+  },
+  close: {
+    title: 'Clôturer la saison',
+    text: 'Elle sera verrouillée (R1). Aucune modification ne sera possible sans réouverture motivée.',
+    cta: 'Clôturer',
+    done: 'Saison clôturée.',
+  },
+  reopen: {
+    title: 'Rouvrir la saison',
+    text: 'La réouverture est tracée dans le journal d’audit (R1).',
+    cta: 'Rouvrir',
+    done: 'Saison rouverte. Motif enregistré.',
+  },
 };
 
-const CONSEQUENCE: Record<SeasonStatus, string> = {
-  ACTIVE: 'Elle deviendra la saison en cours. Une seule saison peut être active.',
-  CLOSED: 'Elle sera verrouillée : plus aucune modification sans réouverture motivée.',
-  HISTORICAL: 'Elle sera verrouillée et réservée à l’historique du club.',
-  DRAFT: 'Elle redeviendra modifiable.',
-};
+type Props = { season?: Season; action?: SeasonAction; onClose: () => void };
 
-export function statusActionLabel(from: SeasonStatus, to: SeasonStatus): string {
-  return isReopening(from, to) ? (to === 'ACTIVE' ? 'Rouvrir' : 'Rouvrir en brouillon') : ACTION_TEXT[to];
-}
-
-type Props = { season?: Season; target?: SeasonStatus; onClose: () => void };
-
-/** Confirmation d'un changement de statut ; motif obligatoire en cas de réouverture (R1). */
-export function SeasonStatusModal({ season, target, onClose }: Props) {
+/** Confirmation d'un changement de statut (confirmBox du prototype), motif obligatoire pour une réouverture. */
+export function SeasonStatusModal({ season, action, onClose }: Props) {
   const toast = useToast();
   const change = useChangeSeasonStatus();
-  const [reason, setReason] = useState('');
-  const [error, setError] = useState<string>();
-  const open = Boolean(season && target);
-  const needsReason = Boolean(season && target && isReopening(season.status, target));
+  const [motif, setMotif] = useState('');
+  const open = Boolean(season && action);
 
   useEffect(() => {
-    if (open) {
-      setReason('');
-      setError(undefined);
-    }
+    if (open) setMotif('');
   }, [open]);
 
-  if (!season || !target) return null;
+  if (!season || !action) return null;
+  const t = TEXTS[action.kind];
+  const withMotif = action.kind === 'reopen';
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (needsReason && !reason.trim()) {
-      setError('Motif obligatoire pour une réouverture');
+  const confirm = async () => {
+    if (withMotif && !motif.trim()) {
+      toast('Le motif est obligatoire.');
       return;
     }
     try {
       await change.mutateAsync({
         id: season.id,
-        status: target,
+        status: action.target,
         version: season.version,
-        reason: reason.trim() || undefined,
+        reason: motif.trim() || undefined,
       });
-      toast(`Saison ${season.label} : ${STATUS_LABEL[target].toLowerCase()}.`);
+      toast(action.kind === 'reopen' ? `${t.done} Statut : ${STATUS[action.target].label.toLowerCase()}.` : t.done);
       onClose();
     } catch (err) {
       toast(errorMessage(err));
@@ -67,33 +66,21 @@ export function SeasonStatusModal({ season, target, onClose }: Props) {
   return (
     <Modal
       open={open}
-      title={`${statusActionLabel(season.status, target)} la saison ${season.label} ?`}
+      title={`${t.title} ${season.label} ?`}
       onClose={onClose}
       footer={
         <>
           <Button onClick={onClose}>Annuler</Button>
-          <Button variant="primary" type="submit" form="season-status-form" disabled={change.isPending}>
-            Confirmer
+          <Button variant="primary" data-primary onClick={confirm} disabled={change.isPending}>
+            {t.cta}
           </Button>
         </>
       }
     >
-      <form id="season-status-form" noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
-        <p className="text-sm text-mut">{CONSEQUENCE[target]}</p>
-        {needsReason && (
-          <TextArea
-            label="Motif de réouverture"
-            placeholder="Ex. correction des inscriptions de juin"
-            value={reason}
-            maxLength={500}
-            error={error}
-            onChange={(e) => {
-              setReason(e.target.value);
-              setError(undefined);
-            }}
-          />
-        )}
-      </form>
+      <p className="m-0 text-mut">{t.text}</p>
+      {withMotif && (
+        <TextArea label="Motif (obligatoire)" value={motif} maxLength={500} onChange={(e) => setMotif(e.target.value)} />
+      )}
     </Modal>
   );
 }

@@ -1,88 +1,64 @@
-import { forwardRef, useId, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from 'react';
 
-const CONTROL =
-  'w-full rounded-[20px] border-[1.5px] border-transparent bg-fld px-4 py-2.5 text-[15px] text-fg placeholder:text-mut focus:border-pri focus:outline-none aria-[invalid=true]:border-pill-rose';
-
-function Wrapper({ id, label, error, children }: { id: string; label: string; error?: string; children: ReactNode }) {
+/** Libellé de formulaire (label.lb) : 12px 500 gris, champ en dessous. */
+function Label({ label, full, children }: { label: string; full?: boolean; children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-xs font-medium text-mut">
-        {label}
-      </label>
+    <label className={`flex flex-col gap-1.5 text-xs font-medium text-mut ${full ? 'col-span-full' : ''}`}>
+      {label}
       {children}
-      {error && (
-        <p
-          id={`${id}-error`}
-          role="alert"
-          className="self-start rounded-full bg-pill-rose px-2.5 py-0.5 text-[11px] font-medium text-pill-ink"
-        >
-          {error}
-        </p>
-      )}
-    </div>
+    </label>
   );
 }
 
-type InputProps = InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string };
+type Common = { label: string; full?: boolean };
 
-export const TextField = forwardRef<HTMLInputElement, InputProps>(({ label, error, id, ...props }, ref) => {
-  const autoId = useId();
-  const fieldId = id ?? autoId;
-  return (
-    <Wrapper id={fieldId} label={label} error={error}>
-      <input
-        ref={ref}
-        id={fieldId}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${fieldId}-error` : undefined}
-        className={CONTROL}
-        {...props}
-      />
-    </Wrapper>
-  );
-});
+export const TextField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & Common>(
+  ({ label, full, className = '', ...props }, ref) => (
+    <Label label={label} full={full}>
+      <input ref={ref} className={`fld text-[15px] text-fg ${className}`} {...props} />
+    </Label>
+  ),
+);
 
-type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & { label: string; error?: string };
+export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & Common>(
+  ({ label, full, className = '', rows = 2, ...props }, ref) => (
+    <Label label={label} full={full}>
+      <textarea ref={ref} rows={rows} className={`fld resize-none text-[15px] text-fg ${className}`} {...props} />
+    </Label>
+  ),
+);
 
-export const TextArea = forwardRef<HTMLTextAreaElement, TextareaProps>(({ label, error, id, ...props }, ref) => {
-  const autoId = useId();
-  const fieldId = id ?? autoId;
-  return (
-    <Wrapper id={fieldId} label={label} error={error}>
-      <textarea
-        ref={ref}
-        id={fieldId}
-        rows={3}
-        aria-invalid={Boolean(error)}
-        aria-describedby={error ? `${fieldId}-error` : undefined}
-        className={`${CONTROL} resize-none`}
-        {...props}
-      />
-    </Wrapper>
-  );
-});
-
-type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string };
-
-export const SelectField = forwardRef<HTMLSelectElement, SelectProps>(({ label, error, id, children, ...props }, ref) => {
-  const autoId = useId();
-  const fieldId = id ?? autoId;
-  return (
-    <Wrapper id={fieldId} label={label} error={error}>
-      <select ref={ref} id={fieldId} aria-invalid={Boolean(error)} className={CONTROL} {...props}>
+export const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement> & Common>(
+  ({ label, full, className = '', children, ...props }, ref) => (
+    <Label label={label} full={full}>
+      <select ref={ref} className={`sel text-[15px] text-fg ${className}`} {...props}>
         {children}
       </select>
-    </Wrapper>
-  );
-});
+    </Label>
+  ),
+);
 
-/** Filtre de liste : select gris arrondi, libellé accessible mais masqué. */
+/** Select de filtre (.sel) : libellé accessible via aria-label. */
 export function FilterSelect({ label, className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
+  return <select aria-label={label} className={`sel text-fg ${className}`} {...props} />;
+}
+
+/** Barre de filtres (.filters). */
+export function Filters({ children }: { children: ReactNode }) {
+  return <div className="mt-5 mb-1.5 flex flex-wrap items-center gap-2.5">{children}</div>;
+}
+
+/** Formulaire en deux colonnes (.form), une colonne sous 520px. */
+export function FormGrid({ children, ...props }: React.FormHTMLAttributes<HTMLFormElement>) {
   return (
-    <select
-      aria-label={label}
-      className={`rounded-[20px] bg-fld px-4 py-2.5 text-sm font-medium text-fg focus:outline-none focus-visible:outline-2 focus-visible:outline-pri ${className}`}
-      {...props}
-    />
+    <form noValidate className="grid grid-cols-1 gap-3 min-[521px]:grid-cols-2" {...props}>
+      {children}
+    </form>
   );
 }

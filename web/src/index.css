@@ -1,11 +1,11 @@
 @import 'tailwindcss';
 
-/* ───── Jetons TCSAY (source : docs/TCSAY_design_system.md) ───── */
+/* ───── Jetons TCSAY : copie exacte du prototype docs/tcsay-prototype-v4.html ───── */
 :root {
   --bg: #fafafa;
   --fg: #1a1a1a;
   --mut: #8a8a8f;
-  --card: #ffffff;
+  --card: #fff;
   --line: #e6e6ea;
   --fld: #f3f4f8;
   --btn: #ebebeb;
@@ -14,29 +14,61 @@
   --dr: #f7f8fb;
   --day: #f1f2f6;
   --paid: #e9f7e1;
-  --due: #ffe8e8;
-  color-scheme: light;
+  --topay: #ffe8e8;
+  --pb: #c9e9fb;
+  --pg: #dff3a8;
+  --pr: #fdb3b0;
+  --ps: #f0d9a8;
+  --ink: #111;
+  --veil: rgba(0, 0, 0, 0.45);
+  --toggle: #222;
+  --font: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --bg: #121212;
     --fg: #f2f2f2;
     --mut: #9a9aa0;
     --card: #1c1c1e;
-    --line: #333333;
+    --line: #333;
     --fld: #26272b;
     --btn: #2e2e32;
     --dr: #17181b;
     --day: #2a2b30;
     --paid: #1f2e1a;
-    --due: #3a2224;
+    --topay: #3a2224;
+    --veil: rgba(0, 0, 0, 0.6);
+    --toggle: #f2f2f2;
     color-scheme: dark;
   }
 }
 
+:root[data-theme='dark'] {
+  --bg: #121212;
+  --fg: #f2f2f2;
+  --mut: #9a9aa0;
+  --card: #1c1c1e;
+  --line: #333;
+  --fld: #26272b;
+  --btn: #2e2e32;
+  --dr: #17181b;
+  --day: #2a2b30;
+  --paid: #1f2e1a;
+  --topay: #3a2224;
+  --veil: rgba(0, 0, 0, 0.6);
+  --toggle: #f2f2f2;
+  color-scheme: dark;
+}
+
+/* Point de rupture du menu : tiroir jusqu'à 860px inclus. */
+@theme {
+  --breakpoint-nav: 861px;
+}
+
+/* Exposition à Tailwind : bg-card, text-mut, border-line, bg-pg, text-ink… */
 @theme inline {
-  --font-sans: 'Montserrat', system-ui, sans-serif;
+  --font-sans: var(--font);
 
   --color-bg: var(--bg);
   --color-fg: var(--fg);
@@ -50,31 +82,115 @@
   --color-dr: var(--dr);
   --color-day: var(--day);
   --color-paid: var(--paid);
-  --color-due: var(--due);
-
-  /* Pastilles : texte toujours #111 */
-  --color-pill-ink: #111111;
-  --color-pill-blue: #c9e9fb;
-  --color-pill-green: #dff3a8;
-  --color-pill-rose: #fdb3b0;
-  --color-pill-sand: #f0d9a8;
+  --color-topay: var(--topay);
+  --color-pb: var(--pb);
+  --color-pg: var(--pg);
+  --color-pr: var(--pr);
+  --color-ps: var(--ps);
+  --color-ink: var(--ink);
+  --color-veil: var(--veil);
+  --color-toggle: var(--toggle);
 }
 
 @layer base {
-  html {
-    font-size: 15px;
+  html,
+  body,
+  #root {
+    height: 100%;
   }
   body {
-    @apply bg-bg text-fg font-sans antialiased;
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
   }
-  h1 {
-    @apply text-[23px] font-semibold leading-tight md:text-[27px];
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
   }
-  :focus-visible {
-    outline: 2px solid var(--pri);
-    outline-offset: 2px;
+  button {
+    cursor: pointer;
   }
   button:disabled {
     cursor: not-allowed;
+  }
+  :focus-visible {
+    outline: 2.5px solid var(--pri);
+    outline-offset: 2px;
+  }
+  h1 {
+    font-size: 27px;
+    font-weight: 600;
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 18px;
+    font-weight: 500;
+    margin: 0;
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0;
+  }
+  @media (max-width: 860px) {
+    h1 {
+      font-size: 23px;
+    }
+  }
+}
+
+@layer components {
+  /* Select gris arrondi avec chevron (.sel du prototype) */
+  .sel {
+    appearance: none;
+    background-color: var(--fld);
+    border: 0;
+    border-radius: 22px;
+    padding: 11px 40px 11px 16px;
+    min-width: 0;
+    max-width: 100%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a8a8f' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+  }
+  /* Champ (.fld du prototype) */
+  .fld {
+    appearance: none;
+    background: var(--fld);
+    border: 0;
+    border-radius: 22px;
+    padding: 11px 16px;
+    width: 100%;
+    min-width: 0;
+  }
+  .fld::placeholder {
+    color: var(--mut);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.toast-in {
+  animation: toast-in 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast-in {
+    animation: none;
+  }
+  .drawer {
+    transition: none !important;
   }
 }

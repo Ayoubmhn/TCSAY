@@ -1,14 +1,16 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { IconButton } from './Button';
 
 type Props = {
   open: boolean;
   title: string;
   onClose: () => void;
   children: ReactNode;
+  /** Boutons alignés à droite (Annuler + action). */
   footer?: ReactNode;
 };
 
-/** Modale : rayon 28px, voile sombre, fermeture par Échap ou clic sur le voile, focus piégé simplement. */
+/** Modale (.ov + .modal) : voile --veil, 540px max, rayon 28px, Échap / clic voile pour fermer, focus piégé. */
 export function Modal({ open, title, onClose, children, footer }: Props) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -20,7 +22,7 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
-    const first = panel?.querySelector<HTMLElement>('input, select, textarea, button:not([data-close])');
+    const first = panel?.querySelector<HTMLElement>('input, select, textarea, [data-primary]');
     (first ?? panel)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -53,32 +55,24 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-4 sm:items-center" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-veil p-4" onMouseDown={onClose}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="w-full max-w-md rounded-[28px] bg-card p-6"
+        className="flex max-h-[88vh] w-full max-w-[540px] flex-col gap-3.5 overflow-y-auto rounded-[28px] bg-card p-6"
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <h2 id={titleId} className="text-lg font-medium">
-            {title}
-          </h2>
-          <button
-            type="button"
-            data-close
-            aria-label="Fermer"
-            onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-btn text-mut hover:text-fg"
-          >
+        <div className="flex items-center justify-between gap-2.5">
+          <h2 id={titleId}>{title}</h2>
+          <IconButton aria-label="Fermer" onClick={onClose}>
             ✕
-          </button>
+          </IconButton>
         </div>
         {children}
-        {footer && <div className="mt-6 flex flex-wrap justify-end gap-2">{footer}</div>}
+        {footer && <div className="flex flex-wrap justify-end gap-1.5">{footer}</div>}
       </div>
     </div>
   );

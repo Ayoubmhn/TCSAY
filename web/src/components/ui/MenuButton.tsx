@@ -1,4 +1,4 @@
-/** Bouton menu : carré 46px, rayon 14px, 4 points en grille 2×2. */
+/** Bouton menu (.mbtn) : carré 46px, rayon 15px, fond --btn, 4 points 7px en grille 2×2. Visible sous 860px. */
 export function MenuButton({ onClick, expanded }: { onClick: () => void; expanded: boolean }) {
   return (
     <button
@@ -6,10 +6,10 @@ export function MenuButton({ onClick, expanded }: { onClick: () => void; expande
       onClick={onClick}
       aria-label={expanded ? 'Fermer le menu' : 'Ouvrir le menu'}
       aria-expanded={expanded}
-      className="grid h-[46px] w-[46px] grid-cols-2 place-content-center gap-1.5 rounded-[14px] border-[1.5px] border-line bg-card"
+      className="grid h-[46px] w-[46px] grid-cols-[repeat(2,7px)] place-content-center gap-[5px] rounded-[15px] bg-btn nav:hidden"
     >
       {[0, 1, 2, 3].map((i) => (
-        <span key={i} className="h-[6px] w-[6px] rounded-full bg-fg" />
+        <i key={i} className="h-[7px] w-[7px] rounded-full bg-fg" />
       ))}
     </button>
   );
