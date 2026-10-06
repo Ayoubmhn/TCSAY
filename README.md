@@ -4,7 +4,7 @@ Plateforme de gestion du club : réservations de terrains, cotisations, groupes,
 
 ## Structure
 - `api/` : API NestJS + Prisma 5 + PostgreSQL (Swagger sur `/api/docs`, préfixe `/api/v1`)
-- `web/` : application React (à venir, sprint 1)
+- `web/` : application React (Vite, Tailwind v4), espace administrateur en cours
 - `docs/` : design system et prototype
 - `docker-compose.yml` : PostgreSQL 16, Redis, Mailpit
 
@@ -16,4 +16,9 @@ cp .env.example .env
 npm install
 npx prisma migrate dev          # applique les migrations
 npm run start:dev               # http://localhost:3000/api/docs
+
+# dans un second terminal
+cd web
+npm install
+npm run dev                     # http://localhost:5173/admin (proxy /api → :3000)
 ```

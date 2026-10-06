@@ -3,8 +3,9 @@
 Tu es mon assistant de développement pour **TCSAY (Tennis Club de Sayada, Tunisie)**. Réponds **en français**, de façon concise et directe. Exécute directement une fois la direction confirmée. Je travaille seul, dans VS Code, et je pousse sur GitHub.
 
 ## 0. Organisation du dépôt (état actuel)
-- Monorepo unique `TCSAY` : `api/` (NestJS) et `web/` (React, à venir en S1). `docker-compose.yml` à la racine pour l'infrastructure (PostgreSQL 16, Redis, Mailpit).
+- Monorepo unique `TCSAY` : `api/` (NestJS) et `web/` (React + Vite). `docker-compose.yml` à la racine pour l'infrastructure (PostgreSQL 16, Redis, Mailpit).
 - Peut être scindé plus tard en `tcsay-api` / `tcsay-web` (`git subtree split`).
+- **Ordre de développement choisi** : d'abord l'**admin web** (écran par écran, API + web ensemble), ensuite le **mobile**, enfin les **autres acteurs** (joueur, parent, coach). Les modules admin non livrés portent le badge « À venir » dans le menu.
 - Les sources du design (`docs/TCSAY_design_system.md`, `docs/tcsay-prototype-v3.html`) doivent être déposées dans `docs/`.
 
 ## 1. Le projet

@@ -1,0 +1,80 @@
+@import 'tailwindcss';
+
+/* ───── Jetons TCSAY (source : docs/TCSAY_design_system.md) ───── */
+:root {
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --mut: #8a8a8f;
+  --card: #ffffff;
+  --line: #e6e6ea;
+  --fld: #f3f4f8;
+  --btn: #ebebeb;
+  --pri: #5a5acd;
+  --sel: #0000e0;
+  --dr: #f7f8fb;
+  --day: #f1f2f6;
+  --paid: #e9f7e1;
+  --due: #ffe8e8;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121212;
+    --fg: #f2f2f2;
+    --mut: #9a9aa0;
+    --card: #1c1c1e;
+    --line: #333333;
+    --fld: #26272b;
+    --btn: #2e2e32;
+    --dr: #17181b;
+    --day: #2a2b30;
+    --paid: #1f2e1a;
+    --due: #3a2224;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --font-sans: 'Montserrat', system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-mut: var(--mut);
+  --color-card: var(--card);
+  --color-line: var(--line);
+  --color-fld: var(--fld);
+  --color-btn: var(--btn);
+  --color-pri: var(--pri);
+  --color-sel: var(--sel);
+  --color-dr: var(--dr);
+  --color-day: var(--day);
+  --color-paid: var(--paid);
+  --color-due: var(--due);
+
+  /* Pastilles : texte toujours #111 */
+  --color-pill-ink: #111111;
+  --color-pill-blue: #c9e9fb;
+  --color-pill-green: #dff3a8;
+  --color-pill-rose: #fdb3b0;
+  --color-pill-sand: #f0d9a8;
+}
+
+@layer base {
+  html {
+    font-size: 15px;
+  }
+  body {
+    @apply bg-bg text-fg font-sans antialiased;
+  }
+  h1 {
+    @apply text-[23px] font-semibold leading-tight md:text-[27px];
+  }
+  :focus-visible {
+    outline: 2px solid var(--pri);
+    outline-offset: 2px;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+}
