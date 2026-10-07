@@ -10,16 +10,17 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { Season } from '@prisma/client';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { Role, Season } from '@prisma/client';
+import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { ChangeSeasonStatusDto } from './dto/change-season-status.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
 import { QuerySeasonsDto } from './dto/query-seasons.dto';
 import { UpdateSeasonDto } from './dto/update-season.dto';
 import { SeasonsService } from './seasons.service';
 
-// TODO S1 : réserver la création, la modification et l'archivage à l'admin (@Roles).
 @ApiTags('Saisons')
+@ApiBearerAuth()
 @Controller('seasons')
 export class SeasonsController {
   constructor(private readonly seasons: SeasonsService) {}
@@ -44,32 +45,42 @@ export class SeasonsController {
 
   @Post()
   @ApiOperation({ summary: 'Créer une saison (brouillon ou historique)' })
-  create(@Body() dto: CreateSeasonDto): Promise<Season> {
-    return this.seasons.create(dto);
+  @Roles(Role.ADMIN)
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateSeasonDto): Promise<Season> {
+    return this.seasons.create(user.id, dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Modifier une saison (R1, R13)' })
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSeasonDto): Promise<Season> {
-    return this.seasons.update(id, dto);
+  @Roles(Role.ADMIN)
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateSeasonDto,
+  ): Promise<Season> {
+    return this.seasons.update(user.id, id, dto);
   }
 
   @Post(':id/status')
   @ApiOperation({ summary: 'Changer le statut : activer, clôturer, rouvrir avec motif (R1, R2, R13)' })
+  @Roles(Role.ADMIN)
   changeStatus(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ChangeSeasonStatusDto,
   ): Promise<Season> {
-    return this.seasons.changeStatus(id, dto);
+    return this.seasons.changeStatus(user.id, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Archiver une saison (R8, R13)' })
   @ApiQuery({ name: 'version', type: Number, description: 'Version lue avant archivage (R13)' })
+  @Roles(Role.ADMIN)
   archive(
+    @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Query('version', ParseIntPipe) version: number,
   ): Promise<Season> {
-    return this.seasons.archive(id, version);
+    return this.seasons.archive(user.id, id, version);
   }
 }

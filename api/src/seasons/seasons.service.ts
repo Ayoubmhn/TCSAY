@@ -2,10 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, Season, SeasonStatus } from '@prisma/client';
+import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ChangeSeasonStatusDto } from './dto/change-season-status.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
@@ -30,11 +30,29 @@ const STATUS_LABEL: Record<SeasonStatus, string> = {
   HISTORICAL: 'historique',
 };
 
+/** Libellés pour le journal d'audit. */
+const STATUS_NAME: Record<SeasonStatus, string> = {
+  DRAFT: 'Brouillon',
+  ACTIVE: 'Active',
+  CLOSED: 'Clôturée',
+  HISTORICAL: 'Historique',
+};
+
+const STATUS_ACTION: Record<SeasonStatus, string> = {
+  DRAFT: 'Saison repassée en brouillon',
+  ACTIVE: 'Saison activée',
+  CLOSED: 'Saison clôturée',
+  HISTORICAL: 'Saison passée en historique',
+};
+
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
 @Injectable()
 export class SeasonsService {
-  private readonly logger = new Logger(SeasonsService.name);
-
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   findAll(query: QuerySeasonsDto): Promise<Season[]> {
     return this.prisma.season.findMany({
@@ -60,11 +78,11 @@ export class SeasonsService {
     return season;
   }
 
-  create(dto: CreateSeasonDto): Promise<Season> {
+  async create(userId: string, dto: CreateSeasonDto): Promise<Season> {
     const startDate = toDate(dto.startDate);
     const endDate = toDate(dto.endDate);
     assertDateRange(startDate, endDate);
-    return this.prisma.season.create({
+    const season = await this.prisma.season.create({
       data: {
         label: dto.label.trim(),
         startDate,
@@ -72,9 +90,17 @@ export class SeasonsService {
         status: dto.status ?? SeasonStatus.DRAFT,
       },
     });
+    await this.audit.log(userId, {
+      action: 'Saison créée',
+      entity: 'Season',
+      entityId: season.id,
+      target: season.label,
+      after: STATUS_NAME[season.status],
+    });
+    return season;
   }
 
-  async update(id: string, dto: UpdateSeasonDto): Promise<Season> {
+  async update(userId: string, id: string, dto: UpdateSeasonDto): Promise<Season> {
     const season = await this.findOne(id);
     assertNotArchived(season);
     if (LOCKED.includes(season.status)) {
@@ -88,14 +114,23 @@ export class SeasonsService {
     const endDate = dto.endDate ? toDate(dto.endDate) : season.endDate;
     assertDateRange(startDate, endDate);
 
-    return this.writeWithVersion(id, dto.version, {
+    const updated = await this.writeWithVersion(id, dto.version, {
       label: dto.label?.trim(),
       startDate,
       endDate,
     });
+    await this.audit.log(userId, {
+      action: 'Saison modifiée',
+      entity: 'Season',
+      entityId: id,
+      target: updated.label,
+      before: `${season.label} · ${iso(season.startDate)} → ${iso(season.endDate)}`,
+      after: `${updated.label} · ${iso(updated.startDate)} → ${iso(updated.endDate)}`,
+    });
+    return updated;
   }
 
-  async changeStatus(id: string, dto: ChangeSeasonStatusDto): Promise<Season> {
+  async changeStatus(userId: string, id: string, dto: ChangeSeasonStatusDto): Promise<Season> {
     return this.prisma.$transaction(
       async (tx) => {
         const season = await tx.season.findUnique({ where: { id } });
@@ -137,9 +172,18 @@ export class SeasonsService {
           data: { status: to, version: { increment: 1 } },
         });
 
-        // TODO S1 : écrire dans le journal d'audit (utilisateur, avant, après, motif).
-        this.logger.log(
-          `Saison ${season.label} : ${from} → ${to}${dto.reason ? ` (motif : ${dto.reason})` : ''}`,
+        await this.audit.log(
+          userId,
+          {
+            action: reopening ? 'Saison rouverte' : STATUS_ACTION[to],
+            entity: 'Season',
+            entityId: id,
+            target: season.label,
+            before: STATUS_NAME[from],
+            after: STATUS_NAME[to],
+            reason: dto.reason,
+          },
+          tx,
         );
         return updated;
       },
@@ -149,14 +193,23 @@ export class SeasonsService {
   }
 
   /** R8 : suppression = archivage. Une saison active ne peut pas être archivée. */
-  async archive(id: string, version: number): Promise<Season> {
+  async archive(userId: string, id: string, version: number): Promise<Season> {
     const season = await this.findOne(id);
     assertNotArchived(season);
     assertVersion(season, version);
     if (season.status === SeasonStatus.ACTIVE) {
       throw new ConflictException('R8 · Impossible d’archiver la saison active : clôturez-la d’abord.');
     }
-    return this.writeWithVersion(id, version, { archivedAt: new Date() });
+    const archived = await this.writeWithVersion(id, version, { archivedAt: new Date() });
+    await this.audit.log(userId, {
+      action: 'Saison archivée',
+      entity: 'Season',
+      entityId: id,
+      target: season.label,
+      before: STATUS_NAME[season.status],
+      after: 'Archivée',
+    });
+    return archived;
   }
 
   /** R13 : écriture conditionnée à la version lue ; incrémente la version. */

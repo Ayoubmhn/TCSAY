@@ -1,0 +1,198 @@
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { AccessService } from '../access/access.service';
+import { AccountsService } from '../accounts/accounts.service';
+import { AuditService } from '../audit/audit.service';
+import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { ageAtYearEnd } from '../common/dates';
+import { assertVersion, fullName, notFound, rule } from '../common/rules';
+import { PrismaService } from '../prisma/prisma.service';
+
+class CreateParentDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Prénom obligatoire.' })
+  @MaxLength(60)
+  firstName: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Nom obligatoire.' })
+  @MaxLength(60)
+  lastName: string;
+
+  @IsEmail({}, { message: 'Email invalide.' })
+  email: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
+}
+
+class UpdateParentDto {
+  @IsInt()
+  @Min(1)
+  version: number;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(60)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  phone?: string;
+}
+
+class LinkDto {
+  @IsUUID()
+  playerId: string;
+}
+
+@ApiTags('Parents')
+@ApiBearerAuth()
+@Roles(Role.ADMIN)
+@Controller('parents')
+export class ParentsController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accounts: AccountsService,
+    private readonly access: AccessService,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  async list() {
+    const parents = await this.prisma.user.findMany({
+      where: { role: Role.PARENT },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      include: {
+        parentLinks: {
+          where: { player: { archivedAt: null } },
+          include: { player: { select: { id: true, firstName: true, lastName: true } } },
+        },
+      },
+    });
+    return parents.map((p) => ({
+      id: p.id,
+      firstName: p.firstName,
+      lastName: p.lastName,
+      email: p.email,
+      phone: p.phone,
+      isActive: p.isActive,
+      version: p.version,
+      players: p.parentLinks.map((l) => l.player),
+    }));
+  }
+
+  @Post()
+  async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateParentDto) {
+    const { user, password } = await this.prisma.$transaction(async (tx) => {
+      const created = await this.accounts.create(tx, { ...dto, role: Role.PARENT });
+      await this.audit.log(
+        actor.id,
+        { action: 'Parent créé', entity: 'User', entityId: created.user.id, target: fullName(created.user) },
+        tx,
+      );
+      return created;
+    });
+    await this.accounts.sendCredentials(user, password);
+    return { id: user.id, email: user.email };
+  }
+
+  @Patch(':id')
+  async update(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateParentDto) {
+    const parent = await this.find(id);
+    assertVersion(parent, dto.version, 'Ce parent');
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        firstName: dto.firstName?.trim(),
+        lastName: dto.lastName?.trim(),
+        phone: dto.phone?.trim(),
+        version: { increment: 1 },
+      },
+    });
+    await this.audit.log(actor.id, {
+      action: 'Parent modifié',
+      entity: 'User',
+      entityId: id,
+      target: fullName(updated),
+      before: `${fullName(parent)} · ${parent.phone ?? '—'}`,
+      after: `${fullName(updated)} · ${updated.phone ?? '—'}`,
+    });
+    return { ok: true };
+  }
+
+  @Post(':id/links')
+  async link(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: LinkDto) {
+    const parent = await this.find(id);
+    const player = await this.prisma.player.findUnique({ where: { id: dto.playerId } });
+    if (!player || player.archivedAt) throw notFound('Joueur');
+    await this.prisma.parentLink.upsert({
+      where: { parentId_playerId: { parentId: id, playerId: player.id } },
+      create: { parentId: id, playerId: player.id },
+      update: {},
+    });
+    await this.audit.log(actor.id, {
+      action: 'Joueur lié à un parent',
+      entity: 'ParentLink',
+      entityId: `${id}|${player.id}`,
+      target: `${fullName(parent)} → ${fullName(player)}`,
+    });
+    return { ok: true };
+  }
+
+  /** R9 : un mineur garde toujours au moins un parent lié. */
+  @Delete(':id/links/:playerId')
+  async unlink(
+    @CurrentUser() actor: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('playerId', ParseUUIDPipe) playerId: string,
+  ) {
+    const parent = await this.find(id);
+    const player = await this.prisma.player.findUnique({ where: { id: playerId }, include: { parentLinks: true } });
+    if (!player) throw notFound('Joueur');
+    if (!player.parentLinks.some((l) => l.parentId === id)) throw notFound('Lien');
+    const season = await this.access.activeSeason().catch(() => null);
+    const year = season?.startDate.getUTCFullYear() ?? new Date().getFullYear();
+    if (ageAtYearEnd(player.birthDate, year) < 18 && player.parentLinks.length <= 1) {
+      throw rule.conflict('R9', `${player.firstName} est mineur : il doit garder au moins un parent lié.`);
+    }
+    await this.prisma.parentLink.delete({ where: { parentId_playerId: { parentId: id, playerId } } });
+    await this.audit.log(actor.id, {
+      action: 'Lien parent retiré',
+      entity: 'ParentLink',
+      entityId: `${id}|${playerId}`,
+      target: `${fullName(parent)} → ${fullName(player)}`,
+    });
+    return { ok: true };
+  }
+
+  @Post(':id/deactivate')
+  async deactivate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    await this.find(id);
+    return this.accounts.setActive(actor.id, id, false);
+  }
+
+  @Post(':id/activate')
+  async activate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    await this.find(id);
+    return this.accounts.setActive(actor.id, id, true);
+  }
+
+  private async find(id: string) {
+    const parent = await this.prisma.user.findUnique({ where: { id } });
+    if (!parent || parent.role !== Role.PARENT) throw notFound('Parent');
+    return parent;
+  }
+}

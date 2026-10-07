@@ -1,0 +1,89 @@
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Role } from '@prisma/client';
+import { IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { rule } from '../common/rules';
+import { PaymentsService } from './payments.service';
+
+class InstallmentsQuery {
+  @IsOptional()
+  @IsUUID()
+  seasonId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  playerId?: string;
+}
+
+class CashDto {
+  @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Saisissez un montant positif.' })
+  @Min(0.001, { message: 'Saisissez un montant positif.' })
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  note?: string;
+}
+
+class MembershipDto {
+  @IsUUID()
+  playerId: string;
+
+  @IsOptional()
+  @IsUUID()
+  seasonId?: string;
+}
+
+/** Cotisations : C, R, U (pas de D) ; paiements : C (espèces) et R seulement (R7). Coach : 403. */
+@ApiTags('Cotisations et paiements')
+@ApiBearerAuth()
+@Controller()
+export class PaymentsController {
+  constructor(private readonly payments: PaymentsService) {}
+
+  @Get('installments')
+  @Roles(Role.ADMIN, Role.PLAYER, Role.PARENT)
+  installments(@CurrentUser() user: AuthUser, @Query() q: InstallmentsQuery) {
+    return this.payments.installments(user, q.seasonId, q.playerId);
+  }
+
+  @Post('installments/:id/payments')
+  @Roles(Role.ADMIN)
+  cash(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CashDto) {
+    return this.payments.cash(user, id, dto.amount, dto.note);
+  }
+
+  @Post('installments/:id/remind')
+  @Roles(Role.ADMIN)
+  remind(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    return this.payments.remind(user, id);
+  }
+
+  @Post('memberships')
+  @Roles(Role.ADMIN)
+  createMembership(@CurrentUser() user: AuthUser, @Body() dto: MembershipDto) {
+    return this.payments.createMembership(user, dto.playerId, dto.seasonId);
+  }
+
+  @Get('payments')
+  @Roles(Role.ADMIN)
+  list(@Query() q: InstallmentsQuery) {
+    return this.payments.payments(q.seasonId);
+  }
+
+  /** R7 : un paiement encaissé n'est jamais modifié. */
+  @Patch('payments/:id')
+  @Roles(Role.ADMIN)
+  update() {
+    throw rule.conflict('R7', 'Un paiement encaissé ne peut pas être modifié. Créez un remboursement ou une écriture corrective.');
+  }
+
+  /** R7 : un paiement encaissé n'est jamais supprimé. */
+  @Delete('payments/:id')
+  @Roles(Role.ADMIN)
+  remove() {
+    throw rule.conflict('R7', 'Un paiement encaissé ne peut pas être supprimé. Créez un remboursement ou une écriture corrective.');
+  }
+}

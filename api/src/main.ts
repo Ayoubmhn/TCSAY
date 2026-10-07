@@ -19,9 +19,12 @@ async function bootstrap(): Promise<void> {
   const config = new DocumentBuilder()
     .setTitle('TCSAY API')
     .setDescription('API du Tennis Club de Sayada')
-    .setVersion('0.0.1')
+    .setVersion('0.1.0')
+    .addBearerAuth()
     .build();
-  SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, config));
+  SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, config), {
+    swaggerOptions: { persistAuthorization: true },
+  });
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
