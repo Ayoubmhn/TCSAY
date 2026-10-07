@@ -5,12 +5,14 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
+import { useI18n } from '../../lib/i18n';
 
 /** Libellé de formulaire (label.lb) : 12px 500 gris, champ en dessous. */
 function Label({ label, full, children }: { label: string; full?: boolean; children: ReactNode }) {
+  const { t } = useI18n();
   return (
     <label className={`flex flex-col gap-1.5 text-xs font-medium text-mut ${full ? 'col-span-full' : ''}`}>
-      {label}
+      {t(label)}
       {children}
     </label>
   );
@@ -46,7 +48,8 @@ export const SelectField = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HT
 
 /** Select de filtre (.sel) : libellé accessible via aria-label. */
 export function FilterSelect({ label, className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string }) {
-  return <select aria-label={label} className={`sel text-fg ${className}`} {...props} />;
+  const { t } = useI18n();
+  return <select aria-label={t(label)} className={`sel text-fg ${className}`} {...props} />;
 }
 
 /** Barre de filtres (.filters). */

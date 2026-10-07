@@ -1,3 +1,4 @@
+import { useI18n } from '../../lib/i18n';
 /** Bascule en capsule grise (.seg), option active en --toggle. */
 export function Segmented<T extends string>({
   options,
@@ -10,8 +11,9 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   label: string;
 }) {
+  const { t } = useI18n();
   return (
-    <div role="group" aria-label={label} className="inline-flex rounded-full bg-btn p-1">
+    <div role="group" aria-label={t(label)} className="inline-flex rounded-full bg-btn p-1">
       {options.map((o) => (
         <button
           key={o.value}
@@ -20,7 +22,7 @@ export function Segmented<T extends string>({
           onClick={() => onChange(o.value)}
           className={`rounded-full px-4 py-[7px] text-sm font-medium ${o.value === value ? 'bg-toggle text-bg' : 'text-fg'}`}
         >
-          {o.label}
+          {t(o.label)}
         </button>
       ))}
     </div>

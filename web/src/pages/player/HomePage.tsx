@@ -84,7 +84,7 @@ export function HomePage() {
                     </div>
                   </>
                 )}
-                <div className="absolute -right-1.5 -bottom-1.5 grid h-[78px] w-[78px] place-items-center rounded-full bg-bg">
+                <div className="absolute -end-1.5 -bottom-1.5 grid h-[78px] w-[78px] place-items-center rounded-full bg-bg">
                   <Link
                     to="/seances"
                     aria-label="Voir mes séances"

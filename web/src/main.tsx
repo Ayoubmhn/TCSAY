@@ -6,9 +6,11 @@ import { App } from './App';
 import { AuthProvider } from './auth/AuthContext';
 import { applyStoredTheme } from './components/ui/ThemeToggle';
 import { ToastProvider } from './components/ui/Toast';
+import { applyLang, I18nProvider } from './lib/i18n';
 import './index.css';
 
 applyStoredTheme();
+applyLang();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
@@ -17,6 +19,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
+      <I18nProvider>
       <ToastProvider>
         <AuthProvider>
           <BrowserRouter>
@@ -24,6 +27,7 @@ createRoot(document.getElementById('root')!).render(
           </BrowserRouter>
         </AuthProvider>
       </ToastProvider>
+      </I18nProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

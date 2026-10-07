@@ -3,6 +3,7 @@ import { Button } from './Button';
 import { TextArea } from './Field';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
+import { useTr } from '../../lib/i18n';
 
 /** Confirmation (confirmBox du prototype) : texte, motif obligatoire éventuel, Annuler / action. */
 export function ConfirmModal({
@@ -25,6 +26,7 @@ export function ConfirmModal({
   onClose: () => void;
 }) {
   const toast = useToast();
+  const tr = useTr();
   const [motif, setMotif] = useState('');
   useEffect(() => {
     if (open) setMotif('');
@@ -52,7 +54,7 @@ export function ConfirmModal({
         </>
       }
     >
-      <p className="m-0 text-mut">{text}</p>
+      <p className="m-0 text-mut">{tr(text)}</p>
       {withMotif && <TextArea label="Motif (obligatoire)" value={motif} maxLength={300} onChange={(e) => setMotif(e.target.value)} />}
     </Modal>
   );

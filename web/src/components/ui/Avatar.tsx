@@ -17,7 +17,7 @@ export function BigAvatar({ first, last }: { first: string; last?: string }) {
       className="relative grid h-[68px] w-[60px] flex-none place-items-center rounded-[22px] bg-pb text-xl font-semibold text-ink"
     >
       {initials(first, last)}
-      <span className="absolute -right-[3px] bottom-1.5 h-3.5 w-3.5 rounded-full border-[3px] border-bg bg-[#3aa84a]" />
+      <span className="absolute -end-[3px] bottom-1.5 h-3.5 w-3.5 rounded-full border-[3px] border-bg bg-[#3aa84a]" />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { useAuth, useMe } from '../auth/AuthContext';
 import { Avatar } from '../components/ui/Avatar';
 import { Brand } from '../components/ui/Brand';
-import { IconChevron, IconLogout, IconMail } from '../components/ui/Icons';
+import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
 import { MenuButton } from '../components/ui/MenuButton';
 import { Badge } from '../components/ui/Pill';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
+import { useI18n } from '../lib/i18n';
 import { firstPath, isGroup, MENUS, type MenuItem } from './menus';
 
 const CLOSED_KEY = 'tcsay-menu-closed';
@@ -36,11 +37,12 @@ function useClosedGroups() {
   return { closed, toggle, open };
 }
 
-const ROW = 'flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3 text-left font-medium';
+const ROW = 'flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3 text-start font-medium';
 
 /** Lien de premier niveau : icône + libellé ; actif = fond gris et barre à gauche. */
 function TopLink({ item, end, onNavigate }: { item: Extract<MenuItem, { path: string }>; end: boolean; onNavigate?: () => void }) {
   const Icon = item.icon;
+  const { t } = useI18n();
   return (
     <NavLink
       to={item.path}
@@ -50,9 +52,9 @@ function TopLink({ item, end, onNavigate }: { item: Extract<MenuItem, { path: st
     >
       {({ isActive }) => (
         <>
-          {isActive && <span aria-hidden="true" className="absolute left-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-fg/40" />}
+          {isActive && <span aria-hidden="true" className="absolute start-2 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-full bg-fg/40" />}
           <Icon />
-          <span className="flex-1">{item.label}</span>
+          <span className="flex-1">{t(item.label)}</span>
           {item.soon && <Badge>À venir</Badge>}
         </>
       )}
@@ -73,6 +75,7 @@ function Group({
   onNavigate?: () => void;
 }) {
   const Icon = item.icon;
+  const { t } = useI18n();
   const id = `menu-${item.label.replace(/\W+/g, '-')}`;
   return (
     <div>
@@ -84,11 +87,11 @@ function Group({
         className={`${ROW} ${open ? 'bg-fld' : 'hover:bg-fld'} text-fg`}
       >
         <Icon />
-        <span className="flex-1">{item.label}</span>
+        <span className="flex-1">{t(item.label)}</span>
         <IconChevron open={open} size={18} />
       </button>
       {open && (
-        <ul id={id} className="mt-1 mb-1.5 ml-[26px] flex flex-col border-l-[1.5px] border-line pl-3">
+        <ul id={id} className="mt-1 mb-1.5 ms-[26px] flex flex-col border-s-[1.5px] border-line ps-3">
           {item.children.map((child) => (
             <li key={child.path}>
               <NavLink
@@ -102,7 +105,7 @@ function Group({
                 {({ isActive }) => (
                   <>
                     <span aria-hidden="true" className={`h-1.5 w-1.5 flex-none rounded-full ${isActive ? 'bg-pri' : 'bg-mut/50'}`} />
-                    <span className="flex-1">{child.label}</span>
+                    <span className="flex-1">{t(child.label)}</span>
                     {child.soon && <Badge>À venir</Badge>}
                   </>
                 )}
@@ -119,6 +122,7 @@ function Group({
 function SideContent({ onNavigate }: { onNavigate?: () => void }) {
   const me = useMe();
   const { logout } = useAuth();
+  const { t } = useI18n();
   const { pathname } = useLocation();
   const menu = MENUS[me.role];
   const home = firstPath(menu);
@@ -135,9 +139,9 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
       <Brand />
       {/* Seule la liste défile : la carte utilisateur reste visible en bas. */}
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-1 [scrollbar-width:thin]">
-      <div className="px-2.5 text-xs font-semibold tracking-[0.12em] text-mut">MAIN</div>
+      <div className="px-2.5 text-xs font-semibold tracking-[0.12em] text-mut">{t('MAIN')}</div>
 
-      <nav className="flex flex-col gap-1" aria-label="Navigation">
+      <nav className="flex flex-col gap-1" aria-label={t('Navigation')}>
         {menu.map((item) =>
           isGroup(item) ? (
             <Group
@@ -163,14 +167,23 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
           </b>
           <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-mut">
             <IconMail size={14} />
-            <span className="truncate">{me.email}</span>
+            <span className="truncate">{me.email ?? me.cin}</span>
           </span>
         </div>
+        <Link
+          to="/parametres"
+          onClick={onNavigate}
+          aria-label={t('Paramètres')}
+          title={t('Paramètres')}
+          className="grid h-10 w-10 flex-none place-items-center rounded-[14px] text-mut hover:bg-fld hover:text-fg"
+        >
+          <IconSettings />
+        </Link>
         <button
           type="button"
           onClick={logout}
-          aria-label="Déconnexion"
-          title="Déconnexion"
+          aria-label={t('Déconnexion')}
+          title={t('Déconnexion')}
           className="grid h-10 w-10 flex-none place-items-center rounded-[14px] text-mut hover:bg-fld hover:text-fg"
         >
           <IconLogout />
@@ -180,12 +193,13 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-const SIDE = 'flex flex-col gap-[18px] overflow-hidden border-r-[1.5px] border-line bg-dr px-4 py-[22px]';
+const SIDE = 'flex flex-col gap-[18px] overflow-hidden border-e-[1.5px] border-line bg-dr px-4 py-[22px]';
 
 /** Shell (.app) : menu 266px + zone principale ; tiroir 268px avec voile sous 860px. */
 export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
+  const { t } = useI18n();
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -201,7 +215,7 @@ export function AppShell() {
 
   return (
     <div className="grid min-h-full grid-cols-1 nav:grid-cols-[266px_minmax(0,1fr)]">
-      <aside aria-label="Menu principal" className={`${SIDE} sticky top-0 hidden h-screen nav:flex`}>
+      <aside aria-label={t('Menu principal')} className={`no-print ${SIDE} sticky top-0 hidden h-screen nav:flex`}>
         <SideContent />
       </aside>
 
@@ -211,17 +225,17 @@ export function AppShell() {
         className={`fixed inset-0 z-[39] bg-veil nav:hidden ${drawerOpen ? 'block' : 'hidden'}`}
       />
       <aside
-        aria-label="Menu principal"
+        aria-label={t('Menu principal')}
         inert={!drawerOpen}
-        className={`drawer ${SIDE} fixed inset-y-0 left-0 z-40 w-[268px] pt-[calc(22px+env(safe-area-inset-top,0px))] transition-transform duration-250 ease-in-out nav:hidden ${
-          drawerOpen ? 'translate-x-0' : '-translate-x-[105%]'
+        className={`no-print drawer ${SIDE} fixed inset-y-0 start-0 z-40 w-[268px] pt-[calc(22px+env(safe-area-inset-top,0px))] transition-transform duration-250 ease-in-out nav:hidden ${
+          drawerOpen ? 'translate-x-0' : '-translate-x-[105%] rtl:translate-x-[105%]'
         }`}
       >
         <SideContent onNavigate={() => setDrawerOpen(false)} />
       </aside>
 
-      <main className="min-w-0 px-[clamp(16px,3.5vw,40px)] pt-[22px] pb-[60px]">
-        <div className="mb-[22px] flex items-center gap-3">
+      <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-[22px] pb-[60px]">
+        <div className="no-print mb-[22px] flex items-center gap-3">
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
           <span className="flex-1" />
           <ThemeToggle />

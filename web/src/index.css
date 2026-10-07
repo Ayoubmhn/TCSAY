@@ -194,3 +194,36 @@
     transition: none !important;
   }
 }
+
+/* Impression : seule la page utile (fiche A4, compte rendu) ; menu, en-tête et boutons masqués. */
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .print-main {
+    padding: 0 !important;
+  }
+  .print-area {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    overflow: visible !important;
+  }
+  .a4-sheet {
+    width: 210mm;
+    height: 297mm;
+    min-height: 0;
+    overflow: hidden;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

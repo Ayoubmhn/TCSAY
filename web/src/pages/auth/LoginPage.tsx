@@ -9,6 +9,7 @@ import { Pill } from '../../components/ui/Pill';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
+import { LANGS, useI18n } from '../../lib/i18n';
 
 /** Comptes du seed de démonstration (affichés en développement seulement). */
 const DEMO = [
@@ -21,6 +22,7 @@ const DEMO = [
 
 export function LoginPage() {
   const { me, login } = useAuth();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const toast = useToast();
   const [email, setEmail] = useState('');
@@ -50,9 +52,10 @@ export function LoginPage() {
     <div className="grid min-h-full place-items-center px-4 py-6">
       <div className="flex w-full max-w-[460px] flex-col gap-[18px]">
         <Brand />
+        <LangSwitch />
         <div>
-          <h1>Connexion</h1>
-          <p className="mt-1 text-mut">Les comptes sont créés par l’administrateur du club.</p>
+          <h1>{t('Connexion')}</h1>
+          <p className="mt-1 text-mut">{t('Les comptes sont créés par l’administrateur du club.')}</p>
         </div>
         <Card className="gap-3">
           <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
@@ -91,7 +94,7 @@ export function LoginPage() {
                   type="button"
                   disabled={pending}
                   onClick={() => submit(undefined, d)}
-                  className="flex flex-col gap-1 rounded-[24px] border-[1.5px] border-line bg-card p-4 text-left hover:border-pri"
+                  className="flex flex-col gap-1 rounded-[24px] border-[1.5px] border-line bg-card p-4 text-start hover:border-pri"
                 >
                   <b className="font-semibold">{d.label}</b>
                   <small className="text-[12.5px] text-mut">{d.hint}</small>
@@ -105,6 +108,26 @@ export function LoginPage() {
           <ThemeToggle />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Choix de la langue avant connexion (FR / EN / AR). */
+function LangSwitch() {
+  const { lang, setLang } = useI18n();
+  return (
+    <div role="group" aria-label="Langue" className="flex gap-1.5">
+      {LANGS.map((l) => (
+        <button
+          key={l.value}
+          type="button"
+          aria-pressed={lang === l.value}
+          onClick={() => setLang(l.value)}
+          className={`rounded-full px-3 py-1.5 text-[12.5px] font-medium ${lang === l.value ? 'bg-toggle text-bg' : 'bg-btn text-fg'}`}
+        >
+          {l.label}
+        </button>
+      ))}
     </div>
   );
 }

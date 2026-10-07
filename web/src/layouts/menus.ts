@@ -69,6 +69,7 @@ export const MENUS: Record<Role, MenuItem[]> = {
         { label: 'Parents', path: '/admin/parents' },
         { label: 'Entraîneurs', path: '/admin/entraineurs' },
         { label: 'Personnel', path: '/admin/personnel' },
+        { label: 'Fiche d’inscription (A4)', path: '/admin/fiche-inscription' },
       ],
     },
     {

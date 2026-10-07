@@ -18,7 +18,9 @@ export function SlotLine({ slot, showDay = true }: { slot: Slot; showDay?: boole
     <div className="flex flex-wrap items-center gap-1.5">
       <Pill tone="b">
         {showDay ? `${DAY_NAMES[slot.day]} ` : ''}
-        {slot.startTime}–{slot.endTime}
+        <span dir="ltr">
+          {slot.startTime}–{slot.endTime}
+        </span>
       </Pill>
       {slot.court && <Pill tone="g">{slot.court.name}</Pill>}
       {slot.coaches.length ? slot.coaches.map((c) => <CoachChip key={c.id} coach={c} />) : <Pill tone="s">Entraîneur à affecter</Pill>}

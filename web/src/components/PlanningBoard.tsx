@@ -71,7 +71,9 @@ export function PlanningBoard({ planning }: { planning: Planning }) {
                         s.coaches.slice(1).map((c) => (
                           <span key={c.id} aria-hidden="true" className="h-2 w-2 flex-none rounded-full ring-1 ring-black/30" style={{ background: c.color }} />
                         ))}
-                      {s.startTime}–{s.endTime}
+                      <span dir="ltr">
+                        {s.startTime}–{s.endTime}
+                      </span>
                     </span>
                   </div>
                 );
@@ -85,7 +87,7 @@ export function PlanningBoard({ planning }: { planning: Planning }) {
                   style={{ gridRow: row, gridColumn: `${col(x.startTime)} / ${col(x.endTime)}` }}
                 >
                   <b className="truncate text-[12px] font-semibold leading-tight">{x.type === 'PRIVATE' ? 'Séance privée' : 'Réservé'}</b>
-                  <span className="truncate text-[11px] leading-tight">{x.player ?? x.coach?.name ?? '—'}</span>
+                  <span dir="ltr" className="truncate text-[11px] leading-tight">{x.player ?? x.coach?.name ?? '—'}</span>
                 </div>
               ))}
             </div>

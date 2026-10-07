@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { IconButton } from './Button';
+import { useI18n } from '../../lib/i18n';
 
 type Props = {
   open: boolean;
@@ -13,6 +14,7 @@ type Props = {
 /** Modale (.ov + .modal) : voile --veil, 540px max, rayon 28px, Échap / clic voile pour fermer, focus piégé. */
 export function Modal({ open, title, onClose, children, footer }: Props) {
   const titleId = useId();
+  const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
   // Référence stable : l'effet ne dépend que de « open » (sinon le focus sauterait à chaque rendu).
   const onCloseRef = useRef(onClose);
@@ -66,7 +68,7 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2.5">
-          <h2 id={titleId}>{title}</h2>
+          <h2 id={titleId}>{t(title)}</h2>
           <IconButton aria-label="Fermer" onClick={onClose}>
             ✕
           </IconButton>

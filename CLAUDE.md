@@ -124,9 +124,11 @@ Calcul de la catégorie (âge atteint ou année de naissance, date de référenc
 | vFees, vCtar, vAres, vSal, vApay, vMails, vAudit | `/admin/tarifs`, `/admin/tarifs-terrains`, `/admin/reservations`, `/admin/salaires`, `/admin/paiements`, `/admin/emails`, `/admin/audit` | admin | ✅ |
 | Profils (clic sur un nom), Personnel, Absences des entraîneurs | `/admin/joueurs/:id`, `/admin/parents/:id`, `/admin/entraineurs/:id`, `/admin/personnel(/:id)`, `/admin/absences` | admin | ✅ |
 | Mes absences (coach) ; Planning, Historique des actions, Mes salaires (personnel) | `/coach/absences` ; `/staff/planning`, `/staff/historique`, `/staff/salaires` | coach ; STAFF | ✅ |
+| Paramètres (compte en lecture seule, mot de passe, langue FR / EN / AR avec RTL, thème) ; fiche d’inscription A4 | `/parametres` ; `/admin/fiche-inscription` | tous ; admin | ✅ |
 | Import historique, Historique des tournois | `/admin/import`, `/tournois` | admin / joueur | « À venir » |
 
 - **Socle livré** (base, API, web) : chaque module se reprend ensuite écran par écran. Écarts connus : pas encore de fabrique CRUD générique (§8, contrôleurs dédiés à la place), paiement en ligne et reçus PDF (S6), import IA (S9), mobile (S10–S11).
+- **Langues** : `web/src/lib/i18n.tsx` (dictionnaire fait main, le texte français sert de clé ; texte absent = reste en français). Les composants `ui` traduisent leurs libellés simples ; l’arabe met `dir="rtl"` sur `<html>` : utiliser les classes logiques (`ms-`, `ps-`, `start-`, `border-s`, `text-start`).
 - **Comptes de démo** (seed) : `admin@tcsay.tn` / `admin1234` ; `sana.benali@exemple.tn`, `omar.trabelsi@exemple.tn`, `iheb@exemple.tn` (coach), `agent@tcsay.tn` (personnel)… / `temporaire` ; connexion par email ou CIN (changement obligatoire). `npx prisma db seed` **vide puis recharge** la base.
 
 - Quand tu construis un écran : ouvre sa fonction dans le prototype, liste les éléments visibles, construis-les, puis compare (captures prototype / application) et liste les écarts avant de conclure.

@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from 'react';
+import { useI18n, useTr } from '../../lib/i18n';
 
 type Variant = 'primary' | 'secondary' | 'danger';
 
@@ -14,23 +15,28 @@ const VARIANTS: Record<Variant, string> = {
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant };
 
 /** Bouton pilule (rayon 99px), reproduit .btn / .btn2 / .btn2.danger du prototype. */
-export function Button({ variant = 'secondary', className = '', type = 'button', ...props }: Props) {
+export function Button({ variant = 'secondary', className = '', type = 'button', children, ...props }: Props) {
+  const tr = useTr();
   return (
     <button
       type={type}
       className={`inline-flex items-center justify-center gap-2 rounded-full disabled:opacity-45 ${VARIANTS[variant]} ${className}`}
       {...props}
-    />
+    >
+      {tr(children)}
+    </button>
   );
 }
 
 /** Bouton icône carré arrondi 42px (.ico du prototype). aria-label obligatoire. */
 export function IconButton({ className = '', type = 'button', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { 'aria-label': string }) {
+  const { t } = useI18n();
   return (
     <button
       type={type}
       className={`grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[15px] bg-btn text-[17px] ${className}`}
       {...props}
+      aria-label={t(props['aria-label'])}
     />
   );
 }

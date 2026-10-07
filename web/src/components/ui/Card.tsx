@@ -1,4 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import { useTr } from '../../lib/i18n';
 
 /** Carte (.card) : fond --card, bordure 1,5px, rayon 26px, padding 18px, colonne gap 10px, sans ombre. */
 export function Card({ className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
@@ -17,7 +18,8 @@ export function CardRow({ children }: { children: ReactNode }) {
 
 /** Sous-titre de carte (.cs) : 13px 600 gris. */
 export function CardSubtitle({ children }: { children: ReactNode }) {
-  return <span className="text-[13px] font-semibold text-mut">{children}</span>;
+  const tr = useTr();
+  return <span className="text-[13px] font-semibold text-mut">{tr(children)}</span>;
 }
 
 /** Texte secondaire 13px gris. */
@@ -46,7 +48,8 @@ export function CardGrid({ children, className = '' }: { children: ReactNode; cl
 
 /** État vide (.empty) : bordure pointillée. */
 export function EmptyState({ children }: { children: ReactNode }) {
+  const tr = useTr();
   return (
-    <div className="rounded-[24px] border-[1.5px] border-dashed border-line p-7 text-center text-mut">{children}</div>
+    <div className="rounded-[24px] border-[1.5px] border-dashed border-line p-7 text-center text-mut">{tr(children)}</div>
   );
 }

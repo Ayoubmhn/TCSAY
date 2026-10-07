@@ -1,6 +1,12 @@
 /** Formats français. Les jours calendaires (« AAAA-MM-JJ ») sont lus en UTC pour éviter tout décalage. */
 
 const TZ_DAY = 'UTC';
+
+/** Langue des dates (suit la langue choisie ; chiffres latins en arabe, comme en Tunisie). */
+let LOCALE = 'fr-FR';
+export function setDateLocale(lang: 'fr' | 'en' | 'ar'): void {
+  LOCALE = lang === 'en' ? 'en-GB' : lang === 'ar' ? 'ar-TN-u-nu-latn' : 'fr-FR';
+}
 const TZ_CLUB = 'Africa/Tunis';
 
 function dayDate(iso: string): Date {
@@ -9,7 +15,7 @@ function dayDate(iso: string): Date {
 
 /** « mer. 7 oct. » (fD du prototype) ; options Intl personnalisables. */
 export function fD(iso: string, options: Intl.DateTimeFormatOptions = { weekday: 'short', day: 'numeric', month: 'short' }): string {
-  return dayDate(iso).toLocaleDateString('fr-FR', { ...options, timeZone: TZ_DAY });
+  return dayDate(iso).toLocaleDateString(LOCALE, { ...options, timeZone: TZ_DAY });
 }
 
 /** « 01/09/2025 » */

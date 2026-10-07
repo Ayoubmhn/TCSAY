@@ -17,6 +17,7 @@ import { GroupsPage } from './pages/admin/GroupsPage';
 import { ParentsPage } from './pages/admin/ParentsPage';
 import { PaymentsAdminPage } from './pages/admin/PaymentsAdminPage';
 import { PlayersPage } from './pages/admin/PlayersPage';
+import { RegistrationFormPage } from './pages/admin/RegistrationFormPage';
 import { CoachProfilePage, ParentProfilePage, PlayerProfilePage, StaffProfilePage } from './pages/admin/ProfilePages';
 import { StaffPage } from './pages/admin/StaffPage';
 import { ReservationsAdminPage } from './pages/admin/ReservationsAdminPage';
@@ -31,6 +32,7 @@ import { AbsencesPage } from './pages/player/AbsencesPage';
 import { HomePage } from './pages/player/HomePage';
 import { PaymentsPage } from './pages/player/PaymentsPage';
 import { SessionsPage } from './pages/player/SessionsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
 
@@ -66,6 +68,9 @@ export function App() {
           </Protected>
         }
       >
+        {/* Tous les rôles */}
+        <Route path="parametres" element={<SettingsPage />} />
+
         {/* Joueur / parent */}
         <Route index element={<Protected roles={PLAYER}><HomePage /></Protected>} />
         <Route path="paiements" element={<Protected roles={PLAYER}><PaymentsPage /></Protected>} />
@@ -100,6 +105,7 @@ export function App() {
         <Route path="admin/parents/:id" element={<Protected roles={['ADMIN']}><ParentProfilePage /></Protected>} />
         <Route path="admin/entraineurs" element={<Protected roles={['ADMIN']}><CoachesPage /></Protected>} />
         <Route path="admin/entraineurs/:id" element={<Protected roles={['ADMIN']}><CoachProfilePage /></Protected>} />
+        <Route path="admin/fiche-inscription" element={<Protected roles={['ADMIN']}><RegistrationFormPage /></Protected>} />
         <Route path="admin/personnel" element={<Protected roles={['ADMIN']}><StaffPage /></Protected>} />
         <Route path="admin/personnel/:id" element={<Protected roles={['ADMIN']}><StaffProfilePage /></Protected>} />
         <Route path="admin/absences" element={<Protected roles={['ADMIN']}><CoachAbsencesPage admin /></Protected>} />
