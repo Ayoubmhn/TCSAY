@@ -1,0 +1,11 @@
+{
+  "files.eol": "\n",
+  "editor.tabSize": 2,
+  "typescript.tsdk": "web/node_modules/typescript/lib",
+  "files.associations": { "*.css": "tailwindcss" },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "docs/tcsay-prototype-v4.html": true
+  }
+}
