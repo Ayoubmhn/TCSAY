@@ -6,9 +6,9 @@
   "scripts": {
     "prebuild": "prisma generate",
     "build": "nest build",
-    "prestart": "prisma generate",
+    "prestart": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
     "start": "nest start",
-    "prestart:dev": "prisma generate",
+    "prestart:dev": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
     "start:dev": "nest start --watch",
     "db:update": "prisma migrate deploy && prisma generate && prisma db seed",
     "start:prod": "node dist/main",
