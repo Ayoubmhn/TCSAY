@@ -4,9 +4,13 @@
   "private": true,
   "description": "API du Tennis Club de Sayada",
   "scripts": {
+    "prebuild": "prisma generate",
     "build": "nest build",
+    "prestart": "prisma generate",
     "start": "nest start",
+    "prestart:dev": "prisma generate",
     "start:dev": "nest start --watch",
+    "db:update": "prisma migrate deploy && prisma generate && prisma db seed",
     "start:prod": "node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prisma:generate": "prisma generate",
