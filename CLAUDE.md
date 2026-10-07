@@ -122,9 +122,11 @@ Calcul de la catégorie (âge atteint ou année de naissance, date de référenc
 | vCSes, vCSal, vBook | `/coach/seances`, `/coach/salaires`, `/coach/reserver` | coach | ✅ |
 | vDash, vPlayers, vParents, vCoaches, vGroups, vCourts, vCats, vSeasons | `/admin`, `/admin/joueurs`, `/admin/parents`, `/admin/entraineurs`, `/admin/groupes`, `/admin/terrains`, `/admin/categories`, `/admin/saisons` | admin | ✅ |
 | vFees, vCtar, vAres, vSal, vApay, vMails, vAudit | `/admin/tarifs`, `/admin/tarifs-terrains`, `/admin/reservations`, `/admin/salaires`, `/admin/paiements`, `/admin/emails`, `/admin/audit` | admin | ✅ |
+| Profils (clic sur un nom), Personnel, Absences des entraîneurs | `/admin/joueurs/:id`, `/admin/parents/:id`, `/admin/entraineurs/:id`, `/admin/personnel(/:id)`, `/admin/absences` | admin | ✅ |
+| Mes absences (coach) ; Planning, Historique des actions, Mes salaires (personnel) | `/coach/absences` ; `/staff/planning`, `/staff/historique`, `/staff/salaires` | coach ; STAFF | ✅ |
 | Import historique, Historique des tournois | `/admin/import`, `/tournois` | admin / joueur | « À venir » |
 
 - **Socle livré** (base, API, web) : chaque module se reprend ensuite écran par écran. Écarts connus : pas encore de fabrique CRUD générique (§8, contrôleurs dédiés à la place), paiement en ligne et reçus PDF (S6), import IA (S9), mobile (S10–S11).
-- **Comptes de démo** (seed) : `admin@tcsay.tn` / `admin1234` ; `sana.benali@exemple.tn`, `omar.trabelsi@exemple.tn`, `mehdi.gharbi@exemple.tn`… / `temporaire` (changement obligatoire). `npx prisma db seed` **vide puis recharge** la base.
+- **Comptes de démo** (seed) : `admin@tcsay.tn` / `admin1234` ; `sana.benali@exemple.tn`, `omar.trabelsi@exemple.tn`, `iheb@exemple.tn` (coach), `agent@tcsay.tn` (personnel)… / `temporaire` ; connexion par email ou CIN (changement obligatoire). `npx prisma db seed` **vide puis recharge** la base.
 
 - Quand tu construis un écran : ouvre sa fonction dans le prototype, liste les éléments visibles, construis-les, puis compare (captures prototype / application) et liste les écarts avant de conclure.

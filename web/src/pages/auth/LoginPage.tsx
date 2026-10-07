@@ -14,7 +14,8 @@ import { errorMessage } from '../../lib/api';
 const DEMO = [
   { label: 'Joueur', hint: 'Omar Trabelsi, adulte', email: 'omar.trabelsi@exemple.tn', password: 'temporaire' },
   { label: 'Parent', hint: 'Sana Ben Ali, 2 enfants', email: 'sana.benali@exemple.tn', password: 'temporaire' },
-  { label: 'Coach', hint: 'Mehdi Gharbi, 2 groupes', email: 'mehdi.gharbi@exemple.tn', password: 'temporaire' },
+  { label: 'Coach', hint: 'Iheb, plusieurs groupes', email: 'iheb@exemple.tn', password: 'temporaire' },
+  { label: 'Personnel', hint: 'Agent administratif', email: 'agent@tcsay.tn', password: 'temporaire' },
   { label: 'Administrateur', hint: 'Bureau du club', email: 'admin@tcsay.tn', password: 'admin1234' },
 ];
 
@@ -56,10 +57,10 @@ export function LoginPage() {
         <Card className="gap-3">
           <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
             <TextField
-              label="Identifiant (email)"
-              type="email"
+              label="Identifiant (email ou CIN)"
+              type="text"
               autoComplete="username"
-              placeholder="prenom.nom@exemple.tn"
+              placeholder="prenom.nom@exemple.tn ou 09123456"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { CoachChip } from '../../components/SlotInfo';
 import { Button } from '../../components/ui/Button';
 import { Calendar } from '../../components/ui/Calendar';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
@@ -18,8 +19,8 @@ import { useAction } from '../../lib/useAction';
 /** Feuille de présence d'une séance (modale « Présences »). */
 function AttendanceModal({ session, onClose }: { session?: CoachSession; onClose: () => void }) {
   const sheet = useQuery({
-    queryKey: ['attendance', session?.groupId, session?.date],
-    queryFn: () => api.get<AttendanceSheet>('/attendance', { groupId: session!.groupId, date: session!.date }),
+    queryKey: ['attendance', session?.slotId, session?.date],
+    queryFn: () => api.get<AttendanceSheet>('/attendance', { slotId: session!.slotId, date: session!.date }),
     enabled: Boolean(session),
   });
   const [marks, setMarks] = useState<Record<string, { present: boolean; reason: string }>>({});
@@ -36,7 +37,7 @@ function AttendanceModal({ session, onClose }: { session?: CoachSession; onClose
   const save = useAction(
     () =>
       api.put('/attendance', {
-        groupId: session!.groupId,
+        slotId: session!.slotId,
         date: session!.date,
         entries: Object.entries(marks).map(([playerId, m]) => ({ playerId, present: m.present, reason: m.reason || undefined })),
       }),
@@ -106,7 +107,13 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
     <Card>
       <CardRow>
         <h3>{s.groupName}</h3>
-        {s.started ? <Pill tone={s.recorded ? 'g' : 's'}>{s.recorded ? 'Pointée' : 'Passée'}</Pill> : <Pill tone="g">Confirmée</Pill>}
+        {s.coachAbsent ? (
+          <Pill tone="r">Absence validée</Pill>
+        ) : s.started ? (
+          <Pill tone={s.recorded ? 'g' : 's'}>{s.recorded ? 'Pointée' : 'Passée'}</Pill>
+        ) : (
+          <Pill tone="g">Confirmée</Pill>
+        )}
       </CardRow>
       <Pills>
         <Pill tone="b">{fD(s.date)}</Pill>
@@ -116,10 +123,18 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
       </Pills>
       <CardText>
-        {s.membersCount} joueur{s.membersCount > 1 ? 's' : ''} · {s.category.name}
+        {s.membersCount} joueur{s.membersCount > 1 ? 's' : ''}
+        {s.category ? ` · ${s.category}` : ''}
       </CardText>
+      {s.coaches.length > 1 && (
+        <div className="flex flex-wrap gap-1.5">
+          {s.coaches.map((c) => (
+            <CoachChip key={c.id} coach={c} />
+          ))}
+        </div>
+      )}
       <CardActions>
-        <Button onClick={onAttendance} disabled={!s.started} title={s.started ? undefined : 'Disponible le jour de la séance'}>
+        <Button onClick={onAttendance} disabled={!s.started || s.coachAbsent} title={s.started ? undefined : 'Disponible le jour de la séance'}>
           Présences
         </Button>
       </CardActions>
@@ -158,7 +173,7 @@ export function CoachSessionsPage() {
             <CardSubtitle>{fD(day, { weekday: 'long', day: 'numeric', month: 'long' })}</CardSubtitle>
             {daySessions.length ? (
               daySessions.map((s) => (
-                <div key={s.groupId} className="flex flex-col gap-2.5">
+                <div key={s.slotId} className="flex flex-col gap-2.5">
                   <h3>{s.groupName}</h3>
                   <Pills>
                     <Pill tone="b">
@@ -177,7 +192,7 @@ export function CoachSessionsPage() {
           {up.length ? (
             <CardGrid>
               {up.map((s) => (
-                <SessionCard key={s.groupId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
+                <SessionCard key={s.slotId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
               ))}
             </CardGrid>
           ) : (
@@ -188,7 +203,7 @@ export function CoachSessionsPage() {
           {past.length ? (
             <CardGrid>
               {past.map((s) => (
-                <SessionCard key={s.groupId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
+                <SessionCard key={s.slotId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
               ))}
             </CardGrid>
           ) : (

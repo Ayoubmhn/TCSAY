@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -14,7 +15,7 @@ import { api } from '../../lib/api';
 import { fullName } from '../../lib/format';
 import type { Parent, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
-import { PersonFormModal } from './PersonFormModal';
+import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
 const KEYS = [['parents'], ['players']];
 
@@ -62,14 +63,21 @@ export function ParentsPage() {
   const [toToggle, setToToggle] = useState<Parent>();
   const [unlink, setUnlink] = useState<{ parent: Parent; player: Parent['players'][number] }>();
 
-  const create = useAction((v: { firstName: string; lastName: string; email: string; phone: string }) => api.post('/parents', v), {
+  const create = useAction((v: PersonValues) => api.post('/parents', personPayload('parent', v)), {
     invalidate: KEYS,
     success: (_r, v) => `Parent créé. Identifiants envoyés à ${v.email}.`,
     onSuccess: () => setForm({ open: false }),
   });
   const update = useAction(
-    (v: { firstName: string; lastName: string; phone: string }) =>
-      api.patch(`/parents/${form.parent!.id}`, { ...v, version: form.parent!.version }),
+    (v: PersonValues) => {
+      return api.patch(`/parents/${form.parent!.id}`, {
+        version: form.parent!.version,
+        firstName: v.firstName.trim(),
+        lastName: v.lastName.trim(),
+        phone: v.phone.trim(),
+        cin: v.cin.trim(),
+      });
+    },
     { invalidate: KEYS, success: 'Parent enregistré.', onSuccess: () => setForm({ open: false }) },
   );
   const toggle = useAction((p: Parent) => api.post(`/parents/${p.id}/${p.isActive ? 'deactivate' : 'activate'}`), {
@@ -101,10 +109,10 @@ export function ParentsPage() {
               {q.data.map((u) => (
                 <Card key={u.id}>
                   <CardRow>
-                    <div className="flex items-center gap-2.5">
+                    <Link to={`/admin/parents/${u.id}`} className="flex items-center gap-2.5 hover:underline">
                       <Avatar first={u.firstName} last={u.lastName} />
                       <h3>{fullName(u)}</h3>
-                    </div>
+                    </Link>
                     {!u.isActive && <Pill tone="r">Désactivé</Pill>}
                   </CardRow>
                   <Pills>
@@ -116,7 +124,7 @@ export function ParentsPage() {
                     {u.players.length === 0 && <Pill tone="s">Aucun joueur lié</Pill>}
                   </Pills>
                   <CardText>
-                    {u.email} · {u.phone ?? '—'}
+                    {u.email} · {u.phone ?? '—'} · CIN {u.cin ?? '—'}
                   </CardText>
                   <CardActions>
                     <Button onClick={() => setLinkFor(u)}>Lier un joueur</Button>
@@ -140,9 +148,14 @@ export function ParentsPage() {
 
       <PersonFormModal
         open={form.open}
+        kind="parent"
         title={form.parent ? 'Modifier le parent' : 'Nouveau parent'}
         editing={Boolean(form.parent)}
-        initial={form.parent ? { ...form.parent, phone: form.parent.phone ?? '' } : undefined}
+        initial={
+          form.parent
+            ? { firstName: form.parent.firstName, lastName: form.parent.lastName, email: form.parent.email, phone: form.parent.phone ?? '', cin: form.parent.cin ?? '' }
+            : undefined
+        }
         pending={create.isPending || update.isPending}
         onSubmit={(v) => (form.parent ? update.mutate(v) : create.mutate(v))}
         onClose={() => setForm({ open: false })}

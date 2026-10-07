@@ -4,10 +4,12 @@ import {
   IconCard,
   IconChart,
   IconClipboard,
+  IconClock,
   IconCourt,
   IconHome,
   IconRacket,
   IconTrophy,
+  IconUserOff,
   IconUsers,
   IconWallet,
 } from '../components/ui/Icons';
@@ -49,7 +51,13 @@ export const MENUS: Record<Role, MenuItem[]> = {
   COACH: [
     { label: 'Mes séances', path: '/coach/seances', icon: IconCalendar },
     { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
+    { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
     { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
+  ],
+  STAFF: [
+    { label: 'Planning des terrains', path: '/staff/planning', icon: IconCalendar },
+    { label: 'Historique des actions', path: '/staff/historique', icon: IconClock },
+    { label: 'Mes salaires', path: '/staff/salaires', icon: IconWallet },
   ],
   ADMIN: [
     { label: 'Dashboard', path: '/admin', icon: IconChart },
@@ -60,6 +68,7 @@ export const MENUS: Record<Role, MenuItem[]> = {
         { label: 'Joueurs', path: '/admin/joueurs' },
         { label: 'Parents', path: '/admin/parents' },
         { label: 'Entraîneurs', path: '/admin/entraineurs' },
+        { label: 'Personnel', path: '/admin/personnel' },
       ],
     },
     {
@@ -67,6 +76,7 @@ export const MENUS: Record<Role, MenuItem[]> = {
       icon: IconRacket,
       children: [
         { label: 'Groupes', path: '/admin/groupes' },
+        { label: 'Absences des entraîneurs', path: '/admin/absences' },
         { label: 'Catégories', path: '/admin/categories' },
         { label: 'Saisons', path: '/admin/saisons' },
       ],
@@ -94,7 +104,7 @@ export const MENUS: Record<Role, MenuItem[]> = {
       icon: IconClipboard,
       children: [
         { label: 'Emails envoyés', path: '/admin/emails' },
-        { label: 'Journal d’audit', path: '/admin/audit' },
+        { label: 'Historique des actions', path: '/admin/audit' },
         { label: 'Import historique', path: '/admin/import', soon: true },
       ],
     },

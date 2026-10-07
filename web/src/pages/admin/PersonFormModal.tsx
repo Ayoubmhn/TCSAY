@@ -1,29 +1,56 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
-import { FormGrid, TextField } from '../../components/ui/Field';
+import { FormGrid, SelectField, TextField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
 
-export type PersonValues = { firstName: string; lastName: string; email: string; phone: string; payMode: string };
+export type PersonKind = 'parent' | 'coach' | 'staff';
 
-const EMPTY: PersonValues = { firstName: '', lastName: '', email: '', phone: '', payMode: '' };
+export type PersonValues = {
+  firstName: string;
+  lastName: string;
+  cin: string;
+  email: string;
+  phone: string;
+  payMode: '' | 'HOURLY' | 'MONTHLY';
+  payRate: string;
+  color: string;
+  position: '' | 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR';
+};
 
-/** Formulaire de compte (parent ou entraîneur) : création avec envoi des identifiants, ou modification. */
+const EMPTY: PersonValues = { firstName: '', lastName: '', cin: '', email: '', phone: '', payMode: '', payRate: '', color: '#00b050', position: '' };
+
+const CIN = /^[0-9A-Za-z]{6,12}$/;
+const EMAIL = /^\S+@\S+\.\S+$/;
+
+/** Champs envoyés à l'API (chaînes vides retirées, taux en nombre). */
+export function personPayload(kind: PersonKind, v: PersonValues) {
+  const base = { firstName: v.firstName.trim(), lastName: v.lastName.trim(), cin: v.cin.trim(), phone: v.phone.trim() || undefined };
+  if (kind === 'parent') return { ...base, email: v.email.trim(), phone: v.phone.trim() };
+  const pay = { payMode: v.payMode, payRate: Number(v.payRate) };
+  if (kind === 'coach') return { ...base, ...pay, color: v.color };
+  return { ...base, ...pay, position: v.position };
+}
+
+/**
+ * Formulaire de compte (parent, entraîneur ou personnel administratif).
+ * Obligatoire : parent = nom, prénom, téléphone, email, CIN ; entraîneur / personnel = nom, prénom, CIN, rémunération.
+ */
 export function PersonFormModal({
   open,
+  kind,
   title,
   initial,
   editing,
-  withPayMode = false,
   pending,
   onSubmit,
   onClose,
 }: {
   open: boolean;
+  kind: PersonKind;
   title: string;
   initial?: Partial<PersonValues>;
   editing: boolean;
-  withPayMode?: boolean;
   pending: boolean;
   onSubmit: (values: PersonValues) => void;
   onClose: () => void;
@@ -37,13 +64,25 @@ export function PersonFormModal({
     if (open) setV({ ...EMPTY, ...initialRef.current });
   }, [open]);
   const set = (k: keyof PersonValues) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
+  const paid = kind !== 'parent';
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!v.firstName.trim() || !v.lastName.trim()) return toast('Prénom et nom sont obligatoires.');
-    if (!editing && !/^\S+@\S+\.\S+$/.test(v.email.trim())) return toast('Email invalide.');
+    if (!CIN.test(v.cin.trim())) return toast('CIN obligatoire (6 à 12 caractères).');
+    if (kind === 'parent') {
+      if (!v.phone.trim()) return toast('Téléphone obligatoire.');
+      if (!editing && !EMAIL.test(v.email.trim())) return toast('Email invalide.');
+    } else if (!editing && v.email.trim() && !EMAIL.test(v.email.trim())) {
+      return toast('Email invalide.');
+    }
+    if (kind === 'staff' && !v.position) return toast('Fonction obligatoire.');
+    if (paid && !v.payMode) return toast('Choisissez la rémunération : à l’heure ou au mois.');
+    if (paid && (v.payRate === '' || Number(v.payRate) < 0 || Number.isNaN(Number(v.payRate)))) return toast('Taux de rémunération invalide.');
     onSubmit(v);
   };
+
+  const emailLabel = kind === 'parent' ? 'Email (identifiant)' : 'Email (facultatif : sinon identifiant = CIN)';
 
   return (
     <Modal
@@ -54,18 +93,49 @@ export function PersonFormModal({
         <>
           <Button onClick={onClose}>Annuler</Button>
           <Button variant="primary" type="submit" form="person-form" disabled={pending}>
-            {editing ? 'Enregistrer' : 'Créer et envoyer les identifiants'}
+            {editing ? 'Enregistrer' : 'Créer le compte'}
           </Button>
         </>
       }
     >
       <FormGrid id="person-form" onSubmit={submit}>
-        <TextField label="Prénom" value={v.firstName} onChange={set('firstName')} />
-        <TextField label="Nom" value={v.lastName} onChange={set('lastName')} />
-        <TextField label="Email (identifiant)" type="email" value={v.email} onChange={set('email')} disabled={editing} />
-        <TextField label="Téléphone" value={v.phone} onChange={set('phone')} />
-        {withPayMode && (
-          <TextField label="Rémunération (mensuel, horaire, forfait : à confirmer)" full value={v.payMode} onChange={set('payMode')} />
+        <TextField label="Prénom *" value={v.firstName} onChange={set('firstName')} />
+        <TextField label="Nom *" value={v.lastName} onChange={set('lastName')} />
+        <TextField label="CIN *" value={v.cin} onChange={set('cin')} inputMode="numeric" />
+        <TextField label={kind === 'parent' ? 'Téléphone *' : 'Téléphone'} value={v.phone} onChange={set('phone')} inputMode="tel" />
+        <TextField label={kind === 'parent' ? `${emailLabel} *` : emailLabel} full type="email" value={v.email} onChange={set('email')} disabled={editing} />
+        {kind === 'staff' && (
+          <SelectField label="Fonction *" full value={v.position} onChange={set('position')}>
+            <option value="">Choisir…</option>
+            <option value="ADMIN_AGENT">Agent administratif</option>
+            <option value="TECHNICAL_DIRECTOR">Directeur technique</option>
+          </SelectField>
+        )}
+        {paid && (
+          <>
+            <SelectField label="Rémunération *" value={v.payMode} onChange={set('payMode')}>
+              <option value="">Choisir…</option>
+              <option value="HOURLY">À l’heure</option>
+              <option value="MONTHLY">Au mois</option>
+            </SelectField>
+            <TextField
+              label={v.payMode === 'HOURLY' ? 'Taux horaire (DT) *' : v.payMode === 'MONTHLY' ? 'Salaire mensuel (DT) *' : 'Montant (DT) *'}
+              type="number"
+              min={0}
+              step="0.5"
+              value={v.payRate}
+              onChange={set('payRate')}
+            />
+          </>
+        )}
+        {kind === 'coach' && (
+          <label className="flex flex-col gap-1.5 text-xs font-medium text-mut">
+            Couleur au planning
+            <span className="flex items-center gap-2.5">
+              <input type="color" aria-label="Couleur au planning" value={v.color} onChange={set('color')} className="h-10 w-14 cursor-pointer rounded-[14px] border-[1.5px] border-line bg-fld p-1" />
+              <span className="text-[15px] text-fg tabular-nums">{v.color}</span>
+            </span>
+          </label>
         )}
       </FormGrid>
     </Modal>

@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Button } from '../../components/ui/Button';
+import { Link } from 'react-router';
+import { SlotLine } from '../../components/SlotInfo';
+import { Button, IconButton } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { FormGrid, SelectField, TextField } from '../../components/ui/Field';
+import { FilterSelect, Filters, SelectField, TextField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
@@ -11,29 +13,24 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { DAY_NAMES, fullName } from '../../lib/format';
+import { fullName } from '../../lib/format';
 import type { Category, Coach, Court, Group, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
-const KEYS = [['groups'], ['players'], ['dashboard'], ['coaches']];
+const KEYS = [['groups'], ['players'], ['dashboard'], ['coaches'], ['planning']];
 const WEEK = [1, 2, 3, 4, 5, 6, 0]; // lundi → dimanche
+const DAY_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
-type GroupForm = {
-  name: string;
-  categoryId: string;
-  coachId: string;
-  courtId: string;
-  days: number[];
-  startTime: string;
-  endTime: string;
-  capacity: string;
-};
+type SlotForm = { key: string; id?: string; day: number; startTime: string; endTime: string; courtId: string; coachIds: string[] };
+type GroupForm = { name: string; categoryId: string; capacity: string; slots: SlotForm[] };
 
-const EMPTY: GroupForm = { name: '', categoryId: '', coachId: '', courtId: '', days: [], startTime: '17:00', endTime: '18:30', capacity: '8' };
+let seq = 0;
+const newSlot = (day = 1): SlotForm => ({ key: `n${seq++}`, day, startTime: '17:30', endTime: '19:00', courtId: '', coachIds: [] });
 
+/** Formulaire groupe : chaque créneau a son jour, son horaire, son terrain et un ou plusieurs entraîneurs. */
 function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group; onClose: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState<GroupForm>(EMPTY);
+  const [f, setF] = useState<GroupForm>({ name: '', categoryId: '', capacity: '12', slots: [newSlot()] });
   const groupRef = useRef(group);
   groupRef.current = group;
   useEffect(() => {
@@ -43,32 +40,41 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
       g
         ? {
             name: g.name,
-            categoryId: g.category.id,
-            coachId: g.coach?.id ?? '',
-            courtId: g.court?.id ?? '',
-            days: g.days,
-            startTime: g.startTime,
-            endTime: g.endTime,
+            categoryId: g.category?.id ?? '',
             capacity: String(g.capacity),
+            slots: g.slots.map((s) => ({
+              key: s.id,
+              id: s.id,
+              day: s.day,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              courtId: s.court?.id ?? '',
+              coachIds: s.coaches.map((c) => c.id),
+            })),
           }
-        : EMPTY,
+        : { name: '', categoryId: '', capacity: '12', slots: [newSlot()] },
     );
   }, [open]);
-  const set = (k: keyof GroupForm) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
 
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/categories'), enabled: open });
   const coaches = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches'), enabled: open });
   const courts = useQuery({ queryKey: ['courts'], queryFn: () => api.get<Court[]>('/courts'), enabled: open });
 
+  const setSlot = (key: string, patch: Partial<SlotForm>) =>
+    setF((x) => ({ ...x, slots: x.slots.map((s) => (s.key === key ? { ...s, ...patch } : s)) }));
+
   const payload = () => ({
     name: f.name,
-    categoryId: f.categoryId,
-    coachId: f.coachId || undefined,
-    courtId: f.courtId || undefined,
-    days: f.days,
-    startTime: f.startTime,
-    endTime: f.endTime,
+    categoryId: f.categoryId || undefined,
     capacity: Number(f.capacity),
+    slots: f.slots.map((s) => ({
+      id: s.id,
+      day: s.day,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      courtId: s.courtId || undefined,
+      coachIds: s.coachIds,
+    })),
   });
   const save = useAction(
     () => (group ? api.patch(`/groups/${group.id}`, { ...payload(), version: group.version }) : api.post('/groups', payload())),
@@ -78,11 +84,13 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!f.name.trim()) return toast('Nom du groupe obligatoire.');
-    if (!f.categoryId) return toast('Catégorie obligatoire.');
-    if (!f.days.length) return toast('Choisissez au moins un jour.');
-    if (f.endTime <= f.startTime) return toast('L’heure de fin doit suivre l’heure de début.');
+    if (!f.slots.length) return toast('Ajoutez au moins un créneau.');
+    const bad = f.slots.find((s) => s.endTime <= s.startTime);
+    if (bad) return toast(`${DAY_FULL[bad.day]} : l’heure de fin doit suivre l’heure de début.`);
     save.mutate();
   };
+
+  const activeCoaches = coaches.data?.filter((c) => c.isActive) ?? [];
 
   return (
     <Modal
@@ -98,66 +106,81 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
         </>
       }
     >
-      <FormGrid id="group-form" onSubmit={submit}>
-        <TextField label="Nom" full value={f.name} onChange={set('name')} placeholder="Ex. Benjamins A" />
-        <SelectField label="Catégorie" full value={f.categoryId} onChange={set('categoryId')}>
-          <option value="">— Choisir —</option>
-          {categories.data?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </SelectField>
-        <SelectField label="Entraîneur" value={f.coachId} onChange={set('coachId')}>
-          <option value="">— Aucun —</option>
-          {coaches.data
-            ?.filter((c) => c.isActive)
-            .map((c) => (
-              <option key={c.id} value={c.id}>
-                {fullName(c)}
-              </option>
-            ))}
-        </SelectField>
-        <SelectField label="Terrain" value={f.courtId} onChange={set('courtId')}>
-          <option value="">— Aucun —</option>
-          {courts.data
-            ?.filter((c) => c.active)
-            .map((c) => (
+      <form id="group-form" noValidate onSubmit={submit} className="flex flex-col gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[521px]:grid-cols-2">
+          <TextField label="Nom" full value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex. Benjamins G" />
+          <SelectField label="Catégorie (facultative)" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
+            <option value="">— Toutes / mixte —</option>
+            {categories.data?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
             ))}
-        </SelectField>
-        <fieldset className="col-span-full flex flex-col gap-1.5">
-          <legend className="mb-1.5 text-xs font-medium text-mut">Jours</legend>
-          <div className="flex flex-wrap gap-1.5">
-            {WEEK.map((d) => {
-              const on = f.days.includes(d);
-              return (
-                <button
-                  key={d}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setF((x) => ({ ...x, days: on ? x.days.filter((y) => y !== d) : [...x.days, d] }))}
-                  className={`rounded-full px-[13px] py-[5px] text-[13px] font-medium ${on ? 'bg-toggle text-bg' : 'bg-btn text-fg'}`}
-                >
-                  {DAY_NAMES[d]}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-        <TextField label="Début" type="time" value={f.startTime} onChange={set('startTime')} />
-        <TextField label="Fin" type="time" value={f.endTime} onChange={set('endTime')} />
-        <TextField label="Capacité" type="number" min={1} max={40} value={f.capacity} onChange={set('capacity')} />
-      </FormGrid>
+          </SelectField>
+          <TextField label="Capacité" type="number" min={1} max={60} value={f.capacity} onChange={(e) => setF({ ...f, capacity: e.target.value })} />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <h3>Créneaux par jour</h3>
+          <Button onClick={() => setF((x) => ({ ...x, slots: [...x.slots, newSlot(x.slots.at(-1)?.day ?? 1)] }))}>+ Ajouter un créneau</Button>
+        </div>
+        {f.slots.map((s, i) => (
+          <fieldset key={s.key} className="flex flex-col gap-2.5 rounded-[20px] border-[1.5px] border-line p-3">
+            <legend className="sr-only">Créneau {i + 1}</legend>
+            <div className="grid grid-cols-2 gap-2.5 min-[521px]:grid-cols-[1.2fr_1fr_1fr_1.3fr_auto]">
+              <SelectField label="Jour" value={String(s.day)} onChange={(e) => setSlot(s.key, { day: Number(e.target.value) })}>
+                {WEEK.map((d) => (
+                  <option key={d} value={d}>
+                    {DAY_FULL[d]}
+                  </option>
+                ))}
+              </SelectField>
+              <TextField label="Début" type="time" value={s.startTime} onChange={(e) => setSlot(s.key, { startTime: e.target.value })} />
+              <TextField label="Fin" type="time" value={s.endTime} onChange={(e) => setSlot(s.key, { endTime: e.target.value })} />
+              <SelectField label="Terrain" value={s.courtId} onChange={(e) => setSlot(s.key, { courtId: e.target.value })}>
+                <option value="">—</option>
+                {courts.data
+                  ?.filter((c) => c.active)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+              </SelectField>
+              <div className="flex items-end">
+                <IconButton aria-label={`Retirer le créneau ${i + 1}`} onClick={() => setF((x) => ({ ...x, slots: x.slots.filter((y) => y.key !== s.key) }))}>
+                  ✕
+                </IconButton>
+              </div>
+            </div>
+            <div role="group" aria-label="Entraîneurs du créneau" className="flex flex-wrap gap-1.5">
+              <span className="me-1 self-center text-xs font-medium text-mut">Entraîneurs :</span>
+              {activeCoaches.map((c) => {
+                const on = s.coachIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => setSlot(s.key, { coachIds: on ? s.coachIds.filter((x) => x !== c.id) : [...s.coachIds, c.id] })}
+                    className={`inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] text-[13px] font-medium ${on ? 'bg-toggle text-bg' : 'bg-btn text-fg'}`}
+                  >
+                    <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                    {fullName(c).trim()}
+                  </button>
+                );
+              })}
+            </div>
+          </fieldset>
+        ))}
+      </form>
     </Modal>
   );
 }
 
 function AddMemberModal({ group, onClose }: { group?: Group; onClose: () => void }) {
   const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.get<Player[]>('/players'), enabled: Boolean(group) });
-  const candidates = (players.data ?? []).filter((p) => !p.group);
+  const candidates = (players.data ?? []).filter((p) => !group?.members.some((m) => m.playerId === p.id));
   const [playerId, setPlayerId] = useState('');
   const [reason, setReason] = useState('');
   useEffect(() => {
@@ -183,26 +206,26 @@ function AddMemberModal({ group, onClose }: { group?: Group; onClose: () => void
         </>
       }
     >
-      <SelectField label="Joueur sans groupe" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
+      <SelectField label="Joueur" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
         <option value="">— Choisir —</option>
         {candidates.map((p) => (
           <option key={p.id} value={p.id}>
             {fullName(p)} · {p.category?.name ?? '—'}
+            {p.group ? ` · déjà en ${p.group.name}` : ''}
           </option>
         ))}
       </SelectField>
-      <TextField
-        label="Motif de dérogation (si catégorie différente)"
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-      />
+      <TextField label="Motif de dérogation (si catégorie différente)" value={reason} onChange={(e) => setReason(e.target.value)} />
     </Modal>
   );
 }
 
-/** Groupes (vGroups) : capacité et catégorie (R4), conflits de terrain, créneau, entraîneur (R5). */
+/** Groupes (vGroups) : créneaux par jour, plusieurs entraîneurs, capacité et catégorie (R4), conflits (R5). */
 export function GroupsPage() {
   const q = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
+  const coaches = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches') });
+  const [coachFilter, setCoachFilter] = useState('');
+  const [dayFilter, setDayFilter] = useState('');
   const [form, setForm] = useState<{ open: boolean; group?: Group }>({ open: false });
   const [addTo, setAddTo] = useState<Group>();
   const [remove, setRemove] = useState<{ group: Group; member: Group['members'][number] }>();
@@ -219,6 +242,12 @@ export function GroupsPage() {
     onSuccess: () => setToArchive(undefined),
   });
 
+  const list = (q.data ?? []).filter(
+    (g) =>
+      (!coachFilter || g.coaches.some((c) => c.id === coachFilter)) &&
+      (dayFilter === '' || g.slots.some((s) => s.day === Number(dayFilter))),
+  );
+
   return (
     <>
       <PageHeader
@@ -230,11 +259,34 @@ export function GroupsPage() {
           </Button>
         }
       />
-      <div className="mt-5">
+      <Filters>
+        <FilterSelect label="Filtrer par entraîneur" value={coachFilter} onChange={(e) => setCoachFilter(e.target.value)}>
+          <option value="">Tous les entraîneurs</option>
+          {coaches.data?.map((c) => (
+            <option key={c.id} value={c.id}>
+              {fullName(c).trim()}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Filtrer par jour" value={dayFilter} onChange={(e) => setDayFilter(e.target.value)}>
+          <option value="">Tous les jours</option>
+          {WEEK.map((d) => (
+            <option key={d} value={d}>
+              {DAY_FULL[d]}
+            </option>
+          ))}
+        </FilterSelect>
+        {q.data && (
+          <Pill tone="b">
+            {list.length} groupe{list.length > 1 ? 's' : ''}
+          </Pill>
+        )}
+      </Filters>
+      <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
-          {q.data?.length ? (
+          {list.length ? (
             <CardGrid>
-              {q.data.map((g) => {
+              {list.map((g) => {
                 const full = g.members.length >= g.capacity;
                 return (
                   <Card key={g.id}>
@@ -246,26 +298,36 @@ export function GroupsPage() {
                       </Pill>
                     </CardRow>
                     <Pills>
-                      <Pill tone="s">{g.category.name}</Pill>
+                      <Pill tone="s">{g.category?.name ?? 'Catégorie à affecter'}</Pill>
                       <Pill tone="b">
-                        {g.days.map((d) => DAY_NAMES[d]).join(' & ')} {g.startTime}–{g.endTime}
+                        {g.slots.length} créneau{g.slots.length > 1 ? 'x' : ''} / semaine
                       </Pill>
-                      {g.court && <Pill tone="g">{g.court.name}</Pill>}
                     </Pills>
-                    <CardText>Coach {g.coach ? fullName(g.coach) : '—'}</CardText>
-                    <Pills>
-                      {g.members.map((m) => (
-                        <button
-                          key={m.playerId}
-                          type="button"
-                          onClick={() => setRemove({ group: g, member: m })}
-                          aria-label={`Retirer ${fullName(m)} du groupe`}
-                          title={m.derogationReason ? `Dérogation : ${m.derogationReason}` : undefined}
-                        >
-                          <Pill tone={m.derogationReason ? 's' : 'b'}>{m.firstName} ✕</Pill>
-                        </button>
+                    <div className="flex flex-col gap-1.5">
+                      {g.slots.map((s) => (
+                        <SlotLine key={s.id} slot={s} />
                       ))}
-                    </Pills>
+                    </div>
+                    {g.members.length > 0 && (
+                      <Pills>
+                        {g.members.map((m) => (
+                          <span key={m.playerId} className="inline-flex items-center gap-1 rounded-full bg-pb ps-[11px] text-[13px] font-medium text-ink">
+                            <Link to={`/admin/joueurs/${m.playerId}`} className="py-[5px] hover:underline" title={m.derogationReason ? `Dérogation : ${m.derogationReason}` : undefined}>
+                              {m.firstName}
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={() => setRemove({ group: g, member: m })}
+                              aria-label={`Retirer ${fullName(m)} du groupe`}
+                              className="rounded-full px-2 py-[5px] hover:bg-black/10"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))}
+                      </Pills>
+                    )}
+                    {g.members.length === 0 && <CardText>Aucun joueur pour l’instant.</CardText>}
                     <CardActions>
                       <Button onClick={() => setAddTo(g)}>Ajouter un joueur</Button>
                       <Button onClick={() => setForm({ open: true, group: g })}>Modifier</Button>
@@ -278,13 +340,13 @@ export function GroupsPage() {
               })}
             </CardGrid>
           ) : (
-            <EmptyState>Aucun groupe pour cette saison.</EmptyState>
+            <EmptyState>Aucun groupe.</EmptyState>
           )}
         </QueryState>
       </div>
       <Note>
-        Capacité et catégorie vérifiées à chaque ajout (R4, dérogation avec motif). Aucun conflit de terrain, de créneau ou
-        d’entraîneur (R5).
+        Chaque jour peut avoir son horaire, son terrain et un ou plusieurs entraîneurs. Capacité et catégorie vérifiées à chaque
+        ajout (R4, dérogation avec motif). Aucun conflit de terrain ou d’entraîneur sur un même créneau (R5).
       </Note>
 
       <GroupFormModal open={form.open} group={form.group} onClose={() => setForm({ open: false })} />
@@ -310,3 +372,4 @@ export function GroupsPage() {
     </>
   );
 }
+

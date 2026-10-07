@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { PlanningSection } from '../../components/PlanningSection';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState, Kpi } from '../../components/ui/Card';
 import { ProgressBar } from '../../components/ui/InstallmentCard';
@@ -58,6 +59,10 @@ export function DashboardPage() {
                   <CardText>{fD(d.tomorrow, { weekday: 'long', day: 'numeric', month: 'long' })}</CardText>
                 </Card>
               </CardGrid>
+
+              <Section title="Planning des terrains">
+                <PlanningSection />
+              </Section>
 
               <Section title="Tranches à relancer">
                 {d.late.length ? (

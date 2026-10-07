@@ -11,10 +11,10 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DAY_NAMES, fD, todayIso } from '../../lib/format';
-import type { PlayerSession } from '../../lib/types';
+import type { PlayerSession, Slot } from '../../lib/types';
 
 type Data = {
-  groups: { id: string; name: string; days: number[]; startTime: string; endTime: string }[];
+  groups: { id: string; name: string; slots: Slot[] }[];
   sessions: PlayerSession[];
 };
 
@@ -41,9 +41,9 @@ function SessionCard({ s }: { s: PlayerSession }) {
         </Pill>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
       </Pills>
-      {s.coach && (
+      {s.coaches.length > 0 && (
         <CardText>
-          Coach {s.coach.firstName} {s.coach.lastName}
+          {s.coaches.length > 1 ? 'Coachs' : 'Coach'} {s.coaches.map((c) => `${c.firstName} ${c.lastName}`.trim()).join(', ')}
         </CardText>
       )}
     </Card>
@@ -72,9 +72,7 @@ export function SessionsPage() {
         {q.data?.groups.map((g) => (
           <span key={g.id} className="contents">
             <Pill tone="s">{g.name}</Pill>
-            <Pill tone="b">
-              {g.days.map((d) => DAY_NAMES[d]).join(' & ')} · {g.startTime}
-            </Pill>
+            <Pill tone="b">{g.slots.map((x) => `${DAY_NAMES[x.day]} ${x.startTime}`).join(' · ') || 'Créneaux à définir'}</Pill>
           </span>
         ))}
       </Filters>
@@ -89,7 +87,7 @@ export function SessionsPage() {
                 <CardSubtitle>{fD(day, { weekday: 'long', day: 'numeric', month: 'long' })}</CardSubtitle>
                 {daySessions.length ? (
                   daySessions.map((s) => (
-                    <div key={s.groupId} className="flex flex-col gap-2.5">
+                    <div key={s.slotId} className="flex flex-col gap-2.5">
                       <h3>{s.groupName}</h3>
                       <Pills>
                         <Pill tone="b">
@@ -108,7 +106,7 @@ export function SessionsPage() {
               {up.length ? (
                 <CardGrid>
                   {up.map((s) => (
-                    <SessionCard key={s.groupId + s.date} s={s} />
+                    <SessionCard key={s.slotId + s.date} s={s} />
                   ))}
                 </CardGrid>
               ) : (
@@ -119,7 +117,7 @@ export function SessionsPage() {
               {past.length ? (
                 <CardGrid>
                   {past.map((s) => (
-                    <SessionCard key={s.groupId + s.date} s={s} />
+                    <SessionCard key={s.slotId + s.date} s={s} />
                   ))}
                 </CardGrid>
               ) : (

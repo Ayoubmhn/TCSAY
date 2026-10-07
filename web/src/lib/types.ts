@@ -1,12 +1,21 @@
 /** Types des réponses de l'API (miroir des contrôleurs NestJS). */
 
-export type Role = 'ADMIN' | 'COACH' | 'PARENT' | 'PLAYER';
+export type Role = 'ADMIN' | 'COACH' | 'PARENT' | 'PLAYER' | 'STAFF';
+
+export type PayMode = 'HOURLY' | 'MONTHLY';
+export type PaymentPlan = 'FULL' | 'SEMESTER' | 'MONTHLY';
+export type EmployeeType = 'COACH' | 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR';
 
 export type PersonRef = { id: string; firstName: string; lastName: string };
 
 export type Me = {
   id: string;
-  email: string;
+  email: string | null;
+  phone: string | null;
+  cin: string | null;
+  position: 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR' | null;
+  createdAt: string;
+  lastLoginAt: string | null;
   role: Role;
   firstName: string;
   lastName: string;
@@ -45,6 +54,7 @@ export type Player = {
   gender: 'M' | 'F';
   email: string | null;
   phone: string | null;
+  cin: string | null;
   hasAccount: boolean;
   archivedAt: string | null;
   version: number;
@@ -62,22 +72,56 @@ export type Parent = {
   lastName: string;
   email: string;
   phone: string | null;
+  cin: string | null;
   isActive: boolean;
   version: number;
   players: PersonRef[];
 };
+
+export type CoachRef = { id: string; firstName: string; lastName: string; color: string };
 
 export type Coach = {
   id: string;
   userId: string;
   firstName: string;
   lastName: string;
-  email: string;
+  email: string | null;
   phone: string | null;
+  cin: string | null;
   isActive: boolean;
-  payMode: string | null;
+  color: string;
+  payMode: PayMode | null;
+  payRate: number;
   version: number;
   groups: { id: string; name: string }[];
+  sessionsPerWeek: number;
+};
+
+export type Staff = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string | null;
+  phone: string | null;
+  cin: string | null;
+  position: 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR' | null;
+  positionLabel: string | null;
+  payMode: PayMode | null;
+  payRate: number;
+  isActive: boolean;
+  version: number;
+};
+
+/** Identifiants renvoyés à la création d'un compte (mot de passe affiché si pas d'email). */
+export type Credentials = { sentTo: string | null; login: string; temporaryPassword: string | null };
+
+export type Slot = {
+  id: string;
+  day: number;
+  startTime: string;
+  endTime: string;
+  court: { id: string; name: string } | null;
+  coaches: CoachRef[];
 };
 
 export type Court = {
@@ -95,21 +139,18 @@ export type Group = {
   id: string;
   seasonId: string;
   name: string;
-  days: number[];
-  startTime: string;
-  endTime: string;
   capacity: number;
   version: number;
-  category: { id: string; name: string; code: string };
-  coach: { id: string; firstName: string; lastName: string } | null;
-  court: { id: string; name: string } | null;
+  category: { id: string; name: string; code: string } | null;
+  slots: Slot[];
+  coaches: CoachRef[];
   members: { playerId: string; firstName: string; lastName: string; category: string; derogationReason: string | null }[];
 };
 
 export type Fee = {
   id: string;
   amount: number;
-  installmentsCount: number;
+  depositAmount: number;
   version: number;
   category: { id: string; name: string };
   group: { id: string; name: string } | null;
@@ -158,23 +199,79 @@ export type Reservation = {
 
 export type Salary = {
   id: string;
-  period: string;
+  month: string;
+  hours: number | null;
+  absences: number;
   amount: number;
   paidAt: string | null;
   paid: boolean;
+  note: string | null;
   version: number;
-  coach: { id: string; firstName: string; lastName: string };
-  season: { id: string; label: string; status: string };
+  employee: { id: string; firstName: string; lastName: string; type: EmployeeType | null; color: string | null };
+  season: { id: string; label: string; status: string } | null;
+};
+
+export type Estimate = {
+  employeeId: string;
+  month: string;
+  payMode: PayMode | null;
+  payRate: number;
+  plannedSessions: number;
+  plannedHours: number;
+  absentSessions: number;
+  absentHours: number;
+  hours: number | null;
+  amount: number;
+  rule: string;
+};
+
+export type Employee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  type: EmployeeType | null;
+  payMode: PayMode | null;
+  payRate: number;
+  isActive: boolean;
+  coach: { id: string; color: string } | null;
+};
+
+export type CoachAbsence = {
+  id: string;
+  date: string;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  notifyGroups: boolean;
+  decisionNote: string | null;
+  decidedBy: string | null;
+  createdAt: string;
+  coach: CoachRef;
+  slot: { id: string; day: number; startTime: string; endTime: string; group: { id: string; name: string } } | null;
+};
+
+export type Planning = {
+  date: string;
+  weekday: number;
+  openingHour: number;
+  closingHour: number;
+  nightStartHour: number;
+  courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
+  sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[] })[];
+  reservations: { id: string; courtId: string; startTime: string; endTime: string; type: 'LEISURE' | 'PRIVATE'; player: string | null; coach: { name: string; color: string } | null }[];
+  legend: { id: string; name: string; color: string }[];
 };
 
 export type CoachSession = {
+  slotId: string;
+  coaches: CoachRef[];
+  coachAbsent: boolean;
   groupId: string;
   groupName: string;
   date: string;
   startTime: string;
   endTime: string;
   court: { id: string; name: string } | null;
-  category: { id: string; name: string };
+  category: string | null;
   membersCount: number;
   capacity: number;
   started: boolean;
@@ -182,18 +279,20 @@ export type CoachSession = {
 };
 
 export type PlayerSession = {
+  slotId: string;
+  coaches: CoachRef[];
   groupId: string;
   groupName: string;
   date: string;
   startTime: string;
   endTime: string;
   court: { id: string; name: string } | null;
-  coach: { firstName: string; lastName: string } | null;
   past: boolean;
   attendance: 'PRESENT' | 'ABSENT' | null;
 };
 
 export type AttendanceSheet = {
+  slotId: string;
   group: { id: string; name: string; startTime: string; endTime: string };
   date: string;
   entries: { playerId: string; firstName: string; lastName: string; present: boolean | null; reason: string | null }[];
@@ -213,7 +312,7 @@ export type Overview = {
     startTime: string;
     endTime: string;
     court: string | null;
-    coach: { firstName: string; lastName: string } | null;
+    coaches: CoachRef[];
   } | null;
   hasGroup: boolean;
   dueCount: number;
@@ -255,8 +354,31 @@ export type AuditEntry = {
   reason: string | null;
   createdAt: string;
   who: string;
+  role: Role | null;
 };
 
 export type SeasonLite = { id: string; label: string; status: 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'HISTORICAL' };
 
 export type Settings = { nightStartHour: number; cancelDelayHours: number; openingHour: number; closingHour: number };
+
+export type PlayerProfile = Player & {
+  season: { id: string; label: string };
+  groups: { id: string; name: string; slots: Slot[] }[];
+  paymentPlan: PaymentPlan | null;
+  installments: { id: string; number: number; count: number; dueDate: string; amount: number; paid: number; remaining: number; status: InstallmentStatus }[];
+  absences: { id: string; date: string; group: string; startTime: string; reason: string }[];
+  attendanceCount: number;
+};
+
+export type CoachProfile = Omit<Coach, 'groups' | 'sessionsPerWeek'> & {
+  slots: (Slot & { group: { id: string; name: string } })[];
+  salaries: Salary[];
+  estimate: Estimate;
+  absences: { id: string; date: string; reason: string; status: CoachAbsence['status']; slot: { startTime: string; group: string } | null }[];
+};
+
+export type ParentProfile = Omit<Parent, 'players'> & {
+  children: { id: string; firstName: string; lastName: string; birthDate: string; archivedAt: string | null; category: string | null; groups: { id: string; name: string; slots: Slot[] }[] }[];
+};
+
+export type StaffProfile = Staff & { salaries: Salary[] };

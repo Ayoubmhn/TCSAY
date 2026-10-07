@@ -106,9 +106,13 @@ export const ROLE_LABEL: Record<Me['role'], string> = {
   COACH: 'Coach',
   PARENT: 'Parent',
   PLAYER: 'Joueur',
+  STAFF: 'Personnel',
 };
 
 /** Page d'accueil de chaque rôle. */
 export function homeOf(role: Me['role']): string {
-  return role === 'ADMIN' ? '/admin' : role === 'COACH' ? '/coach/seances' : '/';
+  if (role === 'ADMIN') return '/admin';
+  if (role === 'COACH') return '/coach/seances';
+  if (role === 'STAFF') return '/staff/planning';
+  return '/';
 }

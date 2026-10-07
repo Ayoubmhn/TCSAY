@@ -17,11 +17,14 @@ import { GroupsPage } from './pages/admin/GroupsPage';
 import { ParentsPage } from './pages/admin/ParentsPage';
 import { PaymentsAdminPage } from './pages/admin/PaymentsAdminPage';
 import { PlayersPage } from './pages/admin/PlayersPage';
+import { CoachProfilePage, ParentProfilePage, PlayerProfilePage, StaffProfilePage } from './pages/admin/ProfilePages';
+import { StaffPage } from './pages/admin/StaffPage';
 import { ReservationsAdminPage } from './pages/admin/ReservationsAdminPage';
 import { SalariesPage } from './pages/admin/SalariesPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { BookPage } from './pages/BookPage';
+import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
 import { AbsencesPage } from './pages/player/AbsencesPage';
@@ -29,6 +32,7 @@ import { HomePage } from './pages/player/HomePage';
 import { PaymentsPage } from './pages/player/PaymentsPage';
 import { SessionsPage } from './pages/player/SessionsPage';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
+import { PlanningPage } from './pages/staff/PlanningPage';
 
 /** Connexion obligatoire, mot de passe temporaire changé, rôle autorisé. */
 function Protected({ roles, children }: { roles?: Role[]; children: ReactNode }) {
@@ -80,13 +84,25 @@ export function App() {
         {/* Coach */}
         <Route path="coach/seances" element={<Protected roles={['COACH']}><CoachSessionsPage /></Protected>} />
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
+        <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
         <Route path="coach/reserver" element={<Protected roles={['COACH']}><BookPage /></Protected>} />
+
+        {/* Personnel administratif */}
+        <Route path="staff/planning" element={<Protected roles={['STAFF']}><PlanningPage /></Protected>} />
+        <Route path="staff/historique" element={<Protected roles={['STAFF']}><AuditPage /></Protected>} />
+        <Route path="staff/salaires" element={<Protected roles={['STAFF']}><CoachSalariesPage /></Protected>} />
 
         {/* Administrateur */}
         <Route path="admin" element={<Protected roles={['ADMIN']}><DashboardPage /></Protected>} />
         <Route path="admin/joueurs" element={<Protected roles={['ADMIN']}><PlayersPage /></Protected>} />
+        <Route path="admin/joueurs/:id" element={<Protected roles={['ADMIN']}><PlayerProfilePage /></Protected>} />
         <Route path="admin/parents" element={<Protected roles={['ADMIN']}><ParentsPage /></Protected>} />
+        <Route path="admin/parents/:id" element={<Protected roles={['ADMIN']}><ParentProfilePage /></Protected>} />
         <Route path="admin/entraineurs" element={<Protected roles={['ADMIN']}><CoachesPage /></Protected>} />
+        <Route path="admin/entraineurs/:id" element={<Protected roles={['ADMIN']}><CoachProfilePage /></Protected>} />
+        <Route path="admin/personnel" element={<Protected roles={['ADMIN']}><StaffPage /></Protected>} />
+        <Route path="admin/personnel/:id" element={<Protected roles={['ADMIN']}><StaffProfilePage /></Protected>} />
+        <Route path="admin/absences" element={<Protected roles={['ADMIN']}><CoachAbsencesPage admin /></Protected>} />
         <Route path="admin/groupes" element={<Protected roles={['ADMIN']}><GroupsPage /></Protected>} />
         <Route path="admin/terrains" element={<Protected roles={['ADMIN']}><CourtsPage /></Protected>} />
         <Route path="admin/categories" element={<Protected roles={['ADMIN']}><CategoriesPage /></Protected>} />

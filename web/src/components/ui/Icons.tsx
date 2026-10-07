@@ -112,3 +112,27 @@ export const IconChevron = ({ open, ...p }: IconProps & { open?: boolean }) => (
     <path d="m6 9 6 6 6-6" />
   </Svg>
 );
+
+/** Engrenage : paramètres du compte. */
+export const IconSettings = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" />
+  </Svg>
+);
+
+/** Horloge : historique des actions. */
+export const IconClock = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </Svg>
+);
+
+/** Personne barrée : absences des entraîneurs. */
+export const IconUserOff = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="10" cy="8" r="3.5" />
+    <path d="M3.5 20c.6-3.5 3.2-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9M16 15l5 5M21 15l-5 5" />
+  </Svg>
+);

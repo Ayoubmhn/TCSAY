@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -92,7 +93,9 @@ export function PlayersPage() {
                     <div className="flex min-w-0 items-center gap-2.5">
                       <Avatar first={p.firstName} last={p.lastName} />
                       <div className="min-w-0">
-                        <h3>{fullName(p)}</h3>
+                        <Link to={`/admin/joueurs/${p.id}`} className="hover:underline">
+                          <h3>{fullName(p)}</h3>
+                        </Link>
                         <CardText>
                           {p.age} ans · {p.gender === 'M' ? 'Garçon / Homme' : 'Fille / Femme'}
                         </CardText>
@@ -117,6 +120,9 @@ export function PlayersPage() {
                       </>
                     ) : (
                       <>
+                        <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to={`/admin/joueurs/${p.id}`}>
+                          Profil
+                        </Link>
                         <Button onClick={() => setForm({ open: true, player: p })}>Modifier</Button>
                         <Button variant="danger" onClick={() => setToArchive(p)}>
                           Archiver

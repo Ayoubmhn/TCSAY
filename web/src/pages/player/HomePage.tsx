@@ -68,9 +68,9 @@ export function HomePage() {
                       </Pill>
                       {o.nextSession.court && <Pill tone="g">{o.nextSession.court}</Pill>}
                     </Pills>
-                    {o.nextSession.coach && (
+                    {o.nextSession.coaches.length > 0 && (
                       <div className="text-sm opacity-90">
-                        Coach {o.nextSession.coach.firstName} {o.nextSession.coach.lastName}
+                        {o.nextSession.coaches.length > 1 ? 'Coachs' : 'Coach'} {o.nextSession.coaches.map((c) => `${c.firstName} ${c.lastName}`.trim()).join(', ')}
                       </div>
                     )}
                   </>

@@ -31,7 +31,7 @@ function FeeFormModal({
   const [categoryId, setCategoryId] = useState('');
   const [groupId, setGroupId] = useState('');
   const [amount, setAmount] = useState('');
-  const [count, setCount] = useState('2');
+  const [deposit, setDeposit] = useState('0');
   const [reason, setReason] = useState('');
   const feeRef = useRef(fee);
   feeRef.current = fee;
@@ -41,7 +41,7 @@ function FeeFormModal({
     setCategoryId(f?.category.id ?? '');
     setGroupId(f?.group?.id ?? '');
     setAmount(f ? String(f.amount) : '');
-    setCount(f ? String(f.installmentsCount) : '2');
+    setDeposit(f ? String(f.depositAmount) : '0');
     setReason('');
   }, [open]);
 
@@ -56,13 +56,13 @@ function FeeFormModal({
   const save = useAction(
     () =>
       fee
-        ? api.patch(`/fees/${fee.id}`, { version: fee.version, amount: Number(amount), installmentsCount: Number(count), reason: reason || undefined })
+        ? api.patch(`/fees/${fee.id}`, { version: fee.version, amount: Number(amount), depositAmount: Number(deposit), reason: reason || undefined })
         : api.post('/fees', {
             seasonId: season?.id,
             categoryId,
             groupId: groupId || undefined,
             amount: Number(amount),
-            installmentsCount: Number(count),
+            depositAmount: Number(deposit),
           }),
     { invalidate: [['fees']], success: fee ? (locked ? 'Tarif modifié. Motif enregistré.' : 'Tarif enregistré.') : 'Tarif créé.', onSuccess: onClose },
   );
@@ -70,6 +70,8 @@ function FeeFormModal({
     e.preventDefault();
     if (!fee && !categoryId) return toast('Catégorie obligatoire.');
     if (!(Number(amount) >= 0) || amount === '') return toast('Montant invalide.');
+    if (deposit === '' || !(Number(deposit) >= 0)) return toast('Acompte invalide.');
+    if (Number(deposit) > Number(amount)) return toast('L’acompte ne peut pas dépasser le montant de la saison.');
     if (locked && !reason.trim()) return toast('Le motif est obligatoire.');
     save.mutate();
   };
@@ -119,7 +121,10 @@ function FeeFormModal({
           </>
         )}
         <TextField label="Montant de la saison (DT)" type="number" min={0} step="0.001" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        <TextField label="Nombre de tranches" type="number" min={1} max={12} value={count} onChange={(e) => setCount(e.target.value)} />
+        <TextField label="Acompte à l’inscription (DT)" type="number" min={0} step="0.001" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+        <p className="col-span-full m-0 text-[13px] text-mut">
+          Le mode de paiement est choisi à l’inscription du joueur : comptant (une tranche), par semestre (acompte + 2 tranches) ou par mois (acompte + une tranche le 5 de chaque mois).
+        </p>
         {locked && <TextArea label="Motif (obligatoire)" full value={reason} onChange={(e) => setReason(e.target.value)} />}
       </FormGrid>
     </Modal>
@@ -177,9 +182,8 @@ export function FeesPage() {
                   </CardRow>
                   <Kpi>{DT(f.amount)}</Kpi>
                   <Pills>
-                    <Pill tone="b">
-                      {f.installmentsCount} tranche{f.installmentsCount > 1 ? 's' : ''} de {DT(Math.round((f.amount / f.installmentsCount) * 1000) / 1000)}
-                    </Pill>
+                    <Pill tone="b">Acompte {DT(f.depositAmount)}</Pill>
+                    <Pill tone="s">Comptant · semestre · mois</Pill>
                   </Pills>
                   <CardActions>
                     <Button onClick={() => setForm({ open: true, fee: f })}>Modifier</Button>
@@ -193,7 +197,7 @@ export function FeesPage() {
         </QueryState>
       </div>
       <Note>
-        Tarifs réels, tranches et réductions famille : <b>à confirmer avec le bureau</b>. Sur une saison clôturée, motif
+        Tarifs réels, acomptes et réductions famille : <b>à confirmer avec le bureau</b>. Sur une saison clôturée, motif
         obligatoire et anciennes valeurs conservées (R6).
       </Note>
       <FeeFormModal open={form.open} fee={form.fee} season={season} onClose={() => setForm({ open: false })} />
