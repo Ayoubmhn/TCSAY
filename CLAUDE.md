@@ -114,15 +114,14 @@ Calcul de la catégorie (âge atteint ou année de naissance, date de référenc
 
 | Écran du prototype | Route web | Rôles | État |
 |---|---|---|---|
-| vSeasons | `/admin/saisons` | admin | ✅ fait |
-| vDash | `/admin` | admin | en-tête fait, KPI à venir |
-| vCats, vCourts, vCoaches | `/admin/categories`, `/admin/terrains`, `/admin/entraineurs` | admin | à faire |
-| vPlayers, vParents, vGroups | `/admin/joueurs`, `/admin/parents`, `/admin/groupes` | admin | à faire |
-| vAres, vCtar | `/admin/reservations`, `/admin/tarifs-terrains` | admin | à faire |
-| vApay, vFees | `/admin/paiements`, `/admin/tarifs` | admin | à faire |
-| vSal, vMails, vAudit | `/admin/salaires`, `/admin/emails`, `/admin/audit` | admin | à faire |
-| vLogin / vChangePw | `/connexion`, `/mot-de-passe` | tous | à faire |
-| vHome, vPay, vSes, vAbs, vBook | `/`, `/paiements`, `/seances`, `/absences`, `/reserver` | joueur, parent | après le mobile |
-| vCSes, vCSal | `/coach/seances`, `/coach/salaires` | coach | après le mobile |
+| vLogin / vChangePw | `/connexion`, `/mot-de-passe` | tous | ✅ |
+| vHome, vPay, vSes, vAbs, vBook | `/`, `/paiements`, `/seances`, `/absences`, `/reserver` | joueur, parent | ✅ |
+| vCSes, vCSal, vBook | `/coach/seances`, `/coach/salaires`, `/coach/reserver` | coach | ✅ |
+| vDash, vPlayers, vParents, vCoaches, vGroups, vCourts, vCats, vSeasons | `/admin`, `/admin/joueurs`, `/admin/parents`, `/admin/entraineurs`, `/admin/groupes`, `/admin/terrains`, `/admin/categories`, `/admin/saisons` | admin | ✅ |
+| vFees, vCtar, vAres, vSal, vApay, vMails, vAudit | `/admin/tarifs`, `/admin/tarifs-terrains`, `/admin/reservations`, `/admin/salaires`, `/admin/paiements`, `/admin/emails`, `/admin/audit` | admin | ✅ |
+| Import historique, Historique des tournois | `/admin/import`, `/tournois` | admin / joueur | « À venir » |
+
+- **Socle livré** (base, API, web) : chaque module se reprend ensuite écran par écran. Écarts connus : pas encore de fabrique CRUD générique (§8, contrôleurs dédiés à la place), paiement en ligne et reçus PDF (S6), import IA (S9), mobile (S10–S11).
+- **Comptes de démo** (seed) : `admin@tcsay.tn` / `admin1234` ; `sana.benali@exemple.tn`, `omar.trabelsi@exemple.tn`, `mehdi.gharbi@exemple.tn`… / `temporaire` (changement obligatoire). `npx prisma db seed` **vide puis recharge** la base.
 
 - Quand tu construis un écran : ouvre sa fonction dans le prototype, liste les éléments visibles, construis-les, puis compare (captures prototype / application) et liste les écarts avant de conclure.

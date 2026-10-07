@@ -22,3 +22,15 @@ cd web
 npm install
 npm run dev                     # http://localhost:5173/admin (proxy /api → :3000)
 ```
+
+## Comptes de démonstration (seed)
+`npx prisma db seed` vide puis recharge la base avec les données du prototype.
+
+| Rôle | Identifiant | Mot de passe |
+|---|---|---|
+| Administrateur | admin@tcsay.tn | admin1234 |
+| Parent | sana.benali@exemple.tn | temporaire (à changer) |
+| Joueur | omar.trabelsi@exemple.tn | temporaire (à changer) |
+| Coach | mehdi.gharbi@exemple.tn | temporaire (à changer) |
+
+En développement, l’écran de connexion propose ces comptes en un clic. Les emails arrivent dans Mailpit : http://localhost:8025

@@ -1,32 +1,31 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
+import { ROLE_LABEL, useAuth, useMe } from '../auth/AuthContext';
+import { Avatar } from '../components/ui/Avatar';
+import { Brand } from '../components/ui/Brand';
 import { MenuButton } from '../components/ui/MenuButton';
 import { Badge } from '../components/ui/Pill';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
-import { ADMIN_MENU } from './adminMenu';
+import { MENUS } from './menus';
 
-/** Contenu du menu latéral (.side) : marque, « MAIN », entrées, carte utilisateur. */
+/** Contenu du menu latéral (.side) : marque, « MAIN », entrées du rôle, carte utilisateur. */
 function SideContent({ onNavigate }: { onNavigate?: () => void }) {
+  const me = useMe();
+  const { logout } = useAuth();
+  const menu = MENUS[me.role];
+  const home = menu[0].path;
+
   return (
     <>
-      <div className="flex items-center gap-2.5 px-1.5">
-        <div aria-hidden="true" className="grid h-[38px] w-[38px] place-items-center rounded-full bg-pg text-[13px] font-semibold text-ink">
-          TC
-        </div>
-        <div>
-          <b className="block font-semibold">TCSAY</b>
-          <span className="text-xs text-mut">Tennis Club de Sayada</span>
-        </div>
-      </div>
-
+      <Brand />
       <div className="px-2.5 text-xs font-semibold tracking-[0.12em] text-mut">MAIN</div>
 
       <nav className="flex flex-col gap-1" aria-label="Navigation">
-        {ADMIN_MENU.map((entry) => (
+        {menu.map((entry) => (
           <NavLink
             key={entry.path}
             to={entry.path}
-            end={entry.path === '/admin'}
+            end={entry.path === home}
             onClick={onNavigate}
             className={({ isActive }) =>
               `flex items-center justify-between gap-2 rounded-[18px] px-3.5 py-[11px] text-left font-medium ${
@@ -40,23 +39,18 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
         ))}
       </nav>
 
-      {/* Carte utilisateur (.ucard) : branchée sur l'authentification au prochain lot. */}
+      {/* Carte utilisateur (.ucard) */}
       <div className="mt-auto flex flex-col gap-2.5 rounded-[24px] border-[1.5px] border-line bg-card p-3.5">
         <div className="flex items-center gap-2.5">
-          <div aria-hidden="true" className="grid h-10 w-10 flex-none place-items-center rounded-[14px] bg-fld text-sm font-semibold">
-            AD
-          </div>
-          <div>
-            <b className="font-semibold">Admin</b>
-            <div className="text-[12.5px] text-mut">Administrateur</div>
+          <Avatar first={me.firstName} last={me.lastName} />
+          <div className="min-w-0">
+            <b className="block truncate font-semibold">
+              {me.firstName} {me.lastName}
+            </b>
+            <div className="text-[12.5px] text-mut">{ROLE_LABEL[me.role]}</div>
           </div>
         </div>
-        <button
-          type="button"
-          disabled
-          title="Disponible avec l’authentification"
-          className="rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg disabled:opacity-45"
-        >
+        <button type="button" onClick={logout} className="rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg">
           Déconnexion
         </button>
       </div>
@@ -66,12 +60,15 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
 
 const SIDE = 'flex flex-col gap-[18px] overflow-y-auto border-r-[1.5px] border-line bg-dr px-4 py-[22px]';
 
-/** Shell admin (.app) : menu 266px + zone principale ; tiroir 268px avec voile sous 860px. */
-export function AdminLayout() {
+/** Shell (.app) : menu 266px + zone principale ; tiroir 268px avec voile sous 860px. */
+export function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
 
-  useEffect(() => setDrawerOpen(false), [pathname]);
+  useEffect(() => {
+    setDrawerOpen(false);
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -82,12 +79,10 @@ export function AdminLayout() {
 
   return (
     <div className="grid min-h-full grid-cols-1 nav:grid-cols-[266px_minmax(0,1fr)]">
-      {/* Menu fixe (> 860px) */}
       <aside aria-label="Menu principal" className={`${SIDE} sticky top-0 hidden h-screen nav:flex`}>
         <SideContent />
       </aside>
 
-      {/* Tiroir (≤ 860px) */}
       <div
         aria-hidden="true"
         onClick={() => setDrawerOpen(false)}
