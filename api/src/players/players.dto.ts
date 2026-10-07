@@ -1,8 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
+import { PaymentPlan } from '@prisma/client';
+import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
+  IsEnum,
+  ValidateNested,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -17,6 +20,30 @@ import {
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const emptyToUndefined = ({ value }: { value: unknown }) => (value === '' || value === null ? undefined : value);
+
+/** Parent créé dans le formulaire joueur : nom, prénom, téléphone, email et CIN obligatoires. */
+export class NewParentDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Parent : prénom obligatoire.' })
+  @MaxLength(60)
+  firstName: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Parent : nom obligatoire.' })
+  @MaxLength(60)
+  lastName: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Parent : téléphone obligatoire.' })
+  @MaxLength(30)
+  phone: string;
+
+  @IsEmail({}, { message: 'Parent : email invalide.' })
+  email: string;
+
+  @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'Parent : CIN obligatoire (6 à 12 caractères).' })
+  cin: string;
+}
 
 export class CreatePlayerDto {
   @IsString()
@@ -45,11 +72,28 @@ export class CreatePlayerDto {
   @MaxLength(30)
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Parent lié (obligatoire pour un mineur)' })
+  @ApiPropertyOptional({ description: 'CIN (obligatoire pour un adulte)' })
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'CIN invalide (6 à 12 caractères).' })
+  cin?: string;
+
+  @ApiPropertyOptional({ description: 'Parent lié existant (obligatoire pour un mineur, sinon newParent)' })
   @IsOptional()
   @Transform(emptyToUndefined)
   @IsUUID('all', { message: 'Parent invalide.' })
   parentId?: string;
+
+  @ApiPropertyOptional({ description: 'Parent à créer dans le même formulaire s’il n’est pas dans la liste' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NewParentDto)
+  newParent?: NewParentDto;
+
+  @ApiPropertyOptional({ enum: PaymentPlan, description: 'Mode de paiement de la cotisation' })
+  @IsOptional()
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  paymentPlan?: PaymentPlan;
 
   @ApiPropertyOptional({ description: 'Catégorie choisie (sinon catégorie proposée)' })
   @IsOptional()
@@ -98,6 +142,11 @@ export class UpdatePlayerDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @IsOptional()
+  @ValidateIf((_, v) => v !== '')
+  @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'CIN invalide (6 à 12 caractères).' })
+  cin?: string;
 }
 
 /** R3 : changement de catégorie par l'admin, motif si hors norme. */

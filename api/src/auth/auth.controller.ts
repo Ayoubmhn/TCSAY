@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Get, HttpCode, Post, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllowPendingPassword, AuthUser, CurrentUser, Public } from './auth-user';
@@ -8,7 +8,10 @@ import { signToken } from './jwt';
 import { hashPassword, verifyPassword } from './password';
 
 class LoginDto {
-  @IsEmail({}, { message: 'Identifiant : adresse email invalide.' })
+  /** Email ou numéro de CIN. */
+  @IsString()
+  @IsNotEmpty({ message: 'Identifiant obligatoire.' })
+  @MaxLength(120)
   email: string;
 
   @IsString()
@@ -38,7 +41,10 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   async login(@Body() dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
+    const login = dto.email.trim();
+    const user = login.includes('@')
+      ? await this.prisma.user.findUnique({ where: { email: login.toLowerCase() } })
+      : await this.prisma.user.findUnique({ where: { cin: login } });
     const ok = user && user.isActive && (await verifyPassword(dto.password, user.passwordHash));
     if (!ok) throw new UnauthorizedException('Identifiant ou mot de passe incorrect.');
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -89,8 +95,14 @@ export class AuthController {
           select: { id: true, firstName: true, lastName: true },
         })
       : null;
+    // Informations du compte : lecture seule pour l'utilisateur, modifiables par le club.
+    const account = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { phone: true, cin: true, position: true, createdAt: true, lastLoginAt: true },
+    });
     return {
       ...user,
+      ...account,
       players: user.role === 'PARENT' ? kids.map((k) => k.player) : self ? [self] : [],
     };
   }

@@ -24,6 +24,12 @@ export class PlayersController {
     return this.players.get(id);
   }
 
+  @Get(':id/profile')
+  @Roles(Role.ADMIN)
+  profile(@Param('id', ParseUUIDPipe) id: string) {
+    return this.players.profile(id);
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   create(@CurrentUser() user: AuthUser, @Body() dto: CreatePlayerDto) {

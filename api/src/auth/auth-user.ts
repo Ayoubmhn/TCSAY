@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 /** Utilisateur authentifié, attaché à la requête par AuthGuard. */
 export type AuthUser = {
   id: string;
-  email: string;
+  email: string | null;
   role: Role;
   firstName: string;
   lastName: string;

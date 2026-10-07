@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
@@ -29,10 +29,10 @@ class CreateFeeDto {
   @Min(0)
   amount: number;
 
-  @IsInt()
-  @Min(1)
-  @Max(12)
-  installmentsCount: number;
+  /** Acompte demandé à l'inscription (paiement par semestre ou par mois). */
+  @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Acompte invalide.' })
+  @Min(0)
+  depositAmount: number;
 }
 
 class UpdateFeeDto {
@@ -44,15 +44,19 @@ class UpdateFeeDto {
   @Min(0)
   amount: number;
 
-  @IsInt()
-  @Min(1)
-  @Max(12)
-  installmentsCount: number;
+  @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Acompte invalide.' })
+  @Min(0)
+  depositAmount: number;
 
   @IsOptional()
   @IsString()
   @MaxLength(300)
   reason?: string;
+}
+
+class CategoryQuery {
+  @IsUUID()
+  categoryId: string;
 }
 
 class ListQuery {
@@ -87,6 +91,16 @@ export class FeesController {
     });
   }
 
+  /** Tarif applicable à une catégorie sur la saison active (montant + acompte), pour le formulaire joueur. */
+  @Get('for-category')
+  async forCategory(@Query() q: CategoryQuery) {
+    const season = await this.access.activeSeason();
+    const fee =
+      (await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: q.categoryId, groupId: null } })) ??
+      (await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: q.categoryId } }));
+    return fee ? { id: fee.id, amount: fee.amount, depositAmount: fee.depositAmount, season: season.label } : null;
+  }
+
   @Post()
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateFeeDto) {
     const season = await this.access.seasonOrActive(dto.seasonId);
@@ -99,7 +113,7 @@ export class FeesController {
         categoryId: dto.categoryId,
         groupId: dto.groupId ?? null,
         amount: dto.amount,
-        installmentsCount: dto.installmentsCount,
+        depositAmount: Math.min(dto.depositAmount, dto.amount),
       },
       include: { category: true, group: true },
     });
@@ -108,7 +122,7 @@ export class FeesController {
       entity: 'FeeSchedule',
       entityId: fee.id,
       target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${season.label}`,
-      after: `${dt(fee.amount)} en ${fee.installmentsCount} tranche(s)`,
+      after: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}`,
     });
     return fee;
   }
@@ -128,15 +142,15 @@ export class FeesController {
     }
     const updated = await this.prisma.feeSchedule.update({
       where: { id },
-      data: { amount: dto.amount, installmentsCount: dto.installmentsCount, version: { increment: 1 } },
+      data: { amount: dto.amount, depositAmount: Math.min(dto.depositAmount, dto.amount), version: { increment: 1 } },
     });
     await this.audit.log(user.id, {
       action: LOCKED_SEASON.includes(fee.season.status) ? 'Tarif modifié (saison clôturée)' : 'Tarif modifié',
       entity: 'FeeSchedule',
       entityId: id,
       target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${fee.season.label}`,
-      before: `${dt(fee.amount)} en ${fee.installmentsCount} tranche(s)`,
-      after: `${dt(updated.amount)} en ${updated.installmentsCount} tranche(s)`,
+      before: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}`,
+      after: `${dt(updated.amount)} · acompte ${dt(updated.depositAmount)}`,
       reason,
     });
     return updated;

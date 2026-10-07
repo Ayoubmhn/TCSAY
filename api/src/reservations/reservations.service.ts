@@ -4,10 +4,10 @@ import { Prisma, ReservationType, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth-user';
-import { addDaysIso, localDayOf, localInstant, pad, todayIso } from '../common/dates';
+import { addDaysIso, localDayOf, localInstant, pad, todayIso, weekday } from '../common/dates';
 import { num } from '../common/money';
 import { fullName, notFound, rule } from '../common/rules';
-import { groupOccupiesHour } from '../common/sessions';
+import { slotOccupiesHour } from '../common/sessions';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -43,8 +43,10 @@ export class ReservationsService {
       this.prisma.reservation.findMany({ where: { activeKey: { not: null }, ...this.dayRange(day) } }),
       this.prisma.season.findFirst({ where: { status: 'ACTIVE', archivedAt: null } }),
     ]);
-    const groups = season
-      ? await this.prisma.trainingGroup.findMany({ where: { seasonId: season.id, archivedAt: null, courtId: { not: null } } })
+    const groupSlots = season
+      ? await this.prisma.groupSlot.findMany({
+          where: { group: { seasonId: season.id, archivedAt: null }, courtId: { not: null }, day: weekday(day) },
+        })
       : [];
     const now = new Date();
     const hours = Array.from({ length: s.closingHour - s.openingHour }, (_, i) => s.openingHour + i);
@@ -61,7 +63,7 @@ export class ReservationsService {
             const mine = user.role === Role.COACH ? r.coachId === user.coachId : ownPlayer !== null && r.playerId === ownPlayer;
             return mine ? 'mine' : 'taken';
           }
-          if (groups.some((g) => g.courtId === court.id && groupOccupiesHour(g, day, hour))) return 'group';
+          if (groupSlots.some((g) => g.courtId === court.id && slotOccupiesHour(g, day, hour))) return 'group';
           return 'free';
         })();
         return { hour, state };
@@ -138,11 +140,12 @@ export class ReservationsService {
     }
 
     // Créneau occupé par un groupe d'entraînement de la saison active.
-    const groups = await this.prisma.trainingGroup.findMany({
-      where: { courtId: court.id, archivedAt: null, season: { status: 'ACTIVE' } },
+    const slots = await this.prisma.groupSlot.findMany({
+      where: { courtId: court.id, group: { archivedAt: null, season: { status: 'ACTIVE' } } },
+      include: { group: { select: { name: true } } },
     });
-    const busy = groups.find((g) => groupOccupiesHour(g, dto.date, dto.hour));
-    if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.name} ».`);
+    const busy = slots.find((g) => slotOccupiesHour(g, dto.date, dto.hour));
+    if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.group.name} ».`);
 
     const rate = await this.prisma.courtRate.findUnique({
       where: { type_period: { type, period: dto.hour >= s.nightStartHour ? 'NIGHT' : 'DAY' } },
@@ -164,6 +167,15 @@ export class ReservationsService {
         },
         include,
       });
+      if (user.role === Role.COACH) {
+        await this.audit.log(user.id, {
+          action: 'Séance privée réservée',
+          entity: 'Reservation',
+          entityId: r.id,
+          target: `${court.name} ${dto.date} ${pad(dto.hour)}h`,
+          after: r.player ? fullName(r.player) : null,
+        });
+      }
       return this.view(r);
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -200,6 +212,9 @@ export class ReservationsService {
       data: { activeKey: null, cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason?.trim() || null },
     });
     const label = `${r.court.name} ${localDayOf(r.startTime)} ${pad(r.startTime.getHours())}h`;
+    if (user.role === Role.COACH) {
+      await this.audit.log(user.id, { action: 'Séance privée annulée', entity: 'Reservation', entityId: id, target: label });
+    }
     if (isAdmin) {
       await this.audit.log(user.id, {
         action: 'Réservation annulée (forcée)',

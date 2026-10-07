@@ -1,37 +1,53 @@
 import { addDaysIso, localInstant, minutesOf, weekday } from './dates';
 
-/** Groupe minimal pour calculer ses séances (les séances ne sont pas stockées : elles découlent du créneau). */
-export type Schedulable = { id: string; days: number[]; startTime: string; endTime: string };
+/**
+ * Créneau hebdomadaire d'un groupe (GroupSlot) : chaque jour a son horaire, son terrain et ses entraîneurs.
+ * Les séances ne sont pas stockées : elles découlent des créneaux.
+ */
+export type SlotLike = { id: string; day: number; startTime: string; endTime: string };
 
-export type Session<G extends Schedulable> = { group: G; date: string; start: Date; end: Date };
+export type Session<S extends SlotLike> = { slot: S; date: string; start: Date; end: Date; minutes: number };
 
-/** Séances des groupes entre deux jours inclus (« AAAA-MM-JJ »), triées par début. */
-export function sessionsBetween<G extends Schedulable>(groups: G[], from: string, to: string): Session<G>[] {
-  const out: Session<G>[] = [];
+/** Séances des créneaux entre deux jours inclus (« AAAA-MM-JJ »), triées par début. */
+export function sessionsBetween<S extends SlotLike>(slots: S[], from: string, to: string): Session<S>[] {
+  const out: Session<S>[] = [];
   for (let day = from; day <= to; day = addDaysIso(day, 1)) {
     const wd = weekday(day);
-    for (const group of groups) {
-      if (group.days.includes(wd)) {
-        out.push({ group, date: day, start: localInstant(day, group.startTime), end: localInstant(day, group.endTime) });
+    for (const slot of slots) {
+      if (slot.day === wd) {
+        out.push({
+          slot,
+          date: day,
+          start: localInstant(day, slot.startTime),
+          end: localInstant(day, slot.endTime),
+          minutes: minutesOf(slot.endTime) - minutesOf(slot.startTime),
+        });
       }
     }
   }
   return out.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
-/** Deux créneaux hebdomadaires se chevauchent-ils (même jour, horaires qui se croisent) ? */
-type Slot = Omit<Schedulable, 'id'>;
+type Slot = Omit<SlotLike, 'id'>;
 
+/** Deux créneaux se chevauchent-ils (même jour, horaires qui se croisent) ? */
 export function slotsOverlap(a: Slot, b: Slot): boolean {
-  if (!a.days.some((d) => b.days.includes(d))) return false;
-  return minutesOf(a.startTime) < minutesOf(b.endTime) && minutesOf(b.startTime) < minutesOf(a.endTime);
+  return a.day === b.day && minutesOf(a.startTime) < minutesOf(b.endTime) && minutesOf(b.startTime) < minutesOf(a.endTime);
 }
 
-/** Le groupe occupe-t-il son terrain à cette heure pleine (créneau d'une heure) ce jour-là ? */
-export function groupOccupiesHour(group: Slot, day: string, hour: number): boolean {
-  if (!group.days.includes(weekday(day))) return false;
+/** Le créneau occupe-t-il l'heure pleine `hour` (réservation d'une heure) ce jour-là ? */
+export function slotOccupiesHour(slot: Slot, day: string, hour: number): boolean {
+  if (slot.day !== weekday(day)) return false;
   const start = hour * 60;
-  return minutesOf(group.startTime) < start + 60 && start < minutesOf(group.endTime);
+  return minutesOf(slot.startTime) < start + 60 && start < minutesOf(slot.endTime);
 }
 
 export const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+export const DAY_LONG = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+
+/** Premier et dernier jour d'un mois « AAAA-MM ». */
+export function monthRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split('-').map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, '0')}` };
+}

@@ -1,11 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { PaymentPlan, Prisma, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth-user';
 import { CategoriesService } from '../categories/categories.service';
-import { ageAtYearEnd, dayFromIso, isoDay } from '../common/dates';
+import { ageAtYearEnd, dayFromIso, isoDay, todayIso } from '../common/dates';
+import { num } from '../common/money';
+import { slotInclude, slotView } from '../groups/groups.controller';
+import { PaymentsService } from '../payments/payments.service';
 import { assertSeasonOpen, assertVersion, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +23,7 @@ export class PlayersService {
     private readonly categories: CategoriesService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async list(q: ListPlayersQuery) {
@@ -53,6 +57,10 @@ export class PlayersService {
     return this.view(player, season.startDate.getUTCFullYear());
   }
 
+  /**
+   * Inscription d'un joueur : catégorie proposée (R3), mineur → parent existant ou créé dans le même formulaire (R9),
+   * majeur → email, téléphone et CIN obligatoires ; cotisation créée selon le mode de paiement choisi.
+   */
   async create(actor: AuthUser, dto: CreatePlayerDto) {
     const season = await this.access.activeSeason();
     assertSeasonOpen(season);
@@ -61,8 +69,12 @@ export class PlayersService {
     if ('error' in suggestion) throw new BadRequestException(suggestion.error);
     const { age, minor } = suggestion;
 
-    if (minor && !dto.parentId) throw rule.bad('R9', 'Un mineur doit avoir au moins un parent lié.');
-    if (!minor && !dto.email) throw new BadRequestException('L’email est obligatoire pour un joueur majeur.');
+    if (minor && !dto.parentId && !dto.newParent) throw rule.bad('R9', 'Un mineur doit avoir au moins un parent lié.');
+    if (!minor) {
+      if (!dto.email) throw new BadRequestException('L’email est obligatoire pour un joueur majeur.');
+      if (!dto.phone?.trim()) throw new BadRequestException('Le téléphone est obligatoire pour un joueur majeur.');
+      if (!dto.cin) throw new BadRequestException('La CIN est obligatoire pour un joueur majeur.');
+    }
 
     const categoryId = dto.categoryId ?? suggestion.category.id;
     const allowed = [suggestion.category.id, suggestion.alternative?.id].filter(Boolean);
@@ -71,14 +83,29 @@ export class PlayersService {
       throw rule.bad('R3', `Catégorie hors norme pour ${age} ans : motif de dérogation obligatoire.`);
     }
 
-    const parent = dto.parentId ? await this.prisma.user.findUnique({ where: { id: dto.parentId } }) : null;
-    if (dto.parentId && (!parent || parent.role !== Role.PARENT || !parent.isActive)) throw notFound('Parent');
+    const existingParent = dto.parentId ? await this.prisma.user.findUnique({ where: { id: dto.parentId } }) : null;
+    if (dto.parentId && (!existingParent || existingParent.role !== Role.PARENT || !existingParent.isActive)) throw notFound('Parent');
+    const plan = dto.paymentPlan ?? PaymentPlan.FULL;
 
     const result = await this.prisma.$transaction(async (tx) => {
+      // Parent créé dans le même formulaire si absent de la liste.
+      const newParent = dto.newParent
+        ? await this.accounts.create(tx, { ...dto.newParent, role: Role.PARENT })
+        : null;
+      if (newParent) {
+        await this.audit.log(
+          actor.id,
+          { action: 'Parent créé', entity: 'User', entityId: newParent.user.id, target: fullName(newParent.user), after: 'Depuis le formulaire joueur' },
+          tx,
+        );
+      }
+      const parent = newParent?.user ?? existingParent;
+
       const account =
         !minor && dto.email
           ? await this.accounts.create(tx, {
               email: dto.email,
+              cin: dto.cin,
               role: Role.PLAYER,
               firstName: dto.firstName,
               lastName: dto.lastName,
@@ -93,6 +120,7 @@ export class PlayersService {
           gender: dto.gender,
           email: dto.email?.trim().toLowerCase() || null,
           phone: dto.phone?.trim() || null,
+          cin: dto.cin?.trim() || null,
           userId: account?.user.id ?? null,
         },
       });
@@ -103,32 +131,82 @@ export class PlayersService {
       if (parent) await tx.parentLink.create({ data: { parentId: parent.id, playerId: player.id } });
       await this.audit.log(
         actor.id,
-        {
-          action: 'Joueur créé',
-          entity: 'Player',
-          entityId: player.id,
-          target: fullName(player),
-          after: enrollment.category.name,
-          reason: derogation,
-        },
+        { action: 'Joueur créé', entity: 'Player', entityId: player.id, target: fullName(player), after: enrollment.category.name, reason: derogation },
         tx,
       );
-      return { player, account };
+      const membership = await this.payments.buildMembership(tx, actor.id, { ...enrollment, player }, season, plan);
+      return { player, account, newParent, parent, membership };
     });
 
     // Emails après validation de la transaction.
+    const credentials = [];
+    if (result.newParent) credentials.push(await this.accounts.sendCredentials(result.newParent.user, result.newParent.password));
     if (result.account) {
-      await this.accounts.sendCredentials(result.account.user, result.account.password);
-    } else if (parent) {
+      credentials.push(await this.accounts.sendCredentials(result.account.user, result.account.password));
+    } else if (result.parent?.email && !result.newParent) {
       await this.mail.send(
-        parent.email,
+        result.parent.email,
         `${result.player.firstName} est inscrit au TCSAY`,
-        `Bonjour ${parent.firstName},\n\n${fullName(result.player)} est inscrit pour la saison ${season.label}. Vous pouvez suivre ses séances, absences et paiements depuis votre espace.\n\nLe bureau du TCSAY`,
+        `Bonjour ${result.parent.firstName},\n\n${fullName(result.player)} est inscrit pour la saison ${season.label}. Vous pouvez suivre ses séances, absences et paiements depuis votre espace.\n\nLe bureau du TCSAY`,
         'OTHER',
       );
     }
-    const sentTo = result.account?.user.email ?? parent?.email ?? null;
-    return { ...(await this.get(result.player.id)), sentTo };
+    return {
+      ...(await this.get(result.player.id)),
+      sentTo: credentials.map((c) => c.sentTo).filter(Boolean).join(', ') || result.parent?.email || null,
+      temporaryPasswords: credentials.filter((c) => c.temporaryPassword),
+      membership: result.membership
+        ? { plan, installments: result.membership.schedule }
+        : null,
+    };
+  }
+
+  /** Profil d'un joueur : infos, parents, groupe et créneaux, cotisation et tranches, absences. */
+  async profile(id: string) {
+    const base = await this.get(id);
+    const season = await this.access.activeSeason();
+    const [groups, installments, absences, attendance] = await Promise.all([
+      this.prisma.trainingGroup.findMany({
+        where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId: id } } } },
+        include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+      }),
+      this.prisma.installment.findMany({
+        where: { membership: { enrollment: { playerId: id, seasonId: season.id } } },
+        include: { payments: true, membership: { select: { paymentPlan: true } } },
+        orderBy: { number: 'asc' },
+      }),
+      this.prisma.attendance.findMany({
+        where: { playerId: id, present: false, group: { seasonId: season.id } },
+        include: { group: { select: { name: true } }, slot: { select: { startTime: true } } },
+        orderBy: { date: 'desc' },
+      }),
+      this.prisma.attendance.count({ where: { playerId: id, group: { seasonId: season.id } } }),
+    ]);
+    const today = todayIso();
+    return {
+      ...base,
+      season: { id: season.id, label: season.label },
+      groups: groups.map((g) => ({ id: g.id, name: g.name, slots: g.slots.map(slotView) })),
+      paymentPlan: installments[0]?.membership.paymentPlan ?? null,
+      installments: installments.map((i) => {
+        const amount = num(i.amount);
+        const paid = i.payments.reduce((t, p) => t + num(p.amount), 0);
+        const remaining = Math.max(0, Math.round((amount - paid) * 1000) / 1000);
+        const due = isoDay(i.dueDate);
+        return {
+          id: i.id,
+          number: i.number,
+          count: i.count,
+          dueDate: due,
+          amount,
+          paid,
+          remaining,
+          status: remaining === 0 ? 'PAID' : due < today ? 'LATE' : paid > 0 ? 'PARTIAL' : 'DUE',
+        };
+      }),
+      absences: absences.map((a) => ({ id: a.id, date: isoDay(a.date), group: a.group.name, startTime: a.slot.startTime, reason: a.reason ?? 'Non justifiée' })),
+      attendanceCount: attendance,
+    };
   }
 
   /** R9 : nom, naissance, genre (admin seulement). */
@@ -146,6 +224,7 @@ export class PlayersService {
         gender: dto.gender,
         email: dto.email === undefined ? undefined : dto.email.trim().toLowerCase() || null,
         phone: dto.phone === undefined ? undefined : dto.phone.trim() || null,
+        cin: dto.cin === undefined ? undefined : dto.cin.trim() || null,
         version: { increment: 1 },
       },
     });
@@ -273,6 +352,7 @@ export class PlayersService {
       gender: p.gender,
       email: p.email,
       phone: p.phone,
+      cin: p.cin,
       hasAccount: Boolean(p.userId),
       archivedAt: p.archivedAt,
       version: p.version,

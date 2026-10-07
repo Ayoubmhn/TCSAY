@@ -17,6 +17,32 @@ enum Role {
   COACH
   PARENT
   PLAYER
+  STAFF // personnel du club (agent administratif, directeur technique…)
+}
+
+/// Fonction du personnel (liste à compléter par le club).
+enum StaffPosition {
+  ADMIN_AGENT // Agent administratif
+  TECHNICAL_DIRECTOR // Directeur technique
+}
+
+/// Rémunération d'un employé (entraîneur ou personnel).
+enum PayMode {
+  HOURLY // à l'heure (heures des séances animées)
+  MONTHLY // forfait mensuel
+}
+
+/// Mode de paiement de la cotisation choisi à l'inscription.
+enum PaymentPlan {
+  FULL // comptant
+  SEMESTER // par semestre
+  MONTHLY // par mois
+}
+
+enum AbsenceStatus {
+  PENDING // déclarée par l'entraîneur
+  APPROVED // validée par l'administration
+  REJECTED
 }
 
 enum Gender {
@@ -90,28 +116,34 @@ enum ImportStatus {
 // ───────────────────────── Comptes ─────────────────────────
 
 model User {
-  id                 String    @id @default(uuid()) @db.Uuid
-  email              String    @unique
+  id                 String         @id @default(uuid()) @db.Uuid
+  email              String?        @unique // identifiant (ou CIN si pas d'email)
+  cin                String?        @unique // carte d'identité nationale
   passwordHash       String
   role               Role
   firstName          String
   lastName           String
   phone              String?
-  mustChangePassword Boolean   @default(true)
-  isActive           Boolean   @default(true) // comptes désactivés, jamais supprimés
+  position           StaffPosition? // personnel seulement
+  payMode            PayMode? // employés : à l'heure ou au mois
+  payRate            Decimal?       @db.Decimal(10, 3) // DT par heure ou par mois
+  mustChangePassword Boolean        @default(true)
+  isActive           Boolean        @default(true) // comptes désactivés, jamais supprimés
   lastLoginAt        DateTime?
-  version            Int       @default(1)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  version            Int            @default(1)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
-  player        Player?
-  coach         Coach?
-  parentLinks   ParentLink[]
-  auditLogs     AuditLog[]
-  reservations  Reservation[] @relation("ReservationBookedBy")
-  cancellations Reservation[] @relation("ReservationCancelledBy")
-  payments      Payment[]
-  attendances   Attendance[]
+  player           Player?
+  coach            Coach?
+  parentLinks      ParentLink[]
+  auditLogs        AuditLog[]
+  reservations     Reservation[]  @relation("ReservationBookedBy")
+  cancellations    Reservation[]  @relation("ReservationCancelledBy")
+  payments         Payment[]
+  attendances      Attendance[]
+  salaries         Salary[]
+  absenceDecisions CoachAbsence[] @relation("AbsenceDecidedBy")
 }
 
 model Player {
@@ -123,6 +155,7 @@ model Player {
   gender     Gender // M ou F
   email      String?
   phone      String?
+  cin        String? // adulte
   photoUrl   String?
   origin     Origin    @default(MANUAL)
   archivedAt DateTime? // R8
@@ -153,14 +186,14 @@ model ParentLink {
 model Coach {
   id        String   @id @default(uuid()) @db.Uuid
   userId    String   @unique @db.Uuid
-  payMode   String? // mensuel, horaire, forfait : à confirmer
+  color     String   @default("#c9e9fb") // couleur dans le planning des terrains
   version   Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User            @relation(fields: [userId], references: [id])
-  groups       TrainingGroup[]
-  fees         CoachFee[]
+  user         User           @relation(fields: [userId], references: [id])
+  slots        SlotCoach[]
+  absences     CoachAbsence[]
   reservations Reservation[]
 }
 
@@ -180,7 +213,7 @@ model Season {
   enrollments   Enrollment[]
   groups        TrainingGroup[]
   feeSchedules  FeeSchedule[]
-  coachFees     CoachFee[]
+  salaries      Salary[]
   importBatches ImportBatch[]
 
   @@index([status])
@@ -239,7 +272,7 @@ model Court {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  groups       TrainingGroup[]
+  slots        GroupSlot[]
   reservations Reservation[]
 }
 
@@ -247,12 +280,7 @@ model TrainingGroup {
   id         String    @id @default(uuid()) @db.Uuid
   seasonId   String    @db.Uuid
   name       String
-  categoryId String    @db.Uuid
-  coachId    String?   @db.Uuid
-  courtId    String?   @db.Uuid
-  days       Int[] // jours de la semaine : 0 = dimanche … 6 = samedi
-  startTime  String // « 17:00 »
-  endTime    String // « 18:30 »
+  categoryId String?   @db.Uuid // catégorie principale (facultative : groupes mixtes)
   capacity   Int
   archivedAt DateTime?
   version    Int       @default(1)
@@ -260,15 +288,43 @@ model TrainingGroup {
   updatedAt  DateTime  @updatedAt
 
   season       Season        @relation(fields: [seasonId], references: [id])
-  category     Category      @relation(fields: [categoryId], references: [id])
-  coach        Coach?        @relation(fields: [coachId], references: [id])
-  court        Court?        @relation(fields: [courtId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  slots        GroupSlot[]
   members      GroupMember[]
   attendances  Attendance[]
   reservations Reservation[]
   feeSchedules FeeSchedule[]
 
   @@unique([seasonId, name])
+}
+
+/// Créneau hebdomadaire d'un groupe : chaque jour peut avoir son horaire, son terrain et ses entraîneurs.
+model GroupSlot {
+  id        String  @id @default(uuid()) @db.Uuid
+  groupId   String  @db.Uuid
+  day       Int // 0 = dimanche … 6 = samedi
+  startTime String // « 17:30 »
+  endTime   String // « 19:00 »
+  courtId   String? @db.Uuid
+
+  group       TrainingGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  court       Court?         @relation(fields: [courtId], references: [id])
+  coaches     SlotCoach[]
+  attendances Attendance[]
+  absences    CoachAbsence[]
+
+  @@index([day])
+}
+
+/// Une séance peut être animée par plusieurs entraîneurs.
+model SlotCoach {
+  slotId  String @db.Uuid
+  coachId String @db.Uuid
+
+  slot  GroupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  coach Coach     @relation(fields: [coachId], references: [id])
+
+  @@id([slotId, coachId])
 }
 
 model GroupMember {
@@ -327,15 +383,15 @@ model Reservation {
 // ───────────────────────── Cotisations et paiements ─────────────────────────
 
 model FeeSchedule {
-  id                String   @id @default(uuid()) @db.Uuid
-  seasonId          String   @db.Uuid
-  categoryId        String   @db.Uuid
-  groupId           String?  @db.Uuid
-  amount            Decimal  @db.Decimal(10, 3)
-  installmentsCount Int
-  version           Int      @default(1)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id            String   @id @default(uuid()) @db.Uuid
+  seasonId      String   @db.Uuid
+  categoryId    String   @db.Uuid
+  groupId       String?  @db.Uuid
+  amount        Decimal  @db.Decimal(10, 3) // montant de la saison
+  depositAmount Decimal  @default(0) @db.Decimal(10, 3) // acompte à l'inscription
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   season      Season         @relation(fields: [seasonId], references: [id])
   category    Category       @relation(fields: [categoryId], references: [id])
@@ -346,13 +402,14 @@ model FeeSchedule {
 }
 
 model Membership {
-  id            String   @id @default(uuid()) @db.Uuid
-  enrollmentId  String   @unique @db.Uuid
-  feeScheduleId String?  @db.Uuid
-  totalAmount   Decimal  @db.Decimal(10, 3)
-  version       Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id            String      @id @default(uuid()) @db.Uuid
+  enrollmentId  String      @unique @db.Uuid
+  feeScheduleId String?     @db.Uuid
+  paymentPlan   PaymentPlan @default(FULL)
+  totalAmount   Decimal     @db.Decimal(10, 3)
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 
   enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id])
   feeSchedule  FeeSchedule?  @relation(fields: [feeScheduleId], references: [id])
@@ -395,27 +452,52 @@ model Payment {
 
 // ───────────────────────── Coachs ─────────────────────────
 
-model CoachFee {
-  id        String    @id @default(uuid()) @db.Uuid
-  coachId   String    @db.Uuid
-  seasonId  String    @db.Uuid
-  period    String // ex. « Octobre 2026 »
-  amount    Decimal   @db.Decimal(10, 3)
-  paidAt    DateTime? @db.Date // null = À verser
-  note      String?
-  version   Int       @default(1)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+/// Salaire d'un employé (entraîneur ou personnel) pour un mois. Versé = paidAt renseigné.
+model Salary {
+  id         String    @id @default(uuid()) @db.Uuid
+  employeeId String    @db.Uuid
+  seasonId   String?   @db.Uuid
+  month      String // « 2026-10 »
+  hours      Decimal?  @db.Decimal(6, 2) // à l'heure : heures retenues
+  absences   Int       @default(0) // séances non animées (absences validées)
+  amount     Decimal   @db.Decimal(10, 3)
+  paidAt     DateTime? @db.Date // null = À verser
+  note       String?
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  coach  Coach  @relation(fields: [coachId], references: [id])
-  season Season @relation(fields: [seasonId], references: [id])
+  employee User    @relation(fields: [employeeId], references: [id])
+  season   Season? @relation(fields: [seasonId], references: [id])
 
-  @@unique([coachId, seasonId, period])
+  @@unique([employeeId, month])
+}
+
+/// Absence d'un entraîneur : déclarée par lui, validée par l'administration, puis groupes prévenus.
+model CoachAbsence {
+  id           String        @id @default(uuid()) @db.Uuid
+  coachId      String        @db.Uuid
+  date         DateTime      @db.Date
+  slotId       String?       @db.Uuid // null = toute la journée
+  reason       String
+  status       AbsenceStatus @default(PENDING)
+  notifyGroups Boolean       @default(true)
+  decidedById  String?       @db.Uuid
+  decidedAt    DateTime?
+  decisionNote String?
+  createdAt    DateTime      @default(now())
+
+  coach     Coach      @relation(fields: [coachId], references: [id])
+  slot      GroupSlot? @relation(fields: [slotId], references: [id])
+  decidedBy User?      @relation("AbsenceDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([date])
 }
 
 model Attendance {
   id           String   @id @default(uuid()) @db.Uuid
   groupId      String   @db.Uuid
+  slotId       String   @db.Uuid
   playerId     String   @db.Uuid
   date         DateTime @db.Date
   present      Boolean
@@ -425,10 +507,11 @@ model Attendance {
   updatedAt    DateTime @updatedAt
 
   group      TrainingGroup @relation(fields: [groupId], references: [id])
+  slot       GroupSlot     @relation(fields: [slotId], references: [id])
   player     Player        @relation(fields: [playerId], references: [id])
   recordedBy User          @relation(fields: [recordedById], references: [id])
 
-  @@unique([groupId, playerId, date])
+  @@unique([slotId, playerId, date])
 }
 
 // ───────────────────────── Divers ─────────────────────────

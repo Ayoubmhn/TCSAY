@@ -31,11 +31,13 @@ export class AuditService {
     });
   }
 
-  list(limit = 200) {
+  /** Entrées d'un mois « AAAA-MM » (heure du club), de la plus récente à la plus ancienne. */
+  month(month: string) {
+    const [y, m] = month.split('-').map(Number);
     return this.prisma.auditLog.findMany({
+      where: { createdAt: { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) } },
       orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: { user: { select: { firstName: true, lastName: true } } },
+      include: { user: { select: { firstName: true, lastName: true, role: true } } },
     });
   }
 }

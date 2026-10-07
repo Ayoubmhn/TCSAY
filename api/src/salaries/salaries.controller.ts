@@ -1,8 +1,7 @@
-import { NIL_UUID } from '../common/rules';
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { Prisma, Role } from '@prisma/client';
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
@@ -11,23 +10,52 @@ import { dt, num } from '../common/money';
 import { LOCKED_SEASON, assertVersion, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { SalariesService } from './salaries.service';
 
-class CreateSalaryDto {
-  @IsUUID('all', { message: 'Entraîneur obligatoire.' })
-  coachId: string;
+const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
+export const EMPLOYEE_TYPES = ['COACH', 'ADMIN_AGENT', 'TECHNICAL_DIRECTOR'] as const;
+export type EmployeeType = (typeof EMPLOYEE_TYPES)[number];
+
+class ListQuery {
+  @IsOptional()
+  @IsIn(EMPLOYEE_TYPES)
+  type?: EmployeeType;
 
   @IsOptional()
   @IsUUID()
-  seasonId?: string;
+  employeeId?: string;
+}
 
-  @IsString()
-  @IsNotEmpty({ message: 'Période obligatoire (ex. Octobre 2026).' })
-  @MaxLength(40)
-  period: string;
+class EstimateQuery {
+  @IsUUID()
+  employeeId: string;
 
+  @Matches(MONTH, { message: 'Mois au format AAAA-MM.' })
+  month: string;
+}
+
+class CreateSalaryDto {
+  @IsUUID('all', { message: 'Employé obligatoire.' })
+  employeeId: string;
+
+  @Matches(MONTH, { message: 'Mois au format AAAA-MM.' })
+  month: string;
+
+  /** Facultatif : sinon montant calculé (séances animées, absences, forfait). */
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Montant invalide.' })
   @Min(0)
-  amount: number;
+  amount?: number;
+
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  hours?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  note?: string;
 }
 
 class UpdateSalaryDto {
@@ -45,18 +73,22 @@ class UpdateSalaryDto {
   reason?: string;
 }
 
-class ListQuery {
-  @IsOptional()
-  @IsUUID()
-  coachId?: string;
+const include = {
+  employee: {
+    select: { id: true, firstName: true, lastName: true, email: true, role: true, position: true, coach: { select: { id: true, color: true } } },
+  },
+  season: { select: { id: true, label: true, status: true } },
+} satisfies Prisma.SalaryInclude;
+
+type Row = Prisma.SalaryGetPayload<{ include: typeof include }>;
+
+export function employeeType(u: { role: Role; position: string | null }): EmployeeType | null {
+  if (u.role === Role.COACH) return 'COACH';
+  if (u.role === Role.STAFF && u.position) return u.position as EmployeeType;
+  return null;
 }
 
-const include = {
-  coach: { select: { id: true, user: { select: { firstName: true, lastName: true, email: true } } } },
-  season: { select: { id: true, label: true, status: true } },
-};
-
-/** Salaires des entraîneurs : saisis par l'admin ; le coach consulte ses salaires versés. */
+/** Salaires des employés : entraîneurs, agents administratifs, directeur technique. */
 @ApiTags('Salaires')
 @ApiBearerAuth()
 @Controller('salaries')
@@ -66,69 +98,123 @@ export class SalariesController {
     private readonly access: AccessService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly salaries: SalariesService,
   ) {}
+
+  /** Employés salariés, filtrés par type (sélecteur de la page Salaires). */
+  @Get('employees')
+  @Roles(Role.ADMIN)
+  async employees(@Query() q: ListQuery) {
+    const users = await this.prisma.user.findMany({
+      where: this.typeWhere(q.type),
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+      include: { coach: { select: { id: true, color: true } } },
+    });
+    return users.map((u) => ({
+      id: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      type: employeeType(u),
+      payMode: u.payMode,
+      payRate: num(u.payRate),
+      isActive: u.isActive,
+      coach: u.coach,
+    }));
+  }
 
   @Get()
   @Roles(Role.ADMIN)
   async list(@Query() q: ListQuery) {
-    const rows = await this.prisma.coachFee.findMany({
-      where: { coachId: q.coachId },
+    const rows = await this.prisma.salary.findMany({
+      where: { employeeId: q.employeeId, employee: this.typeWhere(q.type) },
       include,
-      orderBy: [{ paidAt: { sort: 'desc', nulls: 'first' } }, { createdAt: 'desc' }],
+      orderBy: [{ month: 'desc' }, { createdAt: 'desc' }],
     });
     return rows.map(view);
   }
 
+  /** Proposition de salaire pour un mois (séances animées, absences validées, forfait). */
+  @Get('estimate')
+  @Roles(Role.ADMIN)
+  estimate(@Query() q: EstimateQuery) {
+    return this.salaries.estimate(q.employeeId, q.month);
+  }
+
+  /** Coach : historique des salaires versés + salaires à venir (mois en cours et suivant). */
   @Get('mine')
-  @Roles(Role.COACH)
+  @Roles(Role.COACH, Role.STAFF)
   async mine(@CurrentUser() user: AuthUser) {
-    const rows = await this.prisma.coachFee.findMany({
-      where: { coachId: user.coachId ?? NIL_UUID, paidAt: { not: null } },
-      include,
-      orderBy: { paidAt: 'desc' },
-    });
-    return rows.map(view);
+    const rows = await this.prisma.salary.findMany({ where: { employeeId: user.id }, include, orderBy: { month: 'desc' } });
+    const now = todayIso().slice(0, 7);
+    const [y, m] = now.split('-').map(Number);
+    const next = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`;
+    const recorded = new Set(rows.map((r) => r.month));
+    const upcoming = await Promise.all(
+      [now, next].filter((month) => !recorded.has(month)).map((month) => this.salaries.estimate(user.id, month)),
+    );
+    return {
+      paid: rows.filter((r) => r.paidAt).map(view),
+      pending: rows.filter((r) => !r.paidAt).map(view),
+      upcoming,
+    };
   }
 
   @Post()
   @Roles(Role.ADMIN)
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateSalaryDto) {
-    const season = await this.access.seasonOrActive(dto.seasonId);
-    const fee = await this.prisma.coachFee.create({
-      data: { coachId: dto.coachId, seasonId: season.id, period: dto.period.trim(), amount: dto.amount },
+    const employee = await this.prisma.user.findUnique({ where: { id: dto.employeeId } });
+    if (!employee || !employeeType(employee)) throw notFound('Employé');
+    if (await this.prisma.salary.findUnique({ where: { employeeId_month: { employeeId: dto.employeeId, month: dto.month } } })) {
+      throw new BadRequestException(`Le salaire de ${dto.month} est déjà saisi pour cet employé.`);
+    }
+    const est = await this.salaries.estimate(dto.employeeId, dto.month);
+    const hours = dto.hours ?? est.hours;
+    const amount = dto.amount ?? (dto.hours !== undefined && employee.payMode === 'HOURLY' ? dto.hours * est.payRate : est.amount);
+    const season = await this.prisma.season.findFirst({ where: { status: 'ACTIVE', archivedAt: null } });
+    const salary = await this.prisma.salary.create({
+      data: {
+        employeeId: dto.employeeId,
+        seasonId: season?.id ?? null,
+        month: dto.month,
+        hours,
+        absences: est.absentSessions,
+        amount,
+        note: dto.note?.trim() || null,
+      },
       include,
     });
     await this.audit.log(user.id, {
       action: 'Salaire saisi',
-      entity: 'CoachFee',
-      entityId: fee.id,
-      target: `${fullName(fee.coach.user)} · ${fee.period}`,
-      after: dt(fee.amount),
+      entity: 'Salary',
+      entityId: salary.id,
+      target: `${fullName(employee).trim()} · ${dto.month}`,
+      after: `${dt(amount)}${hours !== null && hours !== undefined ? ` (${hours} h)` : ''}`,
     });
-    return view(fee);
+    return view(salary);
   }
 
   /** R6 : modifiable sur saison en cours ou à venir ; sur saison clôturée, motif obligatoire. */
   @Patch(':id')
   @Roles(Role.ADMIN)
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSalaryDto) {
-    const fee = await this.find(id);
-    assertVersion(fee, dto.version, 'Ce salaire');
+    const salary = await this.find(id);
+    assertVersion(salary, dto.version, 'Ce salaire');
+    if (salary.paidAt) throw rule.conflict('R6', 'Salaire déjà versé : il ne peut plus être modifié.');
     const reason = dto.reason?.trim() || null;
-    if (LOCKED_SEASON.includes(fee.season.status) && !reason) {
-      throw rule.bad('R6', `Saison ${fee.season.label} clôturée : motif obligatoire.`);
+    if (salary.season && LOCKED_SEASON.includes(salary.season.status) && !reason) {
+      throw rule.bad('R6', `Saison ${salary.season.label} clôturée : motif obligatoire.`);
     }
-    const updated = await this.prisma.coachFee.update({
+    const updated = await this.prisma.salary.update({
       where: { id },
       data: { amount: dto.amount, version: { increment: 1 } },
       include,
     });
     await this.audit.log(user.id, {
       action: 'Salaire modifié',
-      entity: 'CoachFee',
+      entity: 'Salary',
       entityId: id,
-      target: `${fullName(fee.coach.user)} · ${fee.period}`,
-      before: dt(fee.amount),
+      target: `${fullName(salary.employee).trim()} · ${salary.month}`,
+      before: dt(salary.amount),
       after: dt(updated.amount),
       reason,
     });
@@ -139,55 +225,63 @@ export class SalariesController {
   @HttpCode(200)
   @Roles(Role.ADMIN)
   async pay(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
-    const fee = await this.find(id);
-    if (fee.paidAt) throw rule.conflict('R6', 'Ce salaire est déjà marqué versé.');
-    const updated = await this.prisma.coachFee.update({
+    const salary = await this.find(id);
+    if (salary.paidAt) throw rule.conflict('R6', 'Ce salaire est déjà marqué versé.');
+    const updated = await this.prisma.salary.update({
       where: { id },
       data: { paidAt: dayFromIso(todayIso()), version: { increment: 1 } },
       include,
     });
-    const target = `${fullName(fee.coach.user)} · ${fee.period}`;
     await this.audit.log(user.id, {
       action: 'Salaire marqué versé',
-      entity: 'CoachFee',
+      entity: 'Salary',
       entityId: id,
-      target,
+      target: `${fullName(salary.employee).trim()} · ${salary.month}`,
       before: 'À verser',
       after: 'Versé',
     });
-    await this.mail.send(
-      fee.coach.user.email,
-      `Votre salaire (${fee.period}) est versé`,
-      `Bonjour ${fee.coach.user.firstName},\n\nVotre salaire de ${fee.period} (${dt(fee.amount)}) a été versé.\n\nLe bureau du TCSAY`,
-      'SALARY',
-    );
+    if (salary.employee.email) {
+      await this.mail.send(
+        salary.employee.email,
+        `Votre salaire (${salary.month}) est versé`,
+        `Bonjour ${salary.employee.firstName},\n\nVotre salaire de ${salary.month} (${dt(salary.amount)}) a été versé.\n\nLe bureau du TCSAY`,
+        'SALARY',
+      );
+    }
     return view(updated);
   }
 
+  private typeWhere(type?: EmployeeType): Prisma.UserWhereInput {
+    if (type === 'COACH') return { role: Role.COACH };
+    if (type) return { role: Role.STAFF, position: type };
+    return { OR: [{ role: Role.COACH }, { role: Role.STAFF }] };
+  }
+
   private async find(id: string) {
-    const fee = await this.prisma.coachFee.findUnique({ where: { id }, include });
-    if (!fee) throw notFound('Salaire');
-    return fee;
+    const salary = await this.prisma.salary.findUnique({ where: { id }, include });
+    if (!salary) throw notFound('Salaire');
+    return salary;
   }
 }
 
-function view(f: {
-  id: string;
-  period: string;
-  amount: { toNumber(): number };
-  paidAt: Date | null;
-  version: number;
-  coach: { id: string; user: { firstName: string; lastName: string } };
-  season: { id: string; label: string; status: string };
-}) {
+export function view(s: Row) {
   return {
-    id: f.id,
-    period: f.period,
-    amount: num(f.amount as never),
-    paidAt: f.paidAt,
-    paid: Boolean(f.paidAt),
-    version: f.version,
-    coach: { id: f.coach.id, firstName: f.coach.user.firstName, lastName: f.coach.user.lastName },
-    season: f.season,
+    id: s.id,
+    month: s.month,
+    hours: s.hours === null ? null : num(s.hours),
+    absences: s.absences,
+    amount: num(s.amount),
+    paidAt: s.paidAt,
+    paid: Boolean(s.paidAt),
+    note: s.note,
+    version: s.version,
+    employee: {
+      id: s.employee.id,
+      firstName: s.employee.firstName,
+      lastName: s.employee.lastName,
+      type: employeeType(s.employee),
+      color: s.employee.coach?.color ?? null,
+    },
+    season: s.season,
   };
 }

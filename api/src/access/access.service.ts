@@ -34,13 +34,13 @@ export class AccessService {
     return id;
   }
 
-  /** Coach : vérifie que le groupe lui appartient ; l'admin peut tout. */
-  async assertGroupAccess(user: AuthUser, groupId: string): Promise<void> {
+  /** Coach : vérifie qu'il anime ce créneau ; l'admin peut tout. */
+  async assertSlotAccess(user: AuthUser, slotId: string): Promise<void> {
     if (user.role === Role.ADMIN) return;
-    const group = await this.prisma.trainingGroup.findUnique({ where: { id: groupId }, select: { coachId: true } });
-    if (!group) throw new NotFoundException('Groupe introuvable.');
-    if (user.role !== Role.COACH || group.coachId !== user.coachId) {
-      throw new ForbiddenException('Ce groupe n’est pas le vôtre.');
+    const slot = await this.prisma.groupSlot.findUnique({ where: { id: slotId }, include: { coaches: true } });
+    if (!slot) throw new NotFoundException('Séance introuvable.');
+    if (user.role !== Role.COACH || !slot.coaches.some((c) => c.coachId === user.coachId)) {
+      throw new ForbiddenException('Cette séance n’est pas la vôtre.');
     }
   }
 

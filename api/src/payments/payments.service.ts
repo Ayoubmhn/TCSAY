@@ -1,13 +1,14 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { PaymentPlan, Prisma, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth-user';
-import { isoDay, todayIso } from '../common/dates';
+import { dayFromIso, isoDay, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { assertSeasonOpen, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { Db, PrismaService } from '../prisma/prisma.service';
+import { PLAN_LABEL, planInstallments } from './payment-plan';
 
 export type InstallmentStatus = 'PAID' | 'PARTIAL' | 'DUE' | 'LATE';
 
@@ -98,8 +99,55 @@ export class PaymentsService {
     return { sentTo: to };
   }
 
-  /** Crée la cotisation et ses tranches depuis le tarif (groupe du joueur, sinon catégorie). */
-  async createMembership(actor: AuthUser, playerId: string, seasonId?: string) {
+  /** Tarif applicable : celui du groupe du joueur, sinon celui de sa catégorie. */
+  async findFee(db: Db, seasonId: string, categoryId: string, groupIds: string[] = []) {
+    return (
+      (groupIds.length ? await db.feeSchedule.findFirst({ where: { seasonId, groupId: { in: groupIds } } }) : null) ??
+      (await db.feeSchedule.findFirst({ where: { seasonId, categoryId, groupId: null } })) ??
+      (await db.feeSchedule.findFirst({ where: { seasonId, categoryId } }))
+    );
+  }
+
+  /**
+   * Crée la cotisation et ses tranches depuis le tarif, selon le mode de paiement choisi
+   * (comptant, par semestre, par mois ; acompte défini dans le tarif). Utilisable dans une transaction.
+   */
+  async buildMembership(
+    db: Db,
+    actorId: string,
+    enrollment: { id: string; categoryId: string; player: { firstName: string; lastName: string } },
+    season: { id: string; label: string; startDate: Date; endDate: Date },
+    plan: PaymentPlan,
+    groupIds: string[] = [],
+  ) {
+    const fee = await this.findFee(db, season.id, enrollment.categoryId, groupIds);
+    if (!fee) return null;
+    const total = num(fee.amount);
+    const schedule = planInstallments(plan, total, num(fee.depositAmount), season, todayIso());
+    const m = await db.membership.create({
+      data: { enrollmentId: enrollment.id, feeScheduleId: fee.id, paymentPlan: plan, totalAmount: total },
+    });
+    for (const [i, inst] of schedule.entries()) {
+      await db.installment.create({
+        data: { membershipId: m.id, number: i + 1, count: schedule.length, dueDate: dayFromIso(inst.dueDate), amount: inst.amount },
+      });
+    }
+    await this.audit.log(
+      actorId,
+      {
+        action: 'Cotisation créée',
+        entity: 'Membership',
+        entityId: m.id,
+        target: `${fullName(enrollment.player)} · ${season.label}`,
+        after: `${dt(total)} · ${PLAN_LABEL[plan]} · ${schedule.length} tranche(s)`,
+      },
+      db,
+    );
+    return { membership: m, schedule };
+  }
+
+  /** Crée la cotisation d'un joueur déjà inscrit (si elle n'a pas été créée à l'inscription). */
+  async createMembership(actor: AuthUser, playerId: string, plan: PaymentPlan, seasonId?: string) {
     const season = await this.access.seasonOrActive(seasonId);
     assertSeasonOpen(season);
     const enrollment = await this.prisma.enrollment.findUnique({
@@ -108,43 +156,11 @@ export class PaymentsService {
     });
     if (!enrollment) throw notFound('Inscription');
     if (enrollment.membership) throw rule.conflict('R7', 'Cotisation déjà créée pour cette saison.');
-    const groupIds = enrollment.groups.map((g) => g.groupId);
-    const fee =
-      (groupIds.length
-        ? await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, groupId: { in: groupIds } } })
-        : null) ??
-      (await this.prisma.feeSchedule.findFirst({
-        where: { seasonId: season.id, categoryId: enrollment.categoryId, groupId: null },
-      })) ??
-      (await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: enrollment.categoryId } }));
-    if (!fee) throw new BadRequestException('Aucun tarif pour la catégorie ou le groupe de ce joueur : créez d’abord le tarif.');
-
-    const total = num(fee.amount);
-    const n = fee.installmentsCount;
-    const base = Math.floor((total / n) * 1000) / 1000;
-    const start = season.startDate;
-    const membership = await this.prisma.$transaction(async (tx) => {
-      const m = await tx.membership.create({ data: { enrollmentId: enrollment.id, feeScheduleId: fee.id, totalAmount: total } });
-      for (let i = 0; i < n; i++) {
-        // Échéances réparties sur 9 mois à partir du 2e mois de saison (à ajuster par l'admin).
-        const due = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1 + Math.floor((i * 9) / n), 15));
-        const amount = i === n - 1 ? Math.round((total - base * (n - 1)) * 1000) / 1000 : base;
-        await tx.installment.create({ data: { membershipId: m.id, number: i + 1, count: n, dueDate: due, amount } });
-      }
-      await this.audit.log(
-        actor.id,
-        {
-          action: 'Cotisation créée',
-          entity: 'Membership',
-          entityId: m.id,
-          target: `${fullName(enrollment.player)} · ${season.label}`,
-          after: `${dt(total)} en ${n} tranche(s)`,
-        },
-        tx,
-      );
-      return m;
-    });
-    return membership;
+    const result = await this.prisma.$transaction((tx) =>
+      this.buildMembership(tx, actor.id, enrollment, season, plan, enrollment.groups.map((g) => g.groupId)),
+    );
+    if (!result) throw new BadRequestException('Aucun tarif pour la catégorie ou le groupe de ce joueur : créez d’abord le tarif.');
+    return result.membership;
   }
 
   /** Paiements encaissés (lecture seule). */

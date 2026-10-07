@@ -1,8 +1,7 @@
-import { NIL_UUID } from '../common/rules';
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Prisma, Role } from '@prisma/client';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
@@ -16,44 +15,29 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { minutesOf } from '../common/dates';
-import { assertSeasonOpen, assertVersion, fullName, notFound, rule } from '../common/rules';
-import { DAY_NAMES, slotsOverlap } from '../common/sessions';
+import { assertSeasonOpen, assertVersion, fullName, NIL_UUID, notFound, rule } from '../common/rules';
+import { DAY_LONG, DAY_NAMES, slotsOverlap } from '../common/sessions';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emptyToUndefined = ({ value }: { value: unknown }) => (value === '' || value === null ? undefined : value);
 
-class GroupFields {
-  @IsString()
-  @IsNotEmpty({ message: 'Nom du groupe obligatoire.' })
-  @MaxLength(60)
-  name: string;
-
-  @IsUUID('all', { message: 'Catégorie obligatoire.' })
-  categoryId: string;
-
+/** Un créneau : un jour, son horaire, son terrain, ses entraîneurs (plusieurs possibles). */
+class SlotDto {
   @IsOptional()
-  @Transform(emptyToUndefined)
   @IsUUID()
-  coachId?: string;
+  id?: string;
 
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsUUID()
-  courtId?: string;
-
-  @IsArray()
-  @ArrayMinSize(1, { message: 'Choisissez au moins un jour.' })
-  @ArrayMaxSize(7)
-  @IsInt({ each: true })
-  @Min(0, { each: true })
-  @Max(6, { each: true })
-  days: number[];
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  day: number;
 
   @Matches(TIME, { message: 'Heure de début au format HH:MM.' })
   startTime: string;
@@ -61,10 +45,39 @@ class GroupFields {
   @Matches(TIME, { message: 'Heure de fin au format HH:MM.' })
   endTime: string;
 
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsUUID()
+  courtId?: string;
+
+  @IsArray()
+  @ArrayMaxSize(4)
+  @IsUUID('all', { each: true })
+  coachIds: string[];
+}
+
+class GroupFields {
+  @IsString()
+  @IsNotEmpty({ message: 'Nom du groupe obligatoire.' })
+  @MaxLength(60)
+  name: string;
+
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsUUID()
+  categoryId?: string;
+
   @IsInt()
   @Min(1, { message: 'Capacité minimale : 1.' })
-  @Max(40)
+  @Max(60)
   capacity: number;
+
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Ajoutez au moins un créneau.' })
+  @ArrayMaxSize(14)
+  @ValidateNested({ each: true })
+  @Type(() => SlotDto)
+  slots: SlotDto[];
 }
 
 class CreateGroupDto extends GroupFields {
@@ -95,10 +108,16 @@ class ListQuery {
   seasonId?: string;
 }
 
+export const slotInclude = {
+  court: { select: { id: true, name: true } },
+  coaches: {
+    include: { coach: { select: { id: true, color: true, user: { select: { firstName: true, lastName: true } } } } },
+  },
+} satisfies Prisma.GroupSlotInclude;
+
 const groupInclude = {
   category: { select: { id: true, name: true, code: true } },
-  coach: { select: { id: true, user: { select: { firstName: true, lastName: true } } } },
-  court: { select: { id: true, name: true } },
+  slots: { include: slotInclude, orderBy: [{ day: 'asc' as const }, { startTime: 'asc' as const }] },
   members: {
     include: {
       enrollment: {
@@ -110,7 +129,21 @@ const groupInclude = {
     },
     orderBy: { createdAt: 'asc' as const },
   },
-};
+} satisfies Prisma.TrainingGroupInclude;
+
+type SlotRow = Prisma.GroupSlotGetPayload<{ include: typeof slotInclude }>;
+
+/** Vue d'un créneau pour le web : jour, horaire, terrain, entraîneurs (avec couleur). */
+export function slotView(s: SlotRow) {
+  return {
+    id: s.id,
+    day: s.day,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    court: s.court,
+    coaches: s.coaches.map((c) => ({ id: c.coach.id, color: c.coach.color, ...c.coach.user })),
+  };
+}
 
 @ApiTags('Groupes')
 @ApiBearerAuth()
@@ -122,42 +155,21 @@ export class GroupsController {
     private readonly audit: AuditService,
   ) {}
 
-  /** Admin : tous les groupes ; coach : ses groupes. */
+  /** Admin et personnel : tous les groupes ; coach : les groupes dont il anime au moins un créneau. */
   @Get()
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.STAFF)
   async list(@CurrentUser() user: AuthUser, @Query() q: ListQuery) {
     const season = await this.access.seasonOrActive(q.seasonId);
     const groups = await this.prisma.trainingGroup.findMany({
       where: {
         seasonId: season.id,
         archivedAt: null,
-        ...(user.role === Role.COACH ? { coachId: user.coachId ?? NIL_UUID } : {}),
+        ...(user.role === Role.COACH ? { slots: { some: { coaches: { some: { coachId: user.coachId ?? NIL_UUID } } } } } : {}),
       },
       include: groupInclude,
       orderBy: { name: 'asc' },
     });
-    return groups.map((g) => ({
-      id: g.id,
-      seasonId: g.seasonId,
-      name: g.name,
-      days: g.days,
-      startTime: g.startTime,
-      endTime: g.endTime,
-      capacity: g.capacity,
-      version: g.version,
-      category: g.category,
-      coach: g.coach ? { id: g.coach.id, ...g.coach.user } : null,
-      court: g.court,
-      members: g.members
-        .filter((m) => !m.enrollment.player.archivedAt)
-        .map((m) => ({
-          playerId: m.enrollment.player.id,
-          firstName: m.enrollment.player.firstName,
-          lastName: m.enrollment.player.lastName,
-          category: m.enrollment.category.name,
-          derogationReason: m.derogationReason,
-        })),
-    }));
+    return groups.map((g) => this.view(g));
   }
 
   @Post()
@@ -165,28 +177,25 @@ export class GroupsController {
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {
     const season = await this.access.seasonOrActive(dto.seasonId);
     assertSeasonOpen(season);
-    await this.assertNoConflict(season.id, dto);
+    await this.assertNoConflict(season.id, dto.slots);
     const group = await this.prisma.trainingGroup.create({
       data: {
         seasonId: season.id,
         name: dto.name.trim(),
-        categoryId: dto.categoryId,
-        coachId: dto.coachId ?? null,
-        courtId: dto.courtId ?? null,
-        days: [...new Set(dto.days)].sort(),
-        startTime: dto.startTime,
-        endTime: dto.endTime,
+        categoryId: dto.categoryId ?? null,
         capacity: dto.capacity,
+        slots: { create: dto.slots.map((s) => this.slotData(s)) },
       },
+      include: groupInclude,
     });
     await this.audit.log(user.id, {
       action: 'Groupe créé',
       entity: 'TrainingGroup',
       entityId: group.id,
       target: group.name,
-      after: describe(group),
+      after: describe(group.slots),
     });
-    return group;
+    return this.view(group);
   }
 
   @Patch(':id')
@@ -199,30 +208,49 @@ export class GroupsController {
     if (dto.capacity < members) {
       throw rule.conflict('R4', `Capacité ${dto.capacity} inférieure au nombre de joueurs (${members}).`);
     }
-    await this.assertNoConflict(group.seasonId, dto, id);
-    const updated = await this.prisma.trainingGroup.update({
-      where: { id },
-      data: {
-        name: dto.name.trim(),
-        categoryId: dto.categoryId,
-        coachId: dto.coachId ?? null,
-        courtId: dto.courtId ?? null,
-        days: [...new Set(dto.days)].sort(),
-        startTime: dto.startTime,
-        endTime: dto.endTime,
-        capacity: dto.capacity,
-        version: { increment: 1 },
-      },
+    await this.assertNoConflict(group.seasonId, dto.slots, id);
+
+    const keep = new Set(dto.slots.filter((s) => s.id).map((s) => s.id));
+    const removed = group.slots.filter((s) => !keep.has(s.id));
+    if (removed.length) {
+      const used = await this.prisma.attendance.count({ where: { slotId: { in: removed.map((s) => s.id) } } });
+      if (used) throw rule.conflict('R8', 'Un créneau supprimé a déjà des présences pointées : modifiez-le plutôt que de le retirer.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      await tx.groupSlot.deleteMany({ where: { id: { in: removed.map((s) => s.id) } } });
+      for (const s of dto.slots) {
+        if (s.id && group.slots.some((x) => x.id === s.id)) {
+          await tx.slotCoach.deleteMany({ where: { slotId: s.id } });
+          await tx.groupSlot.update({
+            where: { id: s.id },
+            data: {
+              day: s.day,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              courtId: s.courtId ?? null,
+              coaches: { create: s.coachIds.map((coachId) => ({ coachId })) },
+            },
+          });
+        } else {
+          await tx.groupSlot.create({ data: { groupId: id, ...this.slotData(s) } });
+        }
+      }
+      return tx.trainingGroup.update({
+        where: { id },
+        data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, capacity: dto.capacity, version: { increment: 1 } },
+        include: groupInclude,
+      });
     });
     await this.audit.log(user.id, {
       action: 'Groupe modifié',
       entity: 'TrainingGroup',
       entityId: id,
       target: updated.name,
-      before: describe(group),
-      after: describe(updated),
+      before: describe(group.slots),
+      after: describe(updated.slots),
     });
-    return updated;
+    return this.view(updated);
   }
 
   /** R4 : capacité respectée, catégorie correspondante (dérogation avec motif). */
@@ -243,11 +271,8 @@ export class GroupsController {
       throw new BadRequestException('Ce joueur n’est pas inscrit sur la saison du groupe.');
     }
     const reason = dto.derogationReason?.trim() || null;
-    if (enrollment.categoryId !== group.categoryId && !reason) {
-      throw rule.bad(
-        'R4',
-        `${enrollment.player.firstName} est en ${enrollment.category.name} : motif de dérogation obligatoire.`,
-      );
+    if (group.categoryId && enrollment.categoryId !== group.categoryId && !reason) {
+      throw rule.bad('R4', `${enrollment.player.firstName} est en ${enrollment.category.name} : motif de dérogation obligatoire.`);
     }
     await this.prisma.groupMember.create({ data: { groupId: id, enrollmentId: enrollment.id, derogationReason: reason } });
     await this.audit.log(user.id, {
@@ -297,41 +322,87 @@ export class GroupsController {
     return { ok: true };
   }
 
-  /** R5 : pas de conflit de terrain ou d'entraîneur sur un même créneau. */
-  private async assertNoConflict(seasonId: string, dto: GroupFields, excludeId?: string) {
-    if (minutesOf(dto.endTime) <= minutesOf(dto.startTime)) {
-      throw new BadRequestException('L’heure de fin doit suivre l’heure de début.');
-    }
-    if (!dto.courtId && !dto.coachId) return;
-    const others = await this.prisma.trainingGroup.findMany({
-      where: {
-        seasonId,
-        archivedAt: null,
-        id: excludeId ? { not: excludeId } : undefined,
-        OR: [...(dto.courtId ? [{ courtId: dto.courtId }] : []), ...(dto.coachId ? [{ coachId: dto.coachId }] : [])],
-      },
-      include: { court: true, coach: { include: { user: true } } },
-    });
-    for (const other of others) {
-      if (!slotsOverlap(dto, other)) continue;
-      const day = DAY_NAMES[dto.days.find((d) => other.days.includes(d)) ?? 0].toLowerCase();
-      if (dto.courtId && other.courtId === dto.courtId) {
-        throw rule.conflict('R5', `Conflit : ${other.court?.name} est déjà occupé le ${day} à ${other.startTime} par « ${other.name} ».`);
+  private slotData(s: SlotDto) {
+    return {
+      day: s.day,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      courtId: s.courtId ?? null,
+      coaches: { create: [...new Set(s.coachIds)].map((coachId) => ({ coachId })) },
+    };
+  }
+
+  /** R5 : pas de conflit de terrain ni d'entraîneur sur un même créneau (dans le groupe et avec les autres groupes). */
+  private async assertNoConflict(seasonId: string, slots: SlotDto[], excludeGroupId?: string) {
+    for (const s of slots) {
+      if (minutesOf(s.endTime) <= minutesOf(s.startTime)) {
+        throw new BadRequestException(`${DAY_LONG[s.day]} : l’heure de fin doit suivre l’heure de début.`);
       }
-      throw rule.conflict(
-        'R5',
-        `Conflit : ${other.coach ? fullName(other.coach.user) : 'l’entraîneur'} entraîne déjà « ${other.name} » le ${day} à ${other.startTime}.`,
-      );
+    }
+    // Conflits internes au groupe.
+    for (let i = 0; i < slots.length; i++) {
+      for (let j = i + 1; j < slots.length; j++) {
+        const a = slots[i];
+        const b = slots[j];
+        if (!slotsOverlap(a, b)) continue;
+        if ((a.courtId && a.courtId === b.courtId) || a.coachIds.some((c) => b.coachIds.includes(c))) {
+          throw rule.conflict('R5', `Deux créneaux du ${DAY_LONG[a.day]} se chevauchent sur le même terrain ou le même entraîneur.`);
+        }
+      }
+    }
+    const others = await this.prisma.groupSlot.findMany({
+      where: {
+        group: { seasonId, archivedAt: null, id: excludeGroupId ? { not: excludeGroupId } : undefined },
+        day: { in: [...new Set(slots.map((s) => s.day))] },
+      },
+      include: { group: true, court: true, coaches: { include: { coach: { include: { user: true } } } } },
+    });
+    for (const s of slots) {
+      for (const o of others) {
+        if (!slotsOverlap(s, o)) continue;
+        if (s.courtId && o.courtId === s.courtId) {
+          throw rule.conflict('R5', `Conflit : ${o.court?.name} est déjà occupé le ${DAY_LONG[s.day]} de ${o.startTime} à ${o.endTime} par « ${o.group.name} ».`);
+        }
+        const coach = o.coaches.find((c) => s.coachIds.includes(c.coachId));
+        if (coach) {
+          throw rule.conflict('R5', `Conflit : ${fullName(coach.coach.user).trim()} entraîne déjà « ${o.group.name} » le ${DAY_LONG[s.day]} à ${o.startTime}.`);
+        }
+      }
     }
   }
 
   private async find(id: string) {
-    const group = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { season: true } });
+    const group = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { season: true, slots: { include: slotInclude } } });
     if (!group || group.archivedAt) throw notFound('Groupe');
     return group;
   }
+
+  private view(g: Prisma.TrainingGroupGetPayload<{ include: typeof groupInclude }>) {
+    const slots = g.slots.map(slotView);
+    const coaches = new Map<string, (typeof slots)[number]['coaches'][number]>();
+    for (const s of slots) for (const c of s.coaches) coaches.set(c.id, c);
+    return {
+      id: g.id,
+      seasonId: g.seasonId,
+      name: g.name,
+      capacity: g.capacity,
+      version: g.version,
+      category: g.category,
+      slots,
+      coaches: [...coaches.values()],
+      members: g.members
+        .filter((m) => !m.enrollment.player.archivedAt)
+        .map((m) => ({
+          playerId: m.enrollment.player.id,
+          firstName: m.enrollment.player.firstName,
+          lastName: m.enrollment.player.lastName,
+          category: m.enrollment.category.name,
+          derogationReason: m.derogationReason,
+        })),
+    };
+  }
 }
 
-function describe(g: { days: number[]; startTime: string; endTime: string; capacity: number }): string {
-  return `${g.days.map((d) => DAY_NAMES[d]).join(' & ')} ${g.startTime}–${g.endTime} · ${g.capacity} places`;
+function describe(slots: { day: number; startTime: string; endTime: string; court?: { name: string } | null }[]): string {
+  return slots.map((s) => `${DAY_NAMES[s.day]} ${s.startTime}–${s.endTime}${s.court ? ' ' + s.court.name : ''}`).join(' · ') || '—';
 }

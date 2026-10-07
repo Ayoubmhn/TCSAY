@@ -1,13 +1,14 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { ageAtYearEnd } from '../common/dates';
 import { assertVersion, fullName, notFound, rule } from '../common/rules';
+import { slotInclude, slotView } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 
 class CreateParentDto {
@@ -24,10 +25,13 @@ class CreateParentDto {
   @IsEmail({}, { message: 'Email invalide.' })
   email: string;
 
-  @IsOptional()
   @IsString()
+  @IsNotEmpty({ message: 'Téléphone obligatoire.' })
   @MaxLength(30)
-  phone?: string;
+  phone: string;
+
+  @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'CIN obligatoire (6 à 12 caractères).' })
+  cin: string;
 }
 
 class UpdateParentDto {
@@ -51,6 +55,10 @@ class UpdateParentDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @IsOptional()
+  @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'CIN invalide (6 à 12 caractères).' })
+  cin?: string;
 }
 
 class LinkDto {
@@ -88,6 +96,7 @@ export class ParentsController {
       lastName: p.lastName,
       email: p.email,
       phone: p.phone,
+      cin: p.cin,
       isActive: p.isActive,
       version: p.version,
       players: p.parentLinks.map((l) => l.player),
@@ -105,8 +114,7 @@ export class ParentsController {
       );
       return created;
     });
-    await this.accounts.sendCredentials(user, password);
-    return { id: user.id, email: user.email };
+    return { id: user.id, ...(await this.accounts.sendCredentials(user, password)) };
   }
 
   @Patch(':id')
@@ -119,6 +127,7 @@ export class ParentsController {
         firstName: dto.firstName?.trim(),
         lastName: dto.lastName?.trim(),
         phone: dto.phone?.trim(),
+        cin: dto.cin?.trim(),
         version: { increment: 1 },
       },
     });
@@ -131,6 +140,50 @@ export class ParentsController {
       after: `${fullName(updated)} · ${updated.phone ?? '—'}`,
     });
     return { ok: true };
+  }
+
+  /** Profil d'un parent : informations, enfants et leurs groupes (créneaux). */
+  @Get(':id/profile')
+  async profile(@Param('id', ParseUUIDPipe) id: string) {
+    const parent = await this.find(id);
+    const season = await this.access.activeSeason().catch(() => null);
+    const links = await this.prisma.parentLink.findMany({
+      where: { parentId: id },
+      include: {
+        player: {
+          include: {
+            enrollments: {
+              where: { seasonId: season?.id },
+              include: {
+                category: { select: { name: true } },
+                groups: { include: { group: { include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } } } },
+              },
+            },
+          },
+        },
+      },
+    });
+    return {
+      id: parent.id,
+      firstName: parent.firstName,
+      lastName: parent.lastName,
+      email: parent.email,
+      phone: parent.phone,
+      cin: parent.cin,
+      isActive: parent.isActive,
+      version: parent.version,
+      children: links.map(({ player: p }) => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        birthDate: p.birthDate,
+        archivedAt: p.archivedAt,
+        category: p.enrollments[0]?.category.name ?? null,
+        groups: (p.enrollments[0]?.groups ?? [])
+          .filter((g) => !g.group.archivedAt)
+          .map((g) => ({ id: g.group.id, name: g.group.name, slots: g.group.slots.map(slotView) })),
+      })),
+    };
   }
 
   @Post(':id/links')

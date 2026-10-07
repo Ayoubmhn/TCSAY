@@ -7,6 +7,7 @@ import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, todayIso } from '../common/dates';
 import { num } from '../common/money';
 import { sessionsBetween } from '../common/sessions';
+import { slotInclude, slotView } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 
 class PlayerQuery {
@@ -41,13 +42,11 @@ export class MeController {
     });
     const groups = await this.prisma.trainingGroup.findMany({
       where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId } } } },
-      include: {
-        court: { select: { name: true } },
-        coach: { select: { user: { select: { firstName: true, lastName: true } } } },
-      },
+      include: { slots: { include: slotInclude } },
     });
+    const slots = groups.flatMap((g) => g.slots.map((s) => ({ ...s, groupName: g.name })));
     const now = new Date();
-    const next = sessionsBetween(groups, todayIso(), addDaysIso(todayIso(), 14)).find((s) => s.start > now);
+    const next = sessionsBetween(slots, todayIso(), addDaysIso(todayIso(), 14)).find((s) => s.start > now);
 
     const installments = await this.prisma.installment.findMany({
       where: { membership: { enrollment: { playerId, seasonId: season.id } } },
@@ -68,12 +67,12 @@ export class MeController {
       category: player.enrollments[0]?.category.name ?? null,
       nextSession: next
         ? {
-            groupName: next.group.name,
+            groupName: next.slot.groupName,
             date: next.date,
-            startTime: next.group.startTime,
-            endTime: next.group.endTime,
-            court: next.group.court?.name ?? null,
-            coach: next.group.coach ? next.group.coach.user : null,
+            startTime: next.slot.startTime,
+            endTime: next.slot.endTime,
+            court: next.slot.court?.name ?? null,
+            coaches: slotView(next.slot).coaches,
           }
         : null,
       hasGroup: groups.length > 0,

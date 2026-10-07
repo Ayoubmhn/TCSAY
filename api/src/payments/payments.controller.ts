@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { PaymentPlan, Role } from '@prisma/client';
+import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { rule } from '../common/rules';
 import { PaymentsService } from './payments.service';
@@ -30,6 +30,9 @@ class CashDto {
 class MembershipDto {
   @IsUUID()
   playerId: string;
+
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  paymentPlan: PaymentPlan;
 
   @IsOptional()
   @IsUUID()
@@ -64,7 +67,7 @@ export class PaymentsController {
   @Post('memberships')
   @Roles(Role.ADMIN)
   createMembership(@CurrentUser() user: AuthUser, @Body() dto: MembershipDto) {
-    return this.payments.createMembership(user, dto.playerId, dto.seasonId);
+    return this.payments.createMembership(user, dto.playerId, dto.paymentPlan, dto.seasonId);
   }
 
   @Get('payments')

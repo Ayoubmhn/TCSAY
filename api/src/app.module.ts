@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { CoachAbsencesController } from './absences/coach-absences.controller';
 import { AttendanceController } from './attendance/attendance.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuthController } from './auth/auth.controller';
@@ -10,6 +11,7 @@ import { CoreModule } from './core.module';
 import { CourtRatesController } from './court-rates/court-rates.controller';
 import { CourtsController } from './courts/courts.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
+import { PlanningController } from './dashboard/planning.controller';
 import { EventsController } from './events/events.controller';
 import { FeesController } from './fees/fees.controller';
 import { GroupsController } from './groups/groups.controller';
@@ -25,8 +27,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ReservationsController } from './reservations/reservations.controller';
 import { ReservationsService } from './reservations/reservations.service';
 import { SalariesController } from './salaries/salaries.controller';
+import { SalariesService } from './salaries/salaries.service';
 import { SeasonsModule } from './seasons/seasons.module';
 import { SettingsController } from './settings/settings.controller';
+import { StaffController } from './staff/staff.controller';
 
 @Module({
   imports: [PrismaModule, CoreModule, SeasonsModule],
@@ -35,9 +39,12 @@ import { SettingsController } from './settings/settings.controller';
     AuthController,
     MeController,
     DashboardController,
+    PlanningController,
     PlayersController,
     ParentsController,
     CoachesController,
+    StaffController,
+    CoachAbsencesController,
     GroupsController,
     CourtsController,
     CategoriesController,
@@ -56,6 +63,7 @@ import { SettingsController } from './settings/settings.controller';
     PlayersService,
     PaymentsService,
     ReservationsService,
+    SalariesService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })
