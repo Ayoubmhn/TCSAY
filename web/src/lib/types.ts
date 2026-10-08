@@ -270,7 +270,9 @@ export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'mainten
 export type Grid = {
   date: string;
   times: string[];
+  /** Durée minimale (60) et maximale (240) d'une réservation, en minutes. */
   durationMinutes: number;
+  maxDurationMinutes: number;
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
   slots: { courtId: string; times: { time: string; state: SlotState }[] }[];

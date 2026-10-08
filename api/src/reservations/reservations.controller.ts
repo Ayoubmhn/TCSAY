@@ -32,6 +32,13 @@ class CreateReservationDto {
   @Matches(/^([01]\d|2[0-3]):(00|30)$/, { message: 'Heure de départ au format HH:MM (heure pile ou demi-heure).' })
   time?: string;
 
+  /** Durée en minutes : de 60 à 240, par tranches de 30 (par défaut 60). */
+  @IsOptional()
+  @IsInt({ message: 'Durée en minutes.' })
+  @Min(60, { message: 'Durée : 1 h au moins.' })
+  @Max(240, { message: 'Durée : 4 h au plus.' })
+  duration?: number;
+
   /** Ancien format (heure pile) : utiliser « time ». */
   @IsOptional()
   @IsInt()

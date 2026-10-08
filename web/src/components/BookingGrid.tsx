@@ -25,19 +25,22 @@ const STYLE: Record<SlotState | 'chosen', string> = {
   chosen: 'bg-sel text-white',
 };
 
-export type Pick = { courtId: string; time: string };
+/** Sélection : demi-heures consécutives d'un même terrain, en minutes depuis minuit ([start, end[). */
+export type Pick = { courtId: string; start: number; end: number };
 
 /** « 17:30 » → minutes depuis minuit. */
 export const toMinutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-/** Heure de fin d'une réservation d'une heure (« 17:30 » → « 18:30 »). */
-export const endOf = (t: string, minutes = 60) => {
-  const m = toMinutes(t) + minutes;
-  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-};
+/** 1050 → « 17:30 ». */
+export const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+/** Heure de fin d'une réservation (« 17:30 » + 60 min → « 18:30 »). */
+export const endOf = (t: string, minutes = 60) => hhmm(toMinutes(t) + minutes);
+/** 90 → « 1 h 30 ». */
+export const durationText = (min: number) => `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60}` : ''}`;
 
 /**
- * Grille de réservation heures × terrains (.gwrap / .grid / .slot), départs toutes les 30 min (ex. 17:30) pour une heure de jeu.
- * Créneau libre en vert avec « Libre ».
+ * Grille de réservation heures × terrains (.gwrap / .grid / .slot), une ligne par demi-heure, créneau libre en vert « Libre ».
+ * Premier clic : 1 h à partir de la demi-heure choisie ; clic sur une autre demi-heure du même terrain : la réservation
+ * s'étend jusqu'à elle (demi-heures consécutives et libres, 4 h au plus) ; clic dans la sélection : on l'efface.
  * Clavier : flèches pour se déplacer (tabindex itinérant), Entrée / Espace pour choisir.
  */
 export function BookingGrid({
@@ -45,14 +48,44 @@ export function BookingGrid({
   pick,
   onPick,
   onBlocked,
+  onNotice,
 }: {
   grid: Grid;
   pick: Pick | null;
   onPick: (pick: Pick | null) => void;
   onBlocked: (state: SlotState) => void;
+  /** Message d'aide (prolongation impossible…). */
+  onNotice: (message: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const cols = grid.courts.length;
+  const step = 30;
+  const minDuration = grid.durationMinutes;
+  const maxDuration = grid.maxDurationMinutes;
+
+  /** Demi-heure libre (« 30 min » = libre mais trop courte seule) sur le terrain c. */
+  const blockFree = (c: number, m: number) => {
+    const i = grid.times.indexOf(hhmm(m));
+    return i >= 0 && ['free', 'short'].includes(grid.slots[c].times[i].state);
+  };
+  const rangeFree = (c: number, from: number, to: number) => {
+    for (let m = from; m < to; m += step) if (!blockFree(c, m)) return false;
+    return true;
+  };
+
+  const choose = (c: number, courtId: string, time: string, base: SlotState) => {
+    const t = toMinutes(time);
+    if (pick && pick.courtId === courtId) {
+      if (t >= pick.start && t < pick.end) return onPick(null);
+      const start = Math.min(pick.start, t);
+      const end = Math.max(pick.end, t + step);
+      if (end - start > maxDuration) return onNotice(`Réservation de ${durationText(maxDuration)} au plus.`);
+      if (!rangeFree(c, start, end)) return onNotice('Pour prolonger, toutes les demi-heures entre les deux doivent être libres.');
+      return onPick({ courtId, start, end });
+    }
+    if (base !== 'free') return onBlocked(base);
+    onPick({ courtId, start: t, end: t + minDuration });
+  };
 
   const onKey = (e: KeyboardEvent<HTMLButtonElement>, r: number, c: number) => {
     const move = { ArrowRight: [0, 1], ArrowLeft: [0, -1], ArrowDown: [1, 0], ArrowUp: [-1, 0] }[e.key];
@@ -92,9 +125,11 @@ export function BookingGrid({
             </div>
             {grid.courts.map((court, c) => {
               const base = grid.slots[c].times[r].state;
-              const chosen = pick?.courtId === court.id && pick.time === time;
+              const t = toMinutes(time);
+              const chosen = pick?.courtId === court.id && t >= pick.start && t < pick.end;
               const state = chosen ? 'chosen' : base;
-              const blocked = base !== 'free';
+              // Une demi-heure occupée reste cliquable seulement pour une prolongation (vérifiée dans choose).
+              const blocked = base !== 'free' && !(pick?.courtId === court.id && base === 'short');
               return (
                 <button
                   key={court.id}
@@ -105,9 +140,9 @@ export function BookingGrid({
                   tabIndex={r === 0 && c === 0 ? 0 : -1}
                   aria-disabled={blocked || undefined}
                   aria-selected={chosen}
-                  aria-label={`${court.name}, ${time} – ${endOf(time, grid.durationMinutes)}, ${LABEL[state]}`}
+                  aria-label={`${court.name}, ${time}, ${LABEL[state]}`}
                   onKeyDown={(e) => onKey(e, r, c)}
-                  onClick={() => (blocked ? onBlocked(base) : onPick(chosen ? null : { courtId: court.id, time }))}
+                  onClick={() => choose(c, court.id, time, base)}
                   className={`h-[34px] rounded-[12px] text-xs font-medium ${STYLE[state]} ${blocked ? 'cursor-not-allowed' : ''}`}
                 >
                   {state === 'past' ? '' : LABEL[state]}

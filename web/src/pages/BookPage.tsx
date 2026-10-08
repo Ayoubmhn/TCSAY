@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useAuth, useMe } from '../auth/AuthContext';
-import { BookingGrid, endOf, toMinutes, type Pick } from '../components/BookingGrid';
+import { BookingGrid, durationText, hhmm, type Pick } from '../components/BookingGrid';
 import { KidSelect } from '../components/KidSelect';
 import { Button } from '../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState, Kpi } from '../components/ui/Card';
@@ -21,7 +21,7 @@ import type { CourtRate, Grid, Player, Reservation, Settings, SlotState } from '
 import { useAction } from '../lib/useAction';
 
 const BLOCKED: Partial<Record<SlotState, string>> = {
-  short: 'Une réservation dure une heure : la demi-heure suivante est déjà occupée. Choisissez un autre départ.',
+  short: 'Une réservation dure au moins une heure : la demi-heure suivante est occupée. Commencez plus tôt, puis prolongez jusqu’ici.',
   unlit: 'Ce terrain n’est pas éclairé : réservation impossible la nuit.',
   maintenance: 'Terrain en entretien.',
   past: 'Créneau passé : modification impossible (R10).',
@@ -67,22 +67,23 @@ export function BookPage() {
 
   useEffect(() => setPick(null), [day, playerId]);
 
-  // Une heure de jeu, prix au prorata jour / nuit (ex. 17:30–18:30 : 30 min de jour + 30 min de nuit).
+  // Durée choisie (1 h au moins), prix au prorata jour / nuit (ex. 17:30–19:00 : 30 min de jour + 1 h de nuit).
   const nightStart = (settings.data?.nightStartHour ?? 18) * 60;
-  const nightMinutes = pick ? Math.max(0, toMinutes(pick.time) + 60 - Math.max(toMinutes(pick.time), nightStart)) : 0;
+  const duration = pick ? pick.end - pick.start : 0;
+  const nightMinutes = pick ? Math.max(0, pick.end - Math.max(pick.start, nightStart)) : 0;
   const rateOf = (period: 'DAY' | 'NIGHT') => rates.data?.find((r) => r.type === type && r.period === period)?.pricePerHour;
   const price = (() => {
     if (!pick) return undefined;
     const day = rateOf('DAY');
     const night = rateOf('NIGHT');
-    if ((nightMinutes < 60 && day === undefined) || (nightMinutes > 0 && night === undefined)) return undefined;
-    return Math.round((((60 - nightMinutes) * (day ?? 0)) / 60 + (nightMinutes * (night ?? 0)) / 60) * 1000) / 1000;
+    if ((nightMinutes < duration && day === undefined) || (nightMinutes > 0 && night === undefined)) return undefined;
+    return Math.round((((duration - nightMinutes) * (day ?? 0)) / 60 + (nightMinutes * (night ?? 0)) / 60) * 1000) / 1000;
   })();
-  const periodLabel = nightMinutes === 0 ? 'Jour' : nightMinutes === 60 ? 'Nuit ☾' : 'Jour et nuit ☾ (prix au prorata)';
+  const periodLabel = nightMinutes === 0 ? 'Jour' : nightMinutes === duration ? 'Nuit ☾' : 'Jour et nuit ☾ (prix au prorata)';
   const court = pick ? grid.data?.courts.find((c) => c.id === pick.courtId) : undefined;
 
   const reserve = useAction(
-    () => api.post<Reservation>('/reservations', { courtId: pick!.courtId, date: day, time: pick!.time, playerId: isCoach ? student : playerId }),
+    () => api.post<Reservation>('/reservations', { courtId: pick!.courtId, date: day, time: hhmm(pick!.start), duration: pick!.end - pick!.start, playerId: isCoach ? student : playerId }),
     {
       invalidate: [['grid'], ['reservations'], ['overview']],
       success: (r) => `Réservation confirmée : ${r.court.name}, ${fD(r.date)} de ${r.time} à ${r.endTimeLabel}.`,
@@ -126,13 +127,19 @@ export function BookPage() {
         <Pill tone="r">Pris</Pill>
         <Pill tone="b">Mes réservations</Pill>
         <Pill tone="s">30 min libres seulement · entretien · sans éclairage</Pill>
-        <Pill tone="b">☀ éclairé · ☾ nuit dès {settings.data?.nightStartHour ?? 18}h · départ à l’heure ou à la demi-heure</Pill>
+        <Pill tone="b">☀ éclairé · ☾ nuit dès {settings.data?.nightStartHour ?? 18}h · de 1 h à 4 h, par demi-heure</Pill>
       </Pills>
 
       <div className="grid grid-cols-1 items-start gap-4 min-[1101px]:grid-cols-[minmax(0,1fr)_300px]">
         <QueryState isPending={grid.isPending} error={grid.error} refetch={grid.refetch}>
           {grid.data && (
-            <BookingGrid grid={grid.data} pick={pick} onPick={setPick} onBlocked={(s) => BLOCKED[s] && toast(BLOCKED[s]!)} />
+            <BookingGrid
+              grid={grid.data}
+              pick={pick}
+              onPick={setPick}
+              onBlocked={(s) => BLOCKED[s] && toast(BLOCKED[s]!)}
+              onNotice={toast}
+            />
           )}
         </QueryState>
         <Card>
@@ -142,8 +149,8 @@ export function BookPage() {
               <div>
                 <KeyValue label="Terrain">{court.name}</KeyValue>
                 <KeyValue label="Date">{fD(day)}</KeyValue>
-                <KeyValue label="Heure">
-                  {pick.time} – {endOf(pick.time)}
+                <KeyValue label="Horaire">
+                  {hhmm(pick.start)} – {hhmm(pick.end)} · {durationText(duration)}
                 </KeyValue>
                 <KeyValue label="Période">{periodLabel}</KeyValue>
                 <KeyValue label="Type">{typeLabel}</KeyValue>
@@ -163,7 +170,7 @@ export function BookPage() {
               </Button>
             </>
           ) : (
-            <span className="text-mut">Sélectionnez un créneau libre dans la grille (flèches du clavier pour vous déplacer).</span>
+            <span className="text-mut">Cliquez un créneau libre (1 h), puis une autre demi-heure du même terrain pour prolonger (jusqu’à 4 h). Flèches du clavier pour vous déplacer.</span>
           )}
         </Card>
       </div>

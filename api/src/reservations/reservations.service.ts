@@ -14,9 +14,14 @@ import { SettingsService } from '../settings/settings.service';
 
 export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
 
-/** Une réservation dure une heure ; elle peut commencer à l'heure pile ou à la demi-heure (ex. 17:30). */
+/**
+ * Une réservation commence à l'heure pile ou à la demi-heure (ex. 17:30) et dure une heure au moins,
+ * par tranches de 30 min consécutives sur le même terrain (ex. 17:30 → 19:30).
+ * Durée maximale provisoire : 4 h (à confirmer avec le bureau).
+ */
 export const BOOKING_MINUTES = 60;
 export const BOOKING_STEP = 30;
+export const BOOKING_MAX_MINUTES = 240;
 
 /** 1050 → « 17:30 ». */
 export const hhmm = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
@@ -65,7 +70,9 @@ export class ReservationsService {
     const now = new Date();
     // Départs possibles toutes les 30 min ; la dernière réservation se termine à la fermeture.
     const times: number[] = [];
-    for (let m = s.openingHour * 60; m + BOOKING_MINUTES <= s.closingHour * 60; m += BOOKING_STEP) times.push(m);
+    // Une ligne par demi-heure jusqu'à la fermeture (la dernière ne peut que prolonger une réservation).
+    for (let m = s.openingHour * 60; m + BOOKING_STEP <= s.closingHour * 60; m += BOOKING_STEP) times.push(m);
+    const closing = s.closingHour * 60;
     const night = s.nightStartHour * 60;
 
     // Chaque ligne montre l'occupation réelle de sa demi-heure [t, t + 30 min[ ;
@@ -73,6 +80,7 @@ export class ReservationsService {
     const slots = courts.map((court) => {
       const block = (start: number): SlotState => {
         const end = start + BOOKING_STEP;
+        if (end > closing) return 'past';
         if (!court.active || court.maintenance) return 'maintenance';
         if (!court.lit && end > night) return 'unlit';
         const r = reservations.find(
@@ -105,6 +113,7 @@ export class ReservationsService {
       date: day,
       times: times.map(hhmm),
       durationMinutes: BOOKING_MINUTES,
+      maxDurationMinutes: BOOKING_MAX_MINUTES,
       nightStartHour: s.nightStartHour,
       courts: courts.map((c) => ({ id: c.id, name: c.name, lit: c.lit, maintenance: c.maintenance, active: c.active })),
       slots,
@@ -137,19 +146,31 @@ export class ReservationsService {
 
   async create(
     user: AuthUser,
-    dto: { courtId: string; date: string; time?: string; hour?: number; playerId?: string; type?: ReservationType },
+    dto: {
+      courtId: string;
+      date: string;
+      time?: string;
+      hour?: number;
+      duration?: number;
+      playerId?: string;
+      type?: ReservationType;
+    },
   ) {
     const s = await this.settings.all();
     // Départ « HH:MM » à l'heure pile ou à la demi-heure (« hour » accepté pour compatibilité).
     const startMin = dto.time ? Number(dto.time.slice(0, 2)) * 60 + Number(dto.time.slice(3, 5)) : (dto.hour ?? -1) * 60;
-    const endMin = startMin + BOOKING_MINUTES;
+    const duration = dto.duration ?? BOOKING_MINUTES;
+    const endMin = startMin + duration;
     if (startMin % BOOKING_STEP !== 0) throw new BadRequestException('Départ à l’heure pile ou à la demi-heure (ex. 17:30).');
+    if (duration % BOOKING_STEP !== 0 || duration < BOOKING_MINUTES || duration > BOOKING_MAX_MINUTES) {
+      throw new BadRequestException(`Durée : de 1 h à ${BOOKING_MAX_MINUTES / 60} h, par tranches de 30 min.`);
+    }
     if (startMin < s.openingHour * 60 || endMin > s.closingHour * 60) {
-      throw new BadRequestException(`Créneaux de ${s.openingHour}h à ${s.closingHour}h (une heure de jeu).`);
+      throw new BadRequestException(`Créneaux de ${s.openingHour}h à ${s.closingHour}h : la réservation doit finir avant la fermeture.`);
     }
     const start = instantAt(dto.date, startMin);
     const end = instantAt(dto.date, endMin);
-    const label = (courtName: string) => `${courtName} ${dto.date} ${hhmm(startMin)}`;
+    const label = (courtName: string) => `${courtName} ${dto.date} ${hhmm(startMin)}–${hhmm(endMin)}`;
     if (start <= new Date()) throw rule.conflict('R10', 'Créneau passé : réservation impossible.');
 
     const court = await this.prisma.court.findUnique({ where: { id: dto.courtId } });
@@ -187,12 +208,12 @@ export class ReservationsService {
         include: { group: { select: { name: true, ...periodSelect } } },
       })
     ).map(withPeriod);
-    const busy = slots.find((g) => slotOccupies(g, dto.date, startMin, BOOKING_MINUTES));
+    const busy = slots.find((g) => slotOccupies(g, dto.date, startMin, duration));
     if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.group.name} ».`);
 
     // Prix à l'heure, au prorata jour / nuit (ex. 17:30–18:30 : 30 min de jour + 30 min de nuit).
     const nightMin = Math.max(0, endMin - Math.max(startMin, night));
-    const dayMin = BOOKING_MINUTES - nightMin;
+    const dayMin = duration - nightMin;
     const rates = await this.prisma.courtRate.findMany({ where: { type } });
     const rateOf = (period: 'DAY' | 'NIGHT') => rates.find((r) => r.period === period);
     if ((dayMin && !rateOf('DAY')) || (nightMin && !rateOf('NIGHT'))) {
