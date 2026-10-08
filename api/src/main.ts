@@ -1,4 +1,4 @@
-import './env';
+import { ENV_FILE } from './env';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -28,6 +28,7 @@ async function bootstrap(): Promise<void> {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
+  Logger.log(ENV_FILE ? `Configuration lue dans ${ENV_FILE}` : 'Aucun fichier .env trouvé : valeurs par défaut.', 'Bootstrap');
   Logger.log(`API : http://localhost:${port}/api/v1 · Swagger : http://localhost:${port}/api/docs`, 'Bootstrap');
 }
 
