@@ -400,8 +400,8 @@ async function main() {
 
   await prisma.emailLog.createMany({
     data: [
-      { to: 'omar.trabelsi@exemple.tn', subject: 'Vos identifiants TCSAY', kind: 'CREDENTIALS', status: 'SENT', body: '(démo)', createdAt: new Date('2026-09-10T10:12:00') },
-      { to: 'sana.benali@exemple.tn', subject: 'Vos identifiants TCSAY', kind: 'CREDENTIALS', status: 'SENT', body: '(démo)', createdAt: new Date('2026-09-10T10:14:00') },
+      { to: 'omar.trabelsi@exemple.tn', subject: 'Vos identifiants TCSAY', kind: 'CREDENTIALS', status: 'SENT', body: '(démo)', attempts: 1, sentAt: new Date('2026-09-10T10:12:00'), createdAt: new Date('2026-09-10T10:12:00') },
+      { to: 'sana.benali@exemple.tn', subject: 'Vos identifiants TCSAY', kind: 'CREDENTIALS', status: 'SENT', body: '(démo)', attempts: 1, sentAt: new Date('2026-09-10T10:14:00'), createdAt: new Date('2026-09-10T10:14:00') },
     ],
   });
 

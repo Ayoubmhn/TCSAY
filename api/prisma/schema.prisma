@@ -126,6 +126,7 @@ enum EmailKind {
 }
 
 enum EmailStatus {
+  PENDING // En file d'attente
   SENT
   FAILED
 }
@@ -600,9 +601,12 @@ model EmailLog {
   kind      EmailKind
   status    EmailStatus
   error     String?
+  attempts  Int         @default(0)
+  sentAt    DateTime?
   createdAt DateTime    @default(now())
 
   @@index([createdAt])
+  @@index([status])
 }
 
 // ───────────────────────── Import historique (S9) ─────────────────────────
