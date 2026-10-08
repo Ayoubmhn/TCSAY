@@ -95,6 +95,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconWallet,
     children: [
       { label: 'Paiements', path: '/admin/paiements', perm: ['payments.collect'] },
+      { label: 'Reçus', path: '/admin/recus', perm: ['payments.collect'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
       { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
       { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },

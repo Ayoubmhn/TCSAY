@@ -38,6 +38,8 @@ import { SessionsPage } from './pages/player/SessionsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
+import { ReceiptsPage } from './pages/admin/ReceiptsPage';
+import { ReceiptPrintPage } from './features/receipts/ReceiptPrintPage';
 
 /**
  * Connexion obligatoire, mot de passe temporaire changé, espace (rôle d'action) autorisé,
@@ -78,6 +80,9 @@ export function App() {
     <Routes>
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/mot-de-passe" element={<ChangePasswordPage />} />
+      {/* Impression des reçus : onglet séparé, sans menu */}
+      <Route path="/impression/recu/:id" element={admin(['payments.collect'], <ReceiptPrintPage />)} />
+      <Route path="/impression/recu-test" element={admin(['payments.collect'], <ReceiptPrintPage test />)} />
 
       <Route
         element={
@@ -132,6 +137,7 @@ export function App() {
         <Route path="admin/reservations" element={admin(['reservations.manage'], <ReservationsAdminPage />)} />
         <Route path="admin/tarifs-terrains" element={admin(['courts.manage'], <CourtRatesPage />)} />
         <Route path="admin/paiements" element={admin(['payments.collect'], <PaymentsAdminPage />)} />
+        <Route path="admin/recus" element={admin(['payments.collect'], <ReceiptsPage />)} />
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
         <Route path="admin/mes-salaires" element={admin(undefined, <CoachSalariesPage />)} />

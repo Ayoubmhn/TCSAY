@@ -9,33 +9,66 @@ import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { DT, fD, fullName } from '../../lib/format';
+import { METHOD_LABEL, ReceiptModal } from '../../features/receipts/ReceiptModal';
 import type { Group, Installment, Parent } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const KEYS = [['installments'], ['dashboard'], ['audit'], ['overview']];
 
-function CashModal({ installment: i, onClose }: { installment?: Installment; onClose: () => void }) {
+/** Dernier encaissement d'une tranche (celui qu'on vient d'enregistrer). */
+const lastPayment = (i: Installment) => [...(i.payments ?? [])].filter((p) => p.kind === 'PAYMENT').pop();
+
+function CashModal({
+  installment: i,
+  onClose,
+  onCashed,
+}: {
+  installment?: Installment;
+  onClose: () => void;
+  /** Encaissement enregistré : ouverture du reçu. */
+  onCashed: (paymentId: string) => void;
+}) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
-  useEffect(() => setAmount(i ? String(i.remaining) : ''), [i]);
-  const cash = useAction(() => api.post<Installment>(`/installments/${i!.id}/payments`, { amount: Number(amount) }), {
-    invalidate: KEYS,
-    success: () => `${DT(Number(amount))} encaissés pour ${i?.player.firstName}.`,
-    onSuccess: onClose,
-  });
+  const [method, setMethod] = useState<'CASH' | 'CHEQUE'>('CASH');
+  const [chequeNumber, setChequeNumber] = useState('');
+  useEffect(() => {
+    setAmount(i ? String(i.remaining) : '');
+    setMethod('CASH');
+    setChequeNumber('');
+  }, [i]);
+  const cash = useAction(
+    () =>
+      api.post<Installment>(`/installments/${i!.id}/payments`, {
+        amount: Number(amount),
+        method,
+        chequeNumber: method === 'CHEQUE' ? chequeNumber.trim() || undefined : undefined,
+      }),
+    {
+      invalidate: KEYS,
+      success: () => `${DT(Number(amount))} encaissés pour ${i?.player.firstName}.`,
+      onSuccess: (r) => {
+        onClose();
+        const p = lastPayment(r);
+        if (p) onCashed(p.id);
+      },
+    },
+  );
   const confirm = () => {
     const v = Number(amount);
     if (!v || v <= 0) return toast('Saisissez un montant positif.');
     if (i && v > i.remaining) return toast(`Montant supérieur au restant (${DT(i.remaining)}).`);
+    if (method === 'CHEQUE' && !chequeNumber.trim()) return toast('Saisissez le n° du chèque.');
     cash.mutate();
   };
   return (
     <Modal
       open={Boolean(i)}
-      title="Encaisser en espèces"
+      title="Encaisser un paiement"
       onClose={onClose}
       footer={
         <>
@@ -64,12 +97,51 @@ function CashModal({ installment: i, onClose }: { installment?: Installment; onC
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
       />
-      <p className="m-0 text-[13px] text-mut">Une fois encaissé, ce paiement ne pourra plus être modifié ni supprimé (R7).</p>
+      <Segmented
+        label="Mode de paiement"
+        options={[
+          { value: 'CASH', label: 'Espèces' },
+          { value: 'CHEQUE', label: 'Chèque' },
+        ]}
+        value={method}
+        onChange={setMethod}
+      />
+      {method === 'CHEQUE' && <TextField label="N° du chèque" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />}
+      <p className="m-0 text-[13px] text-mut">
+        Une fois encaissé, ce paiement ne pourra plus être modifié ni supprimé (R7). Le reçu s’émet ensuite avec le n° du carnet.
+      </p>
     </Modal>
   );
 }
 
-/** Paiements (vApay) : tranches de la saison, encaissement en espèces (R7). */
+/** Encaissements d'une tranche avec leur reçu (n° du carnet) ou le bouton pour l'émettre. */
+function PaymentLines({ installment: i, onReceipt }: { installment: Installment; onReceipt: (paymentId: string) => void }) {
+  const payments = (i.payments ?? []).filter((p) => p.kind === 'PAYMENT');
+  if (!payments.length) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      {payments.map((p) => (
+        <div key={p.id} className="flex flex-wrap items-center gap-1.5 text-[13px]">
+          <span className="tabular-nums">
+            {DT(p.amount)} · {fD(p.paidAt.slice(0, 10), { day: 'numeric', month: 'short' })} · {METHOD_LABEL[p.method]}
+            {p.chequeNumber ? ` n° ${p.chequeNumber}` : ''}
+          </span>
+          {p.receipt ? (
+            <button type="button" className="rounded-full bg-pg px-[13px] py-[5px] text-[#111]" onClick={() => onReceipt(p.id)}>
+              Reçu n° {p.receipt.number}
+            </button>
+          ) : (
+            <button type="button" className="rounded-full bg-btn px-[13px] py-[5px] font-medium text-fg" onClick={() => onReceipt(p.id)}>
+              Émettre le reçu
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Paiements (vApay) : tranches de la saison, encaissement en espèces ou par chèque (R7), reçus. */
 export function PaymentsAdminPage() {
   // Filtres : recherche (joueur ou parent), parent, groupe, état de la tranche.
   const [search, setSearch] = useState('');
@@ -88,6 +160,7 @@ export function PaymentsAdminPage() {
   const parents = useQuery({ queryKey: ['parents'], queryFn: () => api.get<Parent[]>('/parents') });
   const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
   const [cashFor, setCashFor] = useState<Installment>();
+  const [receiptFor, setReceiptFor] = useState<string>();
   // R7 : la règle vit côté API, l'écran affiche son refus.
   const edit = useAction(() => api.patch('/payments/0'), {});
   const remind = useAction((id: string) => api.post<{ sentTo: string }>(`/installments/${id}/remind`), {
@@ -100,7 +173,7 @@ export function PaymentsAdminPage() {
 
   return (
     <>
-      <PageHeader title="Paiements" subtitle="Découvrez les tranches de la saison et encaissez les paiements en espèces." />
+      <PageHeader title="Paiements" subtitle="Découvrez les tranches de la saison, encaissez les paiements et émettez les reçus." />
       <Filters>
         <input
           className="fld w-[240px] text-fg"
@@ -164,10 +237,12 @@ export function PaymentsAdminPage() {
                   </>
                 }
                 action={
-                  i.remaining ? (
+                  <>
+                  <PaymentLines installment={i} onReceipt={setReceiptFor} />
+                  {i.remaining ? (
                     <div className="flex flex-wrap gap-2">
                       <Button variant="primary" onClick={() => setCashFor(i)}>
-                        Encaisser en espèces
+                        Encaisser
                       </Button>
                       {i.status === 'LATE' && (
                         <Button onClick={() => remind.mutate(i.id)} disabled={remind.isPending}>
@@ -177,7 +252,8 @@ export function PaymentsAdminPage() {
                     </div>
                   ) : (
                     <Button onClick={() => edit.mutate()}>Modifier le paiement</Button>
-                  )
+                  )}
+                  </>
                 }
               />
             ))}
@@ -190,7 +266,8 @@ export function PaymentsAdminPage() {
         Un paiement encaissé n’est jamais modifié ni supprimé : remboursement ou écriture corrective (R7). Le coach n’a jamais
         accès à cet écran (403).
       </Note>
-      <CashModal installment={cashFor} onClose={() => setCashFor(undefined)} />
+      <CashModal installment={cashFor} onClose={() => setCashFor(undefined)} onCashed={setReceiptFor} />
+      <ReceiptModal paymentId={receiptFor} onClose={() => setReceiptFor(undefined)} />
     </>
   );
 }

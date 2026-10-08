@@ -15,6 +15,21 @@ import { api } from '../../lib/api';
 import { DT } from '../../lib/format';
 import type { Installment, SeasonLite } from '../../lib/types';
 
+/** N° des reçus remis au club pour les paiements de la tranche (impression réservée à l'administration). */
+function ReceiptPills({ installment: i }: { installment: Installment }) {
+  const numbers = (i.payments ?? []).flatMap((p) => (p.receipt ? [p.receipt.number] : []));
+  if (!numbers.length) return null;
+  return (
+    <Pills>
+      {numbers.map((n) => (
+        <Pill key={n} tone="g">
+          Reçu n° {n}
+        </Pill>
+      ))}
+    </Pills>
+  );
+}
+
 /** Mes paiements (vPay) : cotisation d'une saison, tranche par tranche. */
 export function PaymentsPage() {
   const { playerId } = useAuth();
@@ -72,7 +87,7 @@ export function PaymentsPage() {
                         Payer en ligne
                       </Button>
                     ) : (
-                      <Button onClick={() => toast('Reçu PDF : prévu au sprint 6.')}>Reçu PDF</Button>
+                      <ReceiptPills installment={i} />
                     )
                   }
                 />
@@ -86,8 +101,8 @@ export function PaymentsPage() {
         )}
       </QueryState>
       <Note>
-        Le paiement en espèces se fait au club : l’administrateur l’enregistre. Paiement en ligne et reçus PDF arrivent au
-        sprint 6 (passerelle à choisir : Konnect, ClicToPay ou Paymee).
+        Le paiement en espèces ou par chèque se fait au club : l’administrateur l’enregistre et vous remet le reçu numéroté.
+        Paiement en ligne au sprint 6 (passerelle à choisir : Konnect, ClicToPay ou Paymee).
       </Note>
     </>
   );

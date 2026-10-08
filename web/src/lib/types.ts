@@ -193,6 +193,75 @@ export type Installment = {
   season: { id: string; label: string; status: string };
   parents?: PersonRef[];
   groups?: { id: string; name: string }[];
+  payments?: InstallmentPayment[];
+};
+
+export type PaymentMethod = 'CASH' | 'CHEQUE' | 'ONLINE';
+
+export type InstallmentPayment = {
+  id: string;
+  amount: number;
+  paidAt: string;
+  method: PaymentMethod;
+  chequeNumber: string | null;
+  kind: 'PAYMENT' | 'REFUND' | 'CORRECTION';
+  /** Reçu valide (n° du carnet sur 7 chiffres). */
+  receipt: { id: string; number: string } | null;
+};
+
+/** Reçu d'un paiement (carnet pré-numéroté ou PDF). */
+export type Receipt = {
+  id: string;
+  number: number;
+  numberText: string;
+  paymentId: string;
+  payerName: string;
+  amount: number;
+  amountWords: string;
+  label: string;
+  method: PaymentMethod;
+  chequeNumber: string | null;
+  seasonLabel: string;
+  issuedOn: string;
+  printCount: number;
+  lastPrintedAt: string | null;
+  createdAt: string;
+  issuedBy: string;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedBy: string | null;
+  player: PersonRef;
+  installment: { number: number; count: number };
+};
+
+export type PaymentReceipts = {
+  payment: {
+    id: string;
+    amount: number;
+    method: PaymentMethod;
+    chequeNumber: string | null;
+    paidAt: string;
+    player: PersonRef;
+    installment: { number: number; count: number };
+    season: string;
+  };
+  active: Receipt | null;
+  history: Receipt[];
+  draft: { payerName: string; amountWords: string; label: string; chequeNumber: string; issuedOn: string; seasonLabel: string };
+  next: number | null;
+  last: number | null;
+};
+
+export type ReceiptField = 'label' | 'payerName' | 'amountWords' | 'amountDigits' | 'barCheque' | 'barCash' | 'chequeNumber' | 'season' | 'date';
+export type ReceiptBox = { x: number; y: number; w: number };
+export type ReceiptLayout = {
+  pageWidth: number;
+  pageHeight: number;
+  offsetX: number;
+  offsetY: number;
+  fontSize: number;
+  fields: Record<ReceiptField, ReceiptBox>;
+  footer: string[];
 };
 
 export type SlotState = 'free' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';

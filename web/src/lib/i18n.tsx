@@ -309,6 +309,28 @@ const DICT: Record<string, [string, string]> = {
   'Sans chiffrement': ['No encryption', 'بدون تشفير'],
   'Production': ['Production', 'الإنتاج'],
   'Mailpit (développement)': ['Mailpit (development)', 'Mailpit (التطوير)'],
+  // Reçus
+  'Reçus': ['Receipts', 'الوصولات'],
+  'Émettre le reçu': ['Issue the receipt', 'إصدار الوصل'],
+  'Imprimer sur le carnet': ['Print on the receipt book', 'الطباعة على دفتر الوصولات'],
+  'Réimprimer sur le carnet': ['Reprint on the receipt book', 'إعادة الطباعة على الدفتر'],
+  'Reçu PDF': ['PDF receipt', 'وصل PDF'],
+  'Annuler le reçu': ['Void the receipt', 'إلغاء الوصل'],
+  'Encaisser un paiement': ['Collect a payment', 'استخلاص دفعة'],
+  'Espèces': ['Cash', 'نقدا'],
+  'Chèque': ['Cheque', 'صك'],
+  'N° du chèque': ['Cheque number', 'عدد الصك'],
+  'Valide': ['Valid', 'صالح'],
+  'Annulé': ['Voided', 'ملغى'],
+  'Réglage de l’impression sur le carnet': ['Receipt book print settings', 'ضبط الطباعة على الدفتر'],
+  'Imprimer une page de test': ['Print a test page', 'طباعة صفحة تجريبية'],
+  'Enregistrer le réglage': ['Save settings', 'حفظ الضبط'],
+  'Toute l’impression': ['Whole print', 'كامل الطباعة'],
+  'Imprimer': ['Print', 'طباعة'],
+  'Enregistrer en PDF': ['Save as PDF', 'حفظ PDF'],
+  'Tous les reçus': ['All receipts', 'كل الوصولات'],
+  'Valides': ['Valid', 'الصالحة'],
+  'Annulés': ['Voided', 'الملغاة'],
 };
 
 const INDEX: Record<Lang, number> = { fr: -1, en: 0, ar: 1 };
