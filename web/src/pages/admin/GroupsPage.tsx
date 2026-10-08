@@ -14,7 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { fullName } from '../../lib/format';
-import type { Category, Coach, Court, Group, Player } from '../../lib/types';
+import type { Category, Coach, Court, Group, GroupKind, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const KEYS = [['groups'], ['players'], ['dashboard'], ['coaches'], ['planning']];
@@ -22,7 +22,7 @@ const WEEK = [1, 2, 3, 4, 5, 6, 0]; // lundi → dimanche
 const DAY_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 type SlotForm = { key: string; id?: string; day: number; startTime: string; endTime: string; courtId: string; coachIds: string[] };
-type GroupForm = { name: string; categoryId: string; capacity: string; slots: SlotForm[] };
+type GroupForm = { name: string; categoryId: string; kind: GroupKind; capacity: string; slots: SlotForm[] };
 
 let seq = 0;
 const newSlot = (day = 1): SlotForm => ({ key: `n${seq++}`, day, startTime: '17:30', endTime: '19:00', courtId: '', coachIds: [] });
@@ -30,7 +30,7 @@ const newSlot = (day = 1): SlotForm => ({ key: `n${seq++}`, day, startTime: '17:
 /** Formulaire groupe : chaque créneau a son jour, son horaire, son terrain et un ou plusieurs entraîneurs. */
 function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group; onClose: () => void }) {
   const toast = useToast();
-  const [f, setF] = useState<GroupForm>({ name: '', categoryId: '', capacity: '12', slots: [newSlot()] });
+  const [f, setF] = useState<GroupForm>({ name: '', categoryId: '', kind: 'COMPETITIVE', capacity: '12', slots: [newSlot()] });
   const groupRef = useRef(group);
   groupRef.current = group;
   useEffect(() => {
@@ -41,6 +41,7 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
         ? {
             name: g.name,
             categoryId: g.category?.id ?? '',
+            kind: g.kind,
             capacity: String(g.capacity),
             slots: g.slots.map((s) => ({
               key: s.id,
@@ -52,7 +53,7 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
               coachIds: s.coaches.map((c) => c.id),
             })),
           }
-        : { name: '', categoryId: '', capacity: '12', slots: [newSlot()] },
+        : { name: '', categoryId: '', kind: 'COMPETITIVE', capacity: '12', slots: [newSlot()] },
     );
   }, [open]);
 
@@ -66,6 +67,7 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
   const payload = () => ({
     name: f.name,
     categoryId: f.categoryId || undefined,
+    kind: f.kind,
     capacity: Number(f.capacity),
     slots: f.slots.map((s) => ({
       id: s.id,
@@ -95,6 +97,7 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
   return (
     <Modal
       open={open}
+      size="xl"
       title={group ? 'Modifier le groupe' : 'Nouveau groupe'}
       onClose={onClose}
       footer={
@@ -118,6 +121,10 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
             ))}
           </SelectField>
           <TextField label="Capacité" type="number" min={1} max={60} value={f.capacity} onChange={(e) => setF({ ...f, capacity: e.target.value })} />
+          <SelectField label="Type de groupe" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value as GroupKind })}>
+            <option value="COMPETITIVE">Compétitif (jusqu’en août, stage d’été inclus)</option>
+            <option value="LEISURE">Loisirs (octobre → juin)</option>
+          </SelectField>
         </div>
 
         <div className="flex items-center justify-between">
@@ -225,6 +232,7 @@ export function GroupsPage() {
   const q = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
   const coaches = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches') });
   const [coachFilter, setCoachFilter] = useState('');
+  const [kindFilter, setKindFilter] = useState<GroupKind | ''>('');
   const [dayFilter, setDayFilter] = useState('');
   const [form, setForm] = useState<{ open: boolean; group?: Group }>({ open: false });
   const [addTo, setAddTo] = useState<Group>();
@@ -244,6 +252,7 @@ export function GroupsPage() {
 
   const list = (q.data ?? []).filter(
     (g) =>
+      (!kindFilter || g.kind === kindFilter) &&
       (!coachFilter || g.coaches.some((c) => c.id === coachFilter)) &&
       (dayFilter === '' || g.slots.some((s) => s.day === Number(dayFilter))),
   );
@@ -260,6 +269,11 @@ export function GroupsPage() {
         }
       />
       <Filters>
+        <FilterSelect label="Filtrer par type" value={kindFilter} onChange={(e) => setKindFilter(e.target.value as GroupKind | '')}>
+          <option value="">Loisirs et compétitif</option>
+          <option value="COMPETITIVE">Compétitif</option>
+          <option value="LEISURE">Loisirs</option>
+        </FilterSelect>
         <FilterSelect label="Filtrer par entraîneur" value={coachFilter} onChange={(e) => setCoachFilter(e.target.value)}>
           <option value="">Tous les entraîneurs</option>
           {coaches.data?.map((c) => (
@@ -298,6 +312,7 @@ export function GroupsPage() {
                       </Pill>
                     </CardRow>
                     <Pills>
+                      <Pill tone={g.kind === 'LEISURE' ? 'g' : 'b'}>{g.kind === 'LEISURE' ? 'Loisirs · oct. → juin' : 'Compétitif · → août'}</Pill>
                       <Pill tone="s">{g.category?.name ?? 'Catégorie à affecter'}</Pill>
                       <Pill tone="b">
                         {g.slots.length} créneau{g.slots.length > 1 ? 'x' : ''} / semaine

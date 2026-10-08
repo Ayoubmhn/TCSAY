@@ -9,6 +9,8 @@ export type Season = {
   label: string;
   startDate: string;
   endDate: string;
+  leisureStartDate: string | null;
+  leisureEndDate: string | null;
   status: SeasonStatus;
   archivedAt: string | null;
   version: number;
@@ -18,7 +20,14 @@ export type Season = {
 
 export type SeasonFilters = { status?: SeasonStatus; includeArchived?: boolean };
 
-export type SeasonInput = { label: string; startDate: string; endDate: string; status?: 'DRAFT' | 'HISTORICAL' };
+export type SeasonInput = {
+  label: string;
+  startDate: string;
+  endDate: string;
+  leisureStartDate?: string;
+  leisureEndDate?: string;
+  status?: 'DRAFT' | 'HISTORICAL';
+};
 
 /** Libellé et couleur de pastille par statut (ST du prototype). */
 export const STATUS: Record<SeasonStatus, { label: string; tone: PillTone; text: string }> = {

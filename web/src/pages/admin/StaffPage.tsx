@@ -73,7 +73,9 @@ export function StaffPage() {
                     <Pill tone={s.isActive ? 'g' : 'r'}>{s.isActive ? 'Actif' : 'Désactivé'}</Pill>
                   </CardRow>
                   <Pills>
-                    <Pill tone="s">{s.positionLabel ?? 'Fonction à définir'}</Pill>
+                    <Pill tone="s">{s.functionsLabel || 'Fonction à définir'}</Pill>
+                    {s.roles.includes('PRESIDENT') && <Pill tone="g">Président</Pill>}
+                    {s.roles.includes('COACH') && <Pill tone="b">Aussi entraîneur</Pill>}
                   </Pills>
                   <CardText>
                     CIN {s.cin ?? '—'} · {s.phone ?? '—'}
@@ -117,7 +119,7 @@ export function StaffPage() {
                 phone: form.staff.phone ?? '',
                 payMode: form.staff.payMode ?? '',
                 payRate: String(form.staff.payRate),
-                position: form.staff.position ?? '',
+                functions: form.staff.functions,
               }
             : undefined
         }

@@ -29,7 +29,7 @@ export function ChangePasswordPage() {
       await api.post('/auth/change-password', { currentPassword: current, newPassword: pw1 });
       await refresh();
       toast('Mot de passe enregistré. Bienvenue !');
-      navigate(homeOf(me.role), { replace: true });
+      navigate(homeOf(me), { replace: true });
     } catch (err) {
       toast(errorMessage(err));
     } finally {

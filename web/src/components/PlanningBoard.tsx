@@ -51,21 +51,33 @@ export function PlanningBoard({ planning }: { planning: Planning }) {
                 />
               ))}
               {sessions.map((s) => {
-                const lead = s.coaches[0];
-                const absent = s.coaches.length > 0 && s.coaches.every((c) => s.absentCoachIds.includes(c.id));
+                // Absence d'entraîneur validée : remplaçant (sa couleur), séance physique, ou séance annulée (barrée).
+                const lead = s.resolution === 'REPLACED' && s.replacement ? s.replacement : s.coaches[0];
+                const absent = s.resolution === 'CANCELLED';
+                const note =
+                  s.resolution === 'REPLACED' && s.replacement
+                    ? ` · remplacé par ${fullName(s.replacement).trim()}`
+                    : s.resolution === 'PHYSICAL'
+                      ? ' · séance physique'
+                      : absent
+                        ? ' · annulée (entraîneur absent)'
+                        : '';
                 return (
                   <div
                     key={s.id}
                     role="gridcell"
-                    title={`${s.group.name} · ${s.startTime}–${s.endTime} · ${s.coaches.map((c) => fullName(c).trim()).join(', ') || 'entraîneur à affecter'}${absent ? ' · entraîneur absent' : ''}`}
+                    title={`${s.group.name} · ${s.startTime}–${s.endTime} · ${s.coaches.map((c) => fullName(c).trim()).join(', ') || 'entraîneur à affecter'}${note}`}
                     className={`z-[1] mx-px flex h-[46px] flex-col justify-center overflow-hidden rounded-[10px] px-2 text-ink ${absent ? 'opacity-50 line-through' : ''}`}
                     style={{
                       gridRow: row,
                       gridColumn: `${col(s.startTime)} / ${col(s.endTime)}`,
-                      background: lead ? lead.color : 'var(--ps)',
+                      background: s.resolution === 'PHYSICAL' ? 'var(--ps)' : lead ? lead.color : 'var(--ps)',
                     }}
                   >
-                    <b className="truncate text-[12.5px] font-semibold leading-tight">{s.group.name}</b>
+                    <b className="truncate text-[12.5px] font-semibold leading-tight">
+                      {s.resolution === 'REPLACED' ? '⇄ ' : s.resolution === 'PHYSICAL' ? '◆ ' : ''}
+                      {s.group.name}
+                    </b>
                     <span className="flex items-center gap-1 truncate text-[11px] leading-tight">
                       {s.coaches.length > 1 &&
                         s.coaches.slice(1).map((c) => (
@@ -116,7 +128,9 @@ export function PlanningLegend({ planning }: { planning: Planning }) {
         <span aria-hidden="true" className="h-3 w-3 rounded-full border-[1.5px] border-dashed border-ink/40 bg-pr" />
         Réservation
       </span>
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-fld px-[11px] py-[5px] font-medium line-through opacity-70">Entraîneur absent</span>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-fld px-[11px] py-[5px] font-medium">⇄ Remplacement</span>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-fld px-[11px] py-[5px] font-medium">◆ Séance physique</span>
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-fld px-[11px] py-[5px] font-medium line-through opacity-70">Séance annulée</span>
     </div>
   );
 }

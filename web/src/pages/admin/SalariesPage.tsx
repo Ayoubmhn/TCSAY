@@ -21,7 +21,8 @@ import { useAction } from '../../lib/useAction';
 const TYPES: { value: EmployeeType; label: string }[] = [
   { value: 'COACH', label: 'Entraîneurs' },
   { value: 'ADMIN_AGENT', label: 'Agents administratifs' },
-  { value: 'TECHNICAL_DIRECTOR', label: 'Directeur technique' },
+  { value: 'SUPERVISOR', label: 'Agent superviseur' },
+  { value: 'TECH_DIRECTOR', label: 'Directeur technique' },
 ];
 const KEYS = [['salaries'], ['salary-estimate'], ['audit'], ['coach-profile'], ['staff-profile']];
 

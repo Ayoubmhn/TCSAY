@@ -11,9 +11,9 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD } from '../../lib/format';
-import type { AuditEntry, Role } from '../../lib/types';
+import { ACTOR_LABEL } from '../../auth/AuthContext';
+import type { Actor, AuditEntry } from '../../lib/types';
 
-const ROLE: Record<Role, string> = { ADMIN: 'Administration', COACH: 'Entraîneur', STAFF: 'Personnel', PARENT: 'Parent', PLAYER: 'Joueur' };
 
 const clubDay = (instant: string) => new Date(instant).toLocaleDateString('sv-SE', { timeZone: 'Africa/Tunis' });
 const clubTime = (instant: string) => new Date(instant).toLocaleTimeString('fr-FR', { timeZone: 'Africa/Tunis', hour: '2-digit', minute: '2-digit' });
@@ -24,9 +24,9 @@ const clubTime = (instant: string) => new Date(instant).toLocaleTimeString('fr-F
  */
 export function AuditPage() {
   const [month, setMonth] = useState(currentMonth());
-  const [role, setRole] = useState<'' | Role>('');
+  const [role, setRole] = useState<'' | Actor>('');
   const q = useQuery({ queryKey: ['audit', month], queryFn: () => api.get<AuditEntry[]>('/audit', { month }) });
-  const rows = (q.data ?? []).filter((a) => !role || a.role === role);
+  const rows = (q.data ?? []).filter((a) => !role || a.roles.includes(role));
 
   const days = new Map<string, AuditEntry[]>();
   for (const a of rows) {
@@ -50,9 +50,10 @@ export function AuditPage() {
         </IconButton>
         <FilterSelect label="Acteur" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
           <option value="">Tous les acteurs</option>
-          <option value="ADMIN">Administration</option>
+          <option value="PRESIDENT">Président</option>
+          <option value="ADMIN_AGENT">Agents administratifs</option>
+          <option value="TECH_DIRECTOR">Direction technique</option>
           <option value="COACH">Entraîneurs</option>
-          <option value="STAFF">Personnel</option>
         </FilterSelect>
         <button type="button" className="rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" onClick={() => window.print()}>
           Imprimer le compte rendu
@@ -97,7 +98,7 @@ export function AuditPage() {
                   </CardRow>
                   <Pills>
                     <Pill tone="s">{a.who}</Pill>
-                    {a.role && <Pill tone="g">{ROLE[a.role]}</Pill>}
+                    {a.role && <Pill tone="g">{ACTOR_LABEL[a.role]}</Pill>}
                   </Pills>
                   <span className="text-sm [overflow-wrap:anywhere]">{a.target}</span>
                   {(a.before || a.after) && (

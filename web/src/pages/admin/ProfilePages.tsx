@@ -336,13 +336,13 @@ export function StaffProfilePage() {
             last={s.lastName}
             pills={
               <>
-                <Pill tone="s">{s.positionLabel ?? 'Fonction à définir'}</Pill>
+                <Pill tone="s">{s.functionsLabel || 'Fonction à définir'}</Pill>
                 <Pill tone={s.isActive ? 'g' : 'r'}>{s.isActive ? 'Actif' : 'Désactivé'}</Pill>
               </>
             }
             actions={
-              s.position && (
-                <Link className={LINK_BTN} to={`/admin/salaires?type=${s.position}&employe=${s.id}`}>
+              s.functions[0] && (
+                <Link className={LINK_BTN} to={`/admin/salaires?type=${s.functions[0]}&employe=${s.id}`}>
                   Gérer les salaires
                 </Link>
               )

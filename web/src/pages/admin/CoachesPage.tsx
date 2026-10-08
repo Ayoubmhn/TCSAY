@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { ACTOR_LABEL } from '../../auth/AuthContext';
 import { CredentialsModal } from '../../components/CredentialsModal';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
@@ -77,6 +78,11 @@ export function CoachesPage() {
                   </CardRow>
                   <Pills>
                     <Pill tone="b">{c.sessionsPerWeek} séance{c.sessionsPerWeek > 1 ? 's' : ''} / semaine</Pill>
+                    {c.otherRoles?.map((r) => (
+                      <Pill key={r} tone="g">
+                        Aussi {ACTOR_LABEL[r].toLowerCase()}
+                      </Pill>
+                    ))}
                     {c.groups.map((g) => (
                       <Pill key={g.id} tone="s">
                         {g.name}

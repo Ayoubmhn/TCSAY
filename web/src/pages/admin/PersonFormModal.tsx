@@ -3,6 +3,13 @@ import { Button } from '../../components/ui/Button';
 import { FormGrid, SelectField, TextField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
+import type { StaffFunction } from '../../lib/types';
+
+const STAFF_FUNCTIONS: [StaffFunction, string][] = [
+  ['ADMIN_AGENT', 'Agent administratif'],
+  ['SUPERVISOR', 'Agent superviseur'],
+  ['TECH_DIRECTOR', 'Directeur technique'],
+];
 
 export type PersonKind = 'parent' | 'coach' | 'staff';
 
@@ -15,10 +22,10 @@ export type PersonValues = {
   payMode: '' | 'HOURLY' | 'MONTHLY';
   payRate: string;
   color: string;
-  position: '' | 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR';
+  functions: StaffFunction[];
 };
 
-const EMPTY: PersonValues = { firstName: '', lastName: '', cin: '', email: '', phone: '', payMode: '', payRate: '', color: '#00b050', position: '' };
+const EMPTY: PersonValues = { firstName: '', lastName: '', cin: '', email: '', phone: '', payMode: '', payRate: '', color: '#00b050', functions: [] };
 
 const CIN = /^[0-9A-Za-z]{6,12}$/;
 const EMAIL = /^\S+@\S+\.\S+$/;
@@ -29,7 +36,7 @@ export function personPayload(kind: PersonKind, v: PersonValues) {
   if (kind === 'parent') return { ...base, email: v.email.trim(), phone: v.phone.trim() };
   const pay = { payMode: v.payMode, payRate: Number(v.payRate) };
   if (kind === 'coach') return { ...base, ...pay, color: v.color };
-  return { ...base, ...pay, position: v.position };
+  return { ...base, ...pay, functions: v.functions };
 }
 
 /**
@@ -63,7 +70,7 @@ export function PersonFormModal({
   useEffect(() => {
     if (open) setV({ ...EMPTY, ...initialRef.current });
   }, [open]);
-  const set = (k: keyof PersonValues) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
+  const set = (k: Exclude<keyof PersonValues, 'functions'>) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const paid = kind !== 'parent';
 
   const submit = (e: FormEvent) => {
@@ -76,7 +83,7 @@ export function PersonFormModal({
     } else if (!editing && v.email.trim() && !EMAIL.test(v.email.trim())) {
       return toast('Email invalide.');
     }
-    if (kind === 'staff' && !v.position) return toast('Fonction obligatoire.');
+    if (kind === 'staff' && !v.functions.length) return toast('Choisissez au moins une fonction.');
     if (paid && !v.payMode) return toast('Choisissez la rémunération : à l’heure ou au mois.');
     if (paid && (v.payRate === '' || Number(v.payRate) < 0 || Number.isNaN(Number(v.payRate)))) return toast('Taux de rémunération invalide.');
     onSubmit(v);
@@ -87,6 +94,7 @@ export function PersonFormModal({
   return (
     <Modal
       open={open}
+      size="lg"
       title={title}
       onClose={onClose}
       footer={
@@ -105,11 +113,25 @@ export function PersonFormModal({
         <TextField label={kind === 'parent' ? 'Téléphone *' : 'Téléphone'} value={v.phone} onChange={set('phone')} inputMode="tel" />
         <TextField label={kind === 'parent' ? `${emailLabel} *` : emailLabel} full type="email" value={v.email} onChange={set('email')} disabled={editing} />
         {kind === 'staff' && (
-          <SelectField label="Fonction *" full value={v.position} onChange={set('position')}>
-            <option value="">Choisir…</option>
-            <option value="ADMIN_AGENT">Agent administratif</option>
-            <option value="TECHNICAL_DIRECTOR">Directeur technique</option>
-          </SelectField>
+          <fieldset className="col-span-full m-0 flex flex-col gap-2 border-0 p-0">
+            <legend className="mb-1.5 text-xs font-medium text-mut">Fonctions * (cumulables)</legend>
+            <div className="flex flex-wrap gap-1.5">
+              {STAFF_FUNCTIONS.map(([key, label]) => {
+                const on = v.functions.includes(key);
+                return (
+                  <label key={key} className={`inline-flex cursor-pointer items-center gap-2 rounded-full px-[13px] py-[6px] text-[13px] font-medium ${on ? 'bg-pg text-ink' : 'bg-fld text-fg'}`}>
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      className="h-4 w-4 accent-pri"
+                      onChange={() => setV((x) => ({ ...x, functions: on ? x.functions.filter((f) => f !== key) : [...x.functions, key] }))}
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
         )}
         {paid && (
           <>

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { CardGrid, EmptyState } from '../../components/ui/Card';
-import { TextField } from '../../components/ui/Field';
+import { FilterSelect, Filters, TextField } from '../../components/ui/Field';
 import { InstallmentCard } from '../../components/ui/InstallmentCard';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
@@ -12,7 +12,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { DT, fD, fullName } from '../../lib/format';
-import type { Installment } from '../../lib/types';
+import type { Group, Installment, Parent } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const KEYS = [['installments'], ['dashboard'], ['audit'], ['overview']];
@@ -71,7 +71,22 @@ function CashModal({ installment: i, onClose }: { installment?: Installment; onC
 
 /** Paiements (vApay) : tranches de la saison, encaissement en espèces (R7). */
 export function PaymentsAdminPage() {
-  const q = useQuery({ queryKey: ['installments', 'admin'], queryFn: () => api.get<Installment[]>('/installments') });
+  // Filtres : recherche (joueur ou parent), parent, groupe, état de la tranche.
+  const [search, setSearch] = useState('');
+  const [parentId, setParentId] = useState('');
+  const [groupId, setGroupId] = useState('');
+  const [state, setState] = useState<'' | 'TODO' | 'LATE' | 'PAID'>('');
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const q = useQuery({
+    queryKey: ['installments', 'admin', term, parentId, groupId],
+    queryFn: () => api.get<Installment[]>('/installments', { q: term || undefined, parentId: parentId || undefined, groupId: groupId || undefined }),
+  });
+  const parents = useQuery({ queryKey: ['parents'], queryFn: () => api.get<Parent[]>('/parents') });
+  const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
   const [cashFor, setCashFor] = useState<Installment>();
   // R7 : la règle vit côté API, l'écran affiche son refus.
   const edit = useAction(() => api.patch('/payments/0'), {});
@@ -79,13 +94,50 @@ export function PaymentsAdminPage() {
     invalidate: [['emails']],
     success: (r) => `Rappel envoyé à ${r.sentTo}.`,
   });
-  const list = q.data ?? [];
+  const list = (q.data ?? []).filter(
+    (i) => !state || (state === 'PAID' ? i.status === 'PAID' : state === 'LATE' ? i.status === 'LATE' : i.status !== 'PAID'),
+  );
 
   return (
     <>
       <PageHeader title="Paiements" subtitle="Découvrez les tranches de la saison et encaissez les paiements en espèces." />
+      <Filters>
+        <input
+          className="fld w-[240px] text-fg"
+          placeholder="Rechercher un joueur ou un parent"
+          aria-label="Rechercher un joueur ou un parent"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <FilterSelect label="Filtrer par parent" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+          <option value="">Tous les parents</option>
+          {parents.data?.map((p) => (
+            <option key={p.id} value={p.id}>
+              {fullName(p)}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Filtrer par groupe" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+          <option value="">Tous les groupes</option>
+          {groups.data?.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.name}
+            </option>
+          ))}
+        </FilterSelect>
+        <FilterSelect label="Filtrer par état" value={state} onChange={(e) => setState(e.target.value as typeof state)}>
+          <option value="">Toutes les tranches</option>
+          <option value="TODO">À payer</option>
+          <option value="LATE">En retard</option>
+          <option value="PAID">Payées</option>
+        </FilterSelect>
+        {(search || parentId || groupId || state) && (
+          <Button onClick={() => (setSearch(''), setParentId(''), setGroupId(''), setState(''))}>Effacer les filtres</Button>
+        )}
+      </Filters>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         <Pills className="my-[18px]">
+          <Pill tone="b">{list.length} tranche(s)</Pill>
           <Pill tone="g">Encaissé {DT(list.reduce((s, i) => s + i.paid, 0))}</Pill>
           <Pill tone="r">Restant {DT(list.reduce((s, i) => s + i.remaining, 0))}</Pill>
         </Pills>
@@ -103,6 +155,12 @@ export function PaymentsAdminPage() {
                       Tranche {i.number}/{i.count}
                     </Pill>
                     <Pill tone="b">{fD(i.dueDate, { day: 'numeric', month: 'short' })}</Pill>
+                    {i.groups?.map((g) => (
+                      <Pill key={g.id} tone="s">
+                        {g.name}
+                      </Pill>
+                    ))}
+                    {i.parents?.length ? <Pill tone="s">Parent : {i.parents.map((p) => fullName(p)).join(', ')}</Pill> : null}
                   </>
                 }
                 action={
@@ -125,7 +183,7 @@ export function PaymentsAdminPage() {
             ))}
           </CardGrid>
         ) : (
-          <EmptyState>Aucune tranche pour cette saison.</EmptyState>
+          <EmptyState>Aucune tranche ne correspond à ces filtres.</EmptyState>
         )}
       </QueryState>
       <Note>

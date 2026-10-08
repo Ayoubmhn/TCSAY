@@ -11,7 +11,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import type { Court } from '../../lib/types';
+import { SURFACE_LABEL, type Court, type CourtSurface } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const KEYS = [['courts'], ['grid']];
@@ -19,7 +19,7 @@ const KEYS = [['courts'], ['grid']];
 function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court; onClose: () => void }) {
   const toast = useToast();
   const [name, setName] = useState('');
-  const [surface, setSurface] = useState('Terre battue');
+  const [surface, setSurface] = useState<CourtSurface>('CLAY');
   const [lit, setLit] = useState('1');
   const courtRef = useRef(court);
   courtRef.current = court;
@@ -27,7 +27,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
     if (!open) return;
     const c = courtRef.current;
     setName(c?.name ?? '');
-    setSurface(c?.surface ?? 'Terre battue');
+    setSurface(c?.surface ?? 'CLAY');
     setLit(c ? (c.lit ? '1' : '0') : '1');
   }, [open]);
 
@@ -40,7 +40,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
   );
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !surface.trim()) return toast('Nom et surface sont obligatoires.');
+    if (!name.trim()) return toast('Le nom est obligatoire.');
     save.mutate();
   };
 
@@ -60,7 +60,13 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
     >
       <FormGrid id="court-form" onSubmit={submit}>
         <TextField label="Nom" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Court 5" />
-        <TextField label="Surface" value={surface} onChange={(e) => setSurface(e.target.value)} />
+        <SelectField label="Surface" value={surface} onChange={(e) => setSurface(e.target.value as CourtSurface)}>
+          {(Object.keys(SURFACE_LABEL) as CourtSurface[]).map((k) => (
+            <option key={k} value={k}>
+              {SURFACE_LABEL[k]}
+            </option>
+          ))}
+        </SelectField>
         <SelectField label="Éclairage" full value={lit} onChange={(e) => setLit(e.target.value)}>
           <option value="1">☀ Éclairé : réservable la nuit</option>
           <option value="0">Sans éclairage : jour seulement</option>
@@ -110,7 +116,7 @@ export function CourtsPage() {
                     </Pill>
                   </CardRow>
                   <Pills>
-                    <Pill tone="b">{c.surface}</Pill>
+                    <Pill tone="b">{SURFACE_LABEL[c.surface]}</Pill>
                     <Pill tone={c.lit ? 'g' : 's'}>{c.lit ? '☀ Éclairé' : 'Sans éclairage'}</Pill>
                   </Pills>
                   <CardText>

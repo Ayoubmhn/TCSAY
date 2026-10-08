@@ -9,10 +9,14 @@ type Props = {
   children: ReactNode;
   /** Boutons alignés à droite (Annuler + action). */
   footer?: ReactNode;
+  /** Largeur : md 540px (défaut), lg 760px (formulaires joueur, entraîneur), xl 920px (groupes). */
+  size?: 'md' | 'lg' | 'xl';
 };
 
+const WIDTH = { md: 'max-w-[540px]', lg: 'max-w-[760px]', xl: 'max-w-[920px]' } as const;
+
 /** Modale (.ov + .modal) : voile --veil, 540px max, rayon 28px, Échap / clic voile pour fermer, focus piégé. */
-export function Modal({ open, title, onClose, children, footer }: Props) {
+export function Modal({ open, title, onClose, children, footer, size = 'md' }: Props) {
   const titleId = useId();
   const { t } = useI18n();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -64,7 +68,7 @@ export function Modal({ open, title, onClose, children, footer }: Props) {
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className="flex max-h-[88vh] w-full max-w-[540px] flex-col gap-3.5 overflow-y-auto rounded-[28px] bg-card p-6"
+        className={`flex max-h-[90vh] w-full ${WIDTH[size]} flex-col gap-3.5 overflow-y-auto rounded-[28px] bg-card p-6`}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between gap-2.5">

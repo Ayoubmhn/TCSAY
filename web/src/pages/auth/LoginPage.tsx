@@ -16,8 +16,10 @@ const DEMO = [
   { label: 'Joueur', hint: 'Omar Trabelsi, adulte', email: 'omar.trabelsi@exemple.tn', password: 'temporaire' },
   { label: 'Parent', hint: 'Sana Ben Ali, 2 enfants', email: 'sana.benali@exemple.tn', password: 'temporaire' },
   { label: 'Coach', hint: 'Iheb, plusieurs groupes', email: 'iheb@exemple.tn', password: 'temporaire' },
-  { label: 'Personnel', hint: 'Agent administratif', email: 'agent@tcsay.tn', password: 'temporaire' },
-  { label: 'Administrateur', hint: 'Bureau du club', email: 'admin@tcsay.tn', password: 'admin1234' },
+  { label: 'Agent administratif', hint: 'Paiements, salaires, comptes', email: 'agent@tcsay.tn', password: 'temporaire' },
+  { label: 'Superviseur', hint: 'Statistiques seulement', email: 'superviseur@tcsay.tn', password: 'temporaire' },
+  { label: 'Directeur technique', hint: 'Groupes, emploi du temps · aussi entraîneur', email: 'dt@tcsay.tn', password: 'temporaire' },
+  { label: 'Président', hint: 'Tous les accès, autorisations', email: 'admin@tcsay.tn', password: 'admin1234' },
 ];
 
 export function LoginPage() {
@@ -29,7 +31,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
 
-  if (me) return <Navigate to={me.mustChangePassword ? '/mot-de-passe' : homeOf(me.role)} replace />;
+  if (me) return <Navigate to={me.mustChangePassword ? '/mot-de-passe' : homeOf(me)} replace />;
 
   const submit = async (e?: FormEvent, credentials = { email, password }) => {
     e?.preventDefault();
@@ -40,7 +42,7 @@ export function LoginPage() {
     setPending(true);
     try {
       const profile = await login(credentials.email.trim(), credentials.password);
-      navigate(profile.mustChangePassword ? '/mot-de-passe' : homeOf(profile.role), { replace: true });
+      navigate(profile.mustChangePassword ? '/mot-de-passe' : homeOf(profile), { replace: true });
     } catch (err) {
       toast(errorMessage(err));
     } finally {

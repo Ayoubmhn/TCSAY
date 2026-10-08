@@ -1,10 +1,15 @@
 /** Types des réponses de l'API (miroir des contrôleurs NestJS). */
 
+/** Rôle d'action de l'espace courant (ADMIN = espace administration). */
 export type Role = 'ADMIN' | 'COACH' | 'PARENT' | 'PLAYER' | 'STAFF';
+/** Acteurs cumulables d'un compte. */
+export type Actor = 'PRESIDENT' | 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR' | 'COACH' | 'PARENT' | 'PLAYER';
+export type Space = 'admin' | 'coach' | 'parent' | 'player';
 
 export type PayMode = 'HOURLY' | 'MONTHLY';
+export type StaffFunction = 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
 export type PaymentPlan = 'FULL' | 'SEMESTER' | 'MONTHLY';
-export type EmployeeType = 'COACH' | 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR';
+export type EmployeeType = 'COACH' | 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
 
 export type PersonRef = { id: string; firstName: string; lastName: string };
 
@@ -13,10 +18,13 @@ export type Me = {
   email: string | null;
   phone: string | null;
   cin: string | null;
-  position: 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR' | null;
   createdAt: string;
   lastLoginAt: string | null;
   role: Role;
+  roles: Actor[];
+  space: Space;
+  spaces: Space[];
+  permissions: string[];
   firstName: string;
   lastName: string;
   mustChangePassword: boolean;
@@ -29,7 +37,7 @@ export type Category = {
   id: string;
   code: string;
   name: string;
-  family: 'YOUTH' | 'ADULT' | 'VETERAN' | 'CORPORATE' | 'PADEL';
+  family: 'YOUTH' | 'ADULT' | 'VETERAN' | 'CORPORATE' | 'PADEL' | 'LEISURE';
   gender: 'M' | 'F' | 'MIXED';
   pairCode: string;
   note: string | null;
@@ -95,6 +103,8 @@ export type Coach = {
   version: number;
   groups: { id: string; name: string }[];
   sessionsPerWeek: number;
+  /** Autres rôles du même compte (ex. directeur technique, joueur). */
+  otherRoles?: Actor[];
 };
 
 export type Staff = {
@@ -104,8 +114,10 @@ export type Staff = {
   email: string | null;
   phone: string | null;
   cin: string | null;
-  position: 'ADMIN_AGENT' | 'TECHNICAL_DIRECTOR' | null;
-  positionLabel: string | null;
+  roles: Actor[];
+  /** Fonctions du personnel (cumulables). */
+  functions: StaffFunction[];
+  functionsLabel: string;
   payMode: PayMode | null;
   payRate: number;
   isActive: boolean;
@@ -124,10 +136,13 @@ export type Slot = {
   coaches: CoachRef[];
 };
 
+export type CourtSurface = 'CLAY' | 'HARD' | 'GRASS';
+export const SURFACE_LABEL: Record<CourtSurface, string> = { CLAY: 'Terre battue', HARD: 'Dur', GRASS: 'Gazon' };
+
 export type Court = {
   id: string;
   name: string;
-  surface: string;
+  surface: CourtSurface;
   lit: boolean;
   active: boolean;
   maintenance: boolean;
@@ -135,10 +150,13 @@ export type Court = {
   futureReservations: number;
 };
 
+export type GroupKind = 'LEISURE' | 'COMPETITIVE';
+
 export type Group = {
   id: string;
   seasonId: string;
   name: string;
+  kind: GroupKind;
   capacity: number;
   version: number;
   category: { id: string; name: string; code: string } | null;
@@ -151,6 +169,7 @@ export type Fee = {
   id: string;
   amount: number;
   depositAmount: number;
+  physicalIncluded: boolean;
   version: number;
   category: { id: string; name: string };
   group: { id: string; name: string } | null;
@@ -172,6 +191,8 @@ export type Installment = {
   status: InstallmentStatus;
   player: PersonRef;
   season: { id: string; label: string; status: string };
+  parents?: PersonRef[];
+  groups?: { id: string; name: string }[];
 };
 
 export type SlotState = 'free' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
@@ -246,6 +267,8 @@ export type CoachAbsence = {
   decidedBy: string | null;
   createdAt: string;
   coach: CoachRef;
+  resolution: AbsenceResolution | null;
+  replacementCoach: CoachRef | null;
   slot: { id: string; day: number; startTime: string; endTime: string; group: { id: string; name: string } } | null;
 };
 
@@ -256,15 +279,25 @@ export type Planning = {
   closingHour: number;
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
-  sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[] })[];
+  sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[]; resolution: AbsenceResolution | null; replacement: CoachRef | null })[];
   reservations: { id: string; courtId: string; startTime: string; endTime: string; type: 'LEISURE' | 'PRIVATE'; player: string | null; coach: { name: string; color: string } | null }[];
   legend: { id: string; name: string; color: string }[];
 };
+
+export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE';
+export type AbsenceResolution = 'REPLACED' | 'PHYSICAL' | 'CANCELLED';
 
 export type CoachSession = {
   slotId: string;
   coaches: CoachRef[];
   coachAbsent: boolean;
+  /** Décision de la direction si l'entraîneur est absent. */
+  resolution: AbsenceResolution | null;
+  replacement: CoachRef | null;
+  /** Ce coach remplace un collègue absent sur cette séance. */
+  replacing: boolean;
+  /** Pointage ouvert (séance en cours). */
+  open: boolean;
   groupId: string;
   groupName: string;
   date: string;
@@ -288,17 +321,29 @@ export type PlayerSession = {
   endTime: string;
   court: { id: string; name: string } | null;
   past: boolean;
-  attendance: 'PRESENT' | 'ABSENT' | null;
+  attendance: AttendanceStatus | null;
+  resolution: AbsenceResolution | null;
+  replacement: CoachRef | null;
 };
 
 export type AttendanceSheet = {
   slotId: string;
   group: { id: string; name: string; startTime: string; endTime: string };
   date: string;
-  entries: { playerId: string; firstName: string; lastName: string; present: boolean | null; reason: string | null }[];
+  open: boolean;
+  opensAt: string;
+  closesAt: string;
+  editable: boolean;
+  entries: { playerId: string; firstName: string; lastName: string; status: AttendanceStatus | null; reason: string | null }[];
 };
 
-export type Absence = { id: string; date: string; group: { id: string; name: string; startTime: string; endTime: string }; reason: string };
+export type Absence = {
+  id: string;
+  date: string;
+  status: 'ABSENT' | 'LATE';
+  group: { id: string; name: string; startTime: string; endTime: string };
+  reason: string;
+};
 
 export type EventItem = { id: string; title: string; date: string; place: string; tag: string };
 
@@ -354,7 +399,9 @@ export type AuditEntry = {
   reason: string | null;
   createdAt: string;
   who: string;
-  role: Role | null;
+  /** Acteur principal de l'auteur (président, agent, entraîneur…). */
+  role: Actor | null;
+  roles: Actor[];
 };
 
 export type SeasonLite = { id: string; label: string; status: 'DRAFT' | 'ACTIVE' | 'CLOSED' | 'HISTORICAL' };

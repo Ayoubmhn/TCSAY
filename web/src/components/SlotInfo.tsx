@@ -1,5 +1,5 @@
 import { DAY_NAMES, fullName } from '../lib/format';
-import type { CoachRef, Slot } from '../lib/types';
+import type { AbsenceResolution, CoachRef, Slot } from '../lib/types';
 import { Pill } from './ui/Pill';
 
 /** Pastille d'entraîneur : point à sa couleur du planning + prénom. */
@@ -26,4 +26,19 @@ export function SlotLine({ slot, showDay = true }: { slot: Slot; showDay?: boole
       {slot.coaches.length ? slot.coaches.map((c) => <CoachChip key={c.id} coach={c} />) : <Pill tone="s">Entraîneur à affecter</Pill>}
     </div>
   );
+}
+
+export const RESOLUTION_LABEL: Record<AbsenceResolution, string> = {
+  REPLACED: 'Remplacement',
+  PHYSICAL: 'Séance physique',
+  CANCELLED: 'Séance annulée',
+};
+
+/** Séance touchée par l'absence d'un entraîneur : remplacement, séance physique ou annulation. */
+export function ResolutionPill({ resolution, replacement }: { resolution: AbsenceResolution | null; replacement?: CoachRef | null }) {
+  if (!resolution) return null;
+  if (resolution === 'REPLACED') {
+    return <Pill tone="s">{replacement ? `Remplacé par ${fullName(replacement).trim()}` : 'Entraîneur remplacé'}</Pill>;
+  }
+  return <Pill tone={resolution === 'CANCELLED' ? 'r' : 's'}>{RESOLUTION_LABEL[resolution]}</Pill>;
 }

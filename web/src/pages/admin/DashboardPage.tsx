@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { PlanningSection } from '../../components/PlanningSection';
+import { useMe } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState, Kpi } from '../../components/ui/Card';
 import { ProgressBar } from '../../components/ui/InstallmentCard';
@@ -23,6 +23,9 @@ export function DashboardPage() {
     success: (r) => `Rappel envoyé à ${r.sentTo}.`,
   });
   const d = q.data;
+  const me = useMe();
+  const canAuthorize = me.permissions.includes('permissions.manage');
+  const canCollect = me.permissions.includes('payments.collect');
 
   return (
     <>
@@ -60,9 +63,25 @@ export function DashboardPage() {
                 </Card>
               </CardGrid>
 
-              <Section title="Planning des terrains">
-                <PlanningSection />
-              </Section>
+              {canAuthorize && (
+                <Section title="Autorisations">
+                  <Card>
+                    <CardRow>
+                      <h3>Droits des rôles et des comptes</h3>
+                      <Pill tone="s">Président</Pill>
+                    </CardRow>
+                    <CardText>
+                      Choisissez ce que peuvent faire l’agent administratif, l’agent superviseur et le directeur technique, et
+                      attribuez les rôles des comptes.
+                    </CardText>
+                    <CardActions>
+                      <Link className={LINK_BTN} to="/admin/autorisations">
+                        Gérer les autorisations
+                      </Link>
+                    </CardActions>
+                  </Card>
+                </Section>
+              )}
 
               <Section title="Tranches à relancer">
                 {d.late.length ? (
@@ -82,14 +101,16 @@ export function DashboardPage() {
                           <Pill tone="b">Échéance {fD(i.dueDate, { day: 'numeric', month: 'short' })}</Pill>
                         </Pills>
                         <CardText>Restant {DT(i.remaining)}</CardText>
-                        <CardActions>
-                          <Link className={LINK_BTN} to="/admin/paiements">
-                            Encaisser
-                          </Link>
-                          <Button onClick={() => remind.mutate(i.id)} disabled={remind.isPending}>
-                            Envoyer un rappel
-                          </Button>
-                        </CardActions>
+                        {canCollect && (
+                          <CardActions>
+                            <Link className={LINK_BTN} to="/admin/paiements">
+                              Encaisser
+                            </Link>
+                            <Button onClick={() => remind.mutate(i.id)} disabled={remind.isPending}>
+                              Envoyer un rappel
+                            </Button>
+                          </CardActions>
+                        )}
                       </Card>
                     ))}
                   </CardGrid>

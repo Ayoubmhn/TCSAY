@@ -164,6 +164,7 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
     <>
     <Modal
       open={open}
+      size="lg"
       title={player ? 'Modifier le joueur' : 'Nouveau joueur'}
       onClose={onClose}
       footer={

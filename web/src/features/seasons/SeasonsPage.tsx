@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
+import { useMe } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { Filters, FilterSelect } from '../../components/ui/Field';
@@ -27,9 +29,10 @@ type CardProps = {
   onAction: (action: SeasonAction) => void;
   onEdit: () => void;
   onArchive: () => void;
+  canManage: boolean;
 };
 
-function SeasonCard({ season, onAction, onEdit, onArchive }: CardProps) {
+function SeasonCard({ season, onAction, onEdit, onArchive, canManage }: CardProps) {
   const { label, tone, text } = STATUS[season.status];
   const archived = Boolean(season.archivedAt);
   const editable = !archived && !LOCKED_STATUSES.includes(season.status);
@@ -38,18 +41,32 @@ function SeasonCard({ season, onAction, onEdit, onArchive }: CardProps) {
   return (
     <Card>
       <CardRow>
-        <h3>Saison {season.label}</h3>
+        <Link to={`/admin/saisons/${season.id}`} className="hover:underline">
+          <h3>Saison {season.label}</h3>
+        </Link>
         <Pill tone={tone}>{label}</Pill>
       </CardRow>
       <Pills>
-        <Pill tone="b">Du {formatDate(season.startDate)}</Pill>
-        <Pill tone="b">Au {formatDate(season.endDate)}</Pill>
+        <Pill tone="b">
+          Compétitif {formatDate(season.startDate)} → {formatDate(season.endDate)}
+        </Pill>
+        {season.leisureStartDate && season.leisureEndDate && (
+          <Pill tone="s">
+            Loisirs {formatDate(season.leisureStartDate)} → {formatDate(season.leisureEndDate)}
+          </Pill>
+        )}
       </Pills>
       <CardText>{text}</CardText>
       <CardActions>
+        <Link
+          to={`/admin/saisons/${season.id}`}
+          className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg"
+        >
+          {season.status === 'ACTIVE' || season.status === 'DRAFT' ? 'Statistiques' : 'Historique et statistiques'}
+        </Link>
         {archived ? (
           <Pill tone="s">Archivée</Pill>
-        ) : (
+        ) : !canManage ? null : (
           <>
             <Button onClick={() => onAction(action)}>{action.label}</Button>
             {editable && <Button onClick={onEdit}>Modifier</Button>}
@@ -67,6 +84,7 @@ function SeasonCard({ season, onAction, onEdit, onArchive }: CardProps) {
 
 export function SeasonsPage() {
   const toast = useToast();
+  const canManage = useMe().permissions.includes('seasons.manage');
   const [status, setStatus] = useState<SeasonStatus | ''>('');
   const [includeArchived, setIncludeArchived] = useState(false);
   const { data: seasons, isPending, isError, error, refetch } = useSeasons({
@@ -96,9 +114,11 @@ export function SeasonsPage() {
         title="Saisons"
         subtitle="Découvrez les saisons du club, de l’historique à la prochaine."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouvelle saison
-          </Button>
+          canManage ? (
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouvelle saison
+            </Button>
+          ) : undefined
         }
       />
 
@@ -144,6 +164,7 @@ export function SeasonsPage() {
                 onAction={(action) => setPending({ season, action })}
                 onEdit={() => setForm({ open: true, season })}
                 onArchive={() => setToArchive(season)}
+                canManage={canManage}
               />
             ))}
           </CardGrid>

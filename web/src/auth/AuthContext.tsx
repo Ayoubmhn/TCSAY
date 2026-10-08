@@ -1,7 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, getToken, setToken, setUnauthorizedHandler } from '../lib/api';
-import type { Me } from '../lib/types';
+import { firstPath, menuFor } from '../layouts/menus';
+import { api, getSpace, getToken, setStoredSpace, setToken, setUnauthorizedHandler } from '../lib/api';
+import type { Actor, Me, Space } from '../lib/types';
 
 type AuthState = {
   me: Me | null;
@@ -12,6 +13,8 @@ type AuthState = {
   /** Parent : joueur choisi dans la liste en haut de chaque module ; joueur : lui-même. */
   playerId: string | undefined;
   setPlayerId: (id: string) => void;
+  /** Changer d'espace (compte à plusieurs rôles : administration, entraîneur, parent, joueur). */
+  switchSpace: (space: Space) => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -29,18 +32,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [token, setTokenState] = useState(getToken());
   const [kid, setKid] = useState<string | undefined>(readKid());
+  const [space, setSpace] = useState<Space | null>(getSpace());
 
   const { data: me, isPending } = useQuery({
-    queryKey: ['me', token],
+    queryKey: ['me', token, space],
     queryFn: () => api.get<Me>('/auth/me'),
     enabled: Boolean(token),
     retry: false,
     staleTime: Infinity,
   });
 
+  // L'API choisit l'espace par défaut si celui mémorisé n'appartient pas à ce compte.
+  useEffect(() => {
+    if (me && me.space !== space) {
+      setStoredSpace(me.space);
+      setSpace(me.space);
+    }
+  }, [me, space]);
+
   const logout = useCallback(() => {
     setToken(null);
     setTokenState(null);
+    setStoredSpace(null);
+    setSpace(null);
     queryClient.clear();
   }, [queryClient]);
 
@@ -50,8 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const { accessToken } = await api.post<{ accessToken: string }>('/auth/login', { email, password });
       setToken(accessToken);
+      setStoredSpace(null);
       const profile = await api.get<Me>('/auth/me');
-      queryClient.setQueryData(['me', accessToken], profile);
+      setStoredSpace(profile.space);
+      queryClient.setQueryData(['me', accessToken, profile.space], profile);
+      setSpace(profile.space);
       setTokenState(accessToken);
       return profile;
     },
@@ -71,6 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const switchSpace = useCallback(
+    (next: Space) => {
+      setStoredSpace(next);
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
+      setSpace(next);
+    },
+    [queryClient],
+  );
+
   const value = useMemo<AuthState>(() => {
     const players = me?.players ?? [];
     const playerId = players.some((p) => p.id === kid) ? kid : players[0]?.id;
@@ -82,8 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       refresh,
       playerId,
       setPlayerId,
+      switchSpace,
     };
-  }, [me, token, isPending, login, logout, refresh, kid, setPlayerId]);
+  }, [me, token, isPending, login, logout, refresh, kid, setPlayerId, switchSpace]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
@@ -101,18 +128,29 @@ export function useMe(): Me {
   return me;
 }
 
+/** Libellé de l'espace courant. */
 export const ROLE_LABEL: Record<Me['role'], string> = {
-  ADMIN: 'Administrateur',
-  COACH: 'Coach',
+  ADMIN: 'Administration',
+  COACH: 'Entraîneur',
   PARENT: 'Parent',
   PLAYER: 'Joueur',
   STAFF: 'Personnel',
 };
 
-/** Page d'accueil de chaque rôle. */
-export function homeOf(role: Me['role']): string {
-  if (role === 'ADMIN') return '/admin';
-  if (role === 'COACH') return '/coach/seances';
-  if (role === 'STAFF') return '/staff/planning';
-  return '/';
+export const SPACE_LABEL: Record<Space, string> = { admin: 'Administration', coach: 'Entraîneur', parent: 'Parent', player: 'Joueur' };
+
+/** Acteurs (un compte peut en cumuler plusieurs). */
+export const ACTOR_LABEL: Record<Actor, string> = {
+  PRESIDENT: 'Président',
+  ADMIN_AGENT: 'Agent administratif',
+  SUPERVISOR: 'Agent superviseur',
+  TECH_DIRECTOR: 'Directeur technique',
+  COACH: 'Entraîneur',
+  PARENT: 'Parent',
+  PLAYER: 'Joueur',
+};
+
+/** Page d'accueil de l'espace : premier module autorisé du menu. */
+export function homeOf(me: Me): string {
+  return firstPath(menuFor(me));
 }

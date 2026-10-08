@@ -32,6 +32,7 @@ function FeeFormModal({
   const [groupId, setGroupId] = useState('');
   const [amount, setAmount] = useState('');
   const [deposit, setDeposit] = useState('0');
+  const [physical, setPhysical] = useState(false);
   const [reason, setReason] = useState('');
   const feeRef = useRef(fee);
   feeRef.current = fee;
@@ -42,6 +43,7 @@ function FeeFormModal({
     setGroupId(f?.group?.id ?? '');
     setAmount(f ? String(f.amount) : '');
     setDeposit(f ? String(f.depositAmount) : '0');
+    setPhysical(f?.physicalIncluded ?? false);
     setReason('');
   }, [open]);
 
@@ -56,13 +58,14 @@ function FeeFormModal({
   const save = useAction(
     () =>
       fee
-        ? api.patch(`/fees/${fee.id}`, { version: fee.version, amount: Number(amount), depositAmount: Number(deposit), reason: reason || undefined })
+        ? api.patch(`/fees/${fee.id}`, { version: fee.version, amount: Number(amount), depositAmount: Number(deposit), physicalIncluded: physical, reason: reason || undefined })
         : api.post('/fees', {
             seasonId: season?.id,
             categoryId,
             groupId: groupId || undefined,
             amount: Number(amount),
             depositAmount: Number(deposit),
+            physicalIncluded: physical,
           }),
     { invalidate: [['fees']], success: fee ? (locked ? 'Tarif modifié. Motif enregistré.' : 'Tarif enregistré.') : 'Tarif créé.', onSuccess: onClose },
   );
@@ -122,6 +125,10 @@ function FeeFormModal({
         )}
         <TextField label="Montant de la saison (DT)" type="number" min={0} step="0.001" value={amount} onChange={(e) => setAmount(e.target.value)} />
         <TextField label="Acompte à l’inscription (DT)" type="number" min={0} step="0.001" value={deposit} onChange={(e) => setDeposit(e.target.value)} />
+        <label className="col-span-full flex items-center gap-2.5 text-sm">
+          <input type="checkbox" checked={physical} onChange={(e) => setPhysical(e.target.checked)} className="h-[18px] w-[18px] accent-pri" />
+          Séance physique incluse dans ce tarif
+        </label>
         <p className="col-span-full m-0 text-[13px] text-mut">
           Le mode de paiement est choisi à l’inscription du joueur : comptant (une tranche), par semestre (acompte + 2 tranches) ou par mois (acompte + une tranche le 5 de chaque mois).
         </p>
@@ -183,7 +190,7 @@ export function FeesPage() {
                   <Kpi>{DT(f.amount)}</Kpi>
                   <Pills>
                     <Pill tone="b">Acompte {DT(f.depositAmount)}</Pill>
-                    <Pill tone="s">Comptant · semestre · mois</Pill>
+                    <Pill tone={f.physicalIncluded ? 'g' : 's'}>{f.physicalIncluded ? 'Séance physique incluse' : 'Sans séance physique'}</Pill>
                   </Pills>
                   <CardActions>
                     <Button onClick={() => setForm({ open: true, fee: f })}>Modifier</Button>
@@ -197,7 +204,7 @@ export function FeesPage() {
         </QueryState>
       </div>
       <Note>
-        Tarifs réels, acomptes et réductions famille : <b>à confirmer avec le bureau</b>. Sur une saison clôturée, motif
+        Tarifs 2026-2027 du club : Lutins 800 DT, autres catégories 1000 DT. Acomptes et réductions famille : <b>à confirmer avec le bureau</b>. Sur une saison clôturée, motif
         obligatoire et anciennes valeurs conservées (R6).
       </Note>
       <FeeFormModal open={form.open} fee={form.fee} season={season} onClose={() => setForm({ open: false })} />

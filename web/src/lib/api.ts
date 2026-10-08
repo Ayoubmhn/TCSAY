@@ -33,6 +33,30 @@ export function setToken(token: string | null): void {
   }
 }
 
+// ───── Espace de travail (un compte peut cumuler plusieurs rôles : administration, entraîneur, parent, joueur) ─────
+
+export type Space = 'admin' | 'coach' | 'parent' | 'player';
+const SPACE_KEY = 'tcsay-espace';
+let memorySpace: Space | null = null;
+
+export function getSpace(): Space | null {
+  try {
+    return (localStorage.getItem(SPACE_KEY) as Space | null) ?? memorySpace;
+  } catch {
+    return memorySpace;
+  }
+}
+
+export function setStoredSpace(space: Space | null): void {
+  memorySpace = space;
+  try {
+    if (space) localStorage.setItem(SPACE_KEY, space);
+    else localStorage.removeItem(SPACE_KEY);
+  } catch {
+    /* espace gardé en mémoire */
+  }
+}
+
 /** Appelé quand l'API répond 401 (session expirée) : l'application revient à la connexion. */
 let onUnauthorized: (() => void) | null = null;
 export function setUnauthorizedHandler(handler: () => void): void {
@@ -50,6 +74,8 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
+  const space = getSpace();
+  if (space) headers['X-Espace'] = space;
 
   let res: Response;
   try {

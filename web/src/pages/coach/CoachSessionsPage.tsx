@@ -1,103 +1,34 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
-import { CoachChip } from '../../components/SlotInfo';
+import { useState } from 'react';
+import { AttendanceSheetForm } from '../../components/AttendanceSheetForm';
+import { CoachChip, ResolutionPill } from '../../components/SlotInfo';
 import { Button } from '../../components/ui/Button';
 import { Calendar } from '../../components/ui/Calendar';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
-import { Filters, TextField } from '../../components/ui/Field';
+import { Filters } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
-import { Segmented } from '../../components/ui/Segmented';
 import { api } from '../../lib/api';
 import { addDays, fD, todayIso } from '../../lib/format';
-import type { AttendanceSheet, CoachSession, Group } from '../../lib/types';
-import { useAction } from '../../lib/useAction';
+import type { CoachSession, Group } from '../../lib/types';
 
 /** Feuille de présence d'une séance (modale « Présences »). */
 function AttendanceModal({ session, onClose }: { session?: CoachSession; onClose: () => void }) {
-  const sheet = useQuery({
-    queryKey: ['attendance', session?.slotId, session?.date],
-    queryFn: () => api.get<AttendanceSheet>('/attendance', { slotId: session!.slotId, date: session!.date }),
-    enabled: Boolean(session),
-  });
-  const [marks, setMarks] = useState<Record<string, { present: boolean; reason: string }>>({});
-  useEffect(() => {
-    if (sheet.data) {
-      setMarks(
-        Object.fromEntries(
-          sheet.data.entries.map((e) => [e.playerId, { present: e.present !== false, reason: e.reason ?? '' }]),
-        ),
-      );
-    }
-  }, [sheet.data]);
-
-  const save = useAction(
-    () =>
-      api.put('/attendance', {
-        slotId: session!.slotId,
-        date: session!.date,
-        entries: Object.entries(marks).map(([playerId, m]) => ({ playerId, present: m.present, reason: m.reason || undefined })),
-      }),
-    { invalidate: [['sessions'], ['attendance']], success: 'Présences enregistrées.', onSuccess: onClose },
-  );
-
   return (
-    <Modal
-      open={Boolean(session)}
-      title="Présences"
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>Annuler</Button>
-          <Button variant="primary" data-primary onClick={() => save.mutate()} disabled={save.isPending || !sheet.data}>
-            Enregistrer
-          </Button>
-        </>
-      }
-    >
+    <Modal open={Boolean(session)} title="Présences" size="lg" onClose={onClose}>
       {session && (
-        <Pills>
-          <Pill tone="s">{session.groupName}</Pill>
-          <Pill tone="b">{fD(session.date)}</Pill>
-          <Pill tone="b">{session.startTime}</Pill>
-        </Pills>
+        <>
+          <Pills>
+            <Pill tone="s">{session.groupName}</Pill>
+            <Pill tone="b">{fD(session.date)}</Pill>
+            <Pill tone="b">{session.startTime}</Pill>
+          </Pills>
+          <AttendanceSheetForm slotId={session.slotId} date={session.date} onSaved={onClose} />
+        </>
       )}
-      <QueryState isPending={sheet.isPending} error={sheet.error}>
-        <div>
-          {sheet.data?.entries.map((e) => {
-            const m = marks[e.playerId] ?? { present: true, reason: '' };
-            return (
-              <div key={e.playerId} className="flex flex-col gap-2 border-b-[1.5px] border-line py-2.5 last:border-b-0">
-                <div className="flex items-center justify-between gap-2.5">
-                  <span>
-                    {e.firstName} {e.lastName}
-                  </span>
-                  <Segmented
-                    label={`Présence de ${e.firstName}`}
-                    value={m.present ? 'P' : 'A'}
-                    onChange={(v) => setMarks((x) => ({ ...x, [e.playerId]: { ...m, present: v === 'P' } }))}
-                    options={[
-                      { value: 'P', label: 'Présent' },
-                      { value: 'A', label: 'Absent' },
-                    ]}
-                  />
-                </div>
-                {!m.present && (
-                  <TextField
-                    label="Motif d’absence (facultatif)"
-                    value={m.reason}
-                    onChange={(ev) => setMarks((x) => ({ ...x, [e.playerId]: { ...m, reason: ev.target.value } }))}
-                  />
-                )}
-              </div>
-            );
-          })}
-          {sheet.data?.entries.length === 0 && <span className="text-mut">Aucun joueur dans ce groupe.</span>}
-        </div>
-      </QueryState>
     </Modal>
   );
 }
@@ -107,8 +38,10 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
     <Card>
       <CardRow>
         <h3>{s.groupName}</h3>
-        {s.coachAbsent ? (
-          <Pill tone="r">Absence validée</Pill>
+        {s.resolution === 'CANCELLED' ? (
+          <Pill tone="r">Annulée</Pill>
+        ) : s.open ? (
+          <Pill tone="g">En cours</Pill>
         ) : s.started ? (
           <Pill tone={s.recorded ? 'g' : 's'}>{s.recorded ? 'Pointée' : 'Passée'}</Pill>
         ) : (
@@ -121,6 +54,7 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
           {s.startTime} – {s.endTime}
         </Pill>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
+        {s.replacing ? <Pill tone="s">Vous remplacez</Pill> : <ResolutionPill resolution={s.resolution} replacement={s.replacement} />}
       </Pills>
       <CardText>
         {s.membersCount} joueur{s.membersCount > 1 ? 's' : ''}
@@ -134,7 +68,11 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
         </div>
       )}
       <CardActions>
-        <Button onClick={onAttendance} disabled={!s.started || s.coachAbsent} title={s.started ? undefined : 'Disponible le jour de la séance'}>
+        <Button
+          onClick={onAttendance}
+          disabled={!s.started || s.resolution === 'CANCELLED'}
+          title={s.open ? undefined : 'Pointage pendant la séance en cours seulement'}
+        >
           Présences
         </Button>
       </CardActions>

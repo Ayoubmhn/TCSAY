@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router';
-import { useAuth, useMe } from '../auth/AuthContext';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { SPACE_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { Avatar } from '../components/ui/Avatar';
 import { Brand } from '../components/ui/Brand';
 import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
@@ -8,7 +8,8 @@ import { MenuButton } from '../components/ui/MenuButton';
 import { Badge } from '../components/ui/Pill';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useI18n } from '../lib/i18n';
-import { firstPath, isGroup, MENUS, type MenuItem } from './menus';
+import type { Space } from '../lib/types';
+import { firstPath, isGroup, menuFor, type MenuItem } from './menus';
 
 const CLOSED_KEY = 'tcsay-menu-closed';
 
@@ -121,10 +122,11 @@ function Group({
 /** Contenu du menu latéral : logo, « MAIN », catégories et modules du rôle, carte utilisateur. */
 function SideContent({ onNavigate }: { onNavigate?: () => void }) {
   const me = useMe();
-  const { logout } = useAuth();
+  const { logout, switchSpace } = useAuth();
   const { t } = useI18n();
   const { pathname } = useLocation();
-  const menu = MENUS[me.role];
+  const navigate = useNavigate();
+  const menu = menuFor(me);
   const home = firstPath(menu);
   const { closed, toggle, open } = useClosedGroups();
 
@@ -157,6 +159,28 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
         )}
       </nav>
       </div>
+
+      {/* Compte à plusieurs rôles : choix de l'espace (administration, entraîneur, parent, joueur) */}
+      {me.spaces.length > 1 && (
+        <div role="group" aria-label={t('Espace')} className="flex flex-none flex-wrap gap-1 rounded-[18px] bg-btn p-1">
+          {me.spaces.map((sp: Space) => (
+            <button
+              key={sp}
+              type="button"
+              aria-pressed={sp === me.space}
+              onClick={() => {
+                if (sp === me.space) return;
+                switchSpace(sp);
+                onNavigate?.();
+                navigate('/');
+              }}
+              className={`flex-1 rounded-[14px] px-2.5 py-1.5 text-[12.5px] font-medium ${sp === me.space ? 'bg-toggle text-bg' : 'text-fg'}`}
+            >
+              {t(SPACE_LABEL[sp])}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Carte utilisateur : avatar, nom, email, déconnexion */}
       <div className="flex flex-none items-center gap-2.5 rounded-[24px] border-[1.5px] border-line bg-card p-3">

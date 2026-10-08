@@ -15,6 +15,7 @@ export const FAMILY_LABEL: Record<Category['family'], string> = {
   VETERAN: 'Vétérans',
   CORPORATE: 'Entreprise',
   PADEL: 'Padel',
+  LEISURE: 'Loisirs',
 };
 
 const GENDER_LABEL = { M: 'Masculin', F: 'Féminin', MIXED: 'Mixte' } as const;

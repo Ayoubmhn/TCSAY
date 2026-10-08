@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { KidSelect } from '../../components/KidSelect';
+import { ResolutionPill } from '../../components/SlotInfo';
 import { Calendar } from '../../components/ui/Calendar';
 import { Card, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
 import { Filters } from '../../components/ui/Field';
@@ -19,10 +20,14 @@ type Data = {
 };
 
 function SessionCard({ s }: { s: PlayerSession }) {
-  const status = !s.past ? (
+  const status = s.resolution === 'CANCELLED' ? (
+    <Pill tone="r">Annulée</Pill>
+  ) : !s.past ? (
     <Pill tone="g">Confirmée</Pill>
   ) : s.attendance === 'ABSENT' ? (
     <Pill tone="r">Absent</Pill>
+  ) : s.attendance === 'LATE' ? (
+    <Pill tone="b">En retard</Pill>
   ) : s.attendance === 'PRESENT' ? (
     <Pill tone="g">Présent</Pill>
   ) : (
@@ -35,6 +40,7 @@ function SessionCard({ s }: { s: PlayerSession }) {
         {status}
       </CardRow>
       <Pills>
+        <ResolutionPill resolution={s.resolution === 'CANCELLED' ? null : s.resolution} replacement={s.replacement} />
         <Pill tone="b">{fD(s.date)}</Pill>
         <Pill tone="b">
           {s.startTime} – {s.endTime}

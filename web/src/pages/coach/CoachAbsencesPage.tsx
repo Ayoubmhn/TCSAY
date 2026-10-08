@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
+import { ResolutionPill } from '../../components/SlotInfo';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { FilterSelect, Filters, FormGrid, SelectField, TextArea, TextField } from '../../components/ui/Field';
@@ -12,7 +13,7 @@ import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { fD, formatDateTime, fullName, todayIso } from '../../lib/format';
-import type { Coach, CoachAbsence, CoachSession } from '../../lib/types';
+import type { AbsenceResolution, Coach, CoachAbsence, CoachSession } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const STATUS = {
@@ -22,6 +23,45 @@ const STATUS = {
 } as const;
 const KEYS = [['coach-absences'], ['sessions'], ['planning'], ['salary-estimate'], ['salaries'], ['coach-profile']];
 
+type Resolution = { resolution: AbsenceResolution | ''; replacementCoachId: string };
+
+/** Décision de la direction : la séance est assurée par un autre entraîneur, devient une séance physique, ou est annulée. */
+function ResolutionFields({ value, onChange, absentCoachId }: { value: Resolution; onChange: (v: Resolution) => void; absentCoachId?: string }) {
+  const coaches = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches') });
+  return (
+    <>
+      <SelectField
+        label="Que devient la séance ? *"
+        full
+        value={value.resolution}
+        onChange={(e) => onChange({ ...value, resolution: e.target.value as Resolution['resolution'] })}
+      >
+        <option value="">Choisir…</option>
+        <option value="REPLACED">Animée par un autre entraîneur</option>
+        <option value="PHYSICAL">Transformée en séance physique</option>
+        <option value="CANCELLED">Annulée</option>
+      </SelectField>
+      {value.resolution === 'REPLACED' && (
+        <SelectField
+          label="Entraîneur remplaçant *"
+          full
+          value={value.replacementCoachId}
+          onChange={(e) => onChange({ ...value, replacementCoachId: e.target.value })}
+        >
+          <option value="">Choisir…</option>
+          {coaches.data
+            ?.filter((c) => c.isActive && c.id !== absentCoachId)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {fullName(c).trim()}
+              </option>
+            ))}
+        </SelectField>
+      )}
+    </>
+  );
+}
+
 /** Déclaration d'une absence : date, séance concernée (ou toute la journée), motif, prévenir les groupes. */
 function DeclareModal({ open, admin, onClose }: { open: boolean; admin: boolean; onClose: () => void }) {
   const toast = useToast();
@@ -30,8 +70,10 @@ function DeclareModal({ open, admin, onClose }: { open: boolean; admin: boolean;
   const [slotId, setSlotId] = useState('');
   const [reason, setReason] = useState('');
   const [notify, setNotify] = useState(true);
+  const [res, setRes] = useState<Resolution>({ resolution: '', replacementCoachId: '' });
   useEffect(() => {
     if (!open) return;
+    setRes({ resolution: '', replacementCoachId: '' });
     setCoachId('');
     setDate(todayIso());
     setSlotId('');
@@ -47,7 +89,16 @@ function DeclareModal({ open, admin, onClose }: { open: boolean; admin: boolean;
   });
 
   const save = useAction(
-    () => api.post('/coach-absences', { date, slotId: slotId || undefined, reason: reason.trim(), notifyGroups: notify, coachId: admin ? coachId : undefined }),
+    () =>
+      api.post('/coach-absences', {
+        date,
+        slotId: slotId || undefined,
+        reason: reason.trim(),
+        notifyGroups: notify,
+        coachId: admin ? coachId : undefined,
+        resolution: admin ? res.resolution : undefined,
+        replacementCoachId: admin && res.resolution === 'REPLACED' ? res.replacementCoachId : undefined,
+      }),
     {
       invalidate: KEYS,
       success: admin ? 'Absence enregistrée et validée.' : 'Absence déclarée : en attente de validation par l’administration.',
@@ -59,6 +110,8 @@ function DeclareModal({ open, admin, onClose }: { open: boolean; admin: boolean;
     if (admin && !coachId) return toast('Entraîneur obligatoire.');
     if (!date) return toast('Date obligatoire.');
     if (!reason.trim()) return toast('Le motif est obligatoire.');
+    if (admin && !res.resolution) return toast('Choisissez ce que devient la séance.');
+    if (admin && res.resolution === 'REPLACED' && !res.replacementCoachId) return toast('Choisissez l’entraîneur remplaçant.');
     save.mutate();
   };
 
@@ -99,6 +152,7 @@ function DeclareModal({ open, admin, onClose }: { open: boolean; admin: boolean;
           ))}
         </SelectField>
         <TextArea label="Motif *" full value={reason} onChange={(e) => setReason(e.target.value)} />
+        {admin && <ResolutionFields value={res} onChange={setRes} absentCoachId={coachId} />}
         <label className="col-span-full flex items-center gap-2.5 text-sm">
           <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="h-[18px] w-[18px] accent-pri" />
           Prévenir mes groupes par email (joueurs et parents) {admin ? 'maintenant' : 'après validation'}
@@ -121,6 +175,7 @@ function AbsenceCard({ a, admin, onDecide }: { a: CoachAbsence; admin: boolean; 
       <Pills>
         {admin && <Pill tone="b">{fD(a.date, { weekday: 'short', day: 'numeric', month: 'short' })}</Pill>}
         <Pill tone="b">{a.slot ? `${a.slot.group.name} · ${a.slot.startTime}–${a.slot.endTime}` : 'Toute la journée'}</Pill>
+        {a.status === 'APPROVED' && <ResolutionPill resolution={a.resolution ?? 'CANCELLED'} replacement={a.replacementCoach} />}
         {a.notifyGroups && <Pill tone="s">Groupes prévenus{a.status === 'PENDING' ? ' après validation' : ''}</Pill>}
       </Pills>
       <CardText>{a.reason}</CardText>
@@ -150,9 +205,16 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
   const [open, setOpen] = useState(false);
   const [decision, setDecision] = useState<{ a: CoachAbsence; approve: boolean }>();
   const [note, setNote] = useState('');
+  const [res, setRes] = useState<Resolution>({ resolution: '', replacementCoachId: '' });
   const q = useQuery({ queryKey: ['coach-absences', status], queryFn: () => api.get<CoachAbsence[]>('/coach-absences', { status: status || undefined }) });
   const decide = useAction(
-    () => api.post<CoachAbsence & { notified?: number }>(`/coach-absences/${decision!.a.id}/${decision!.approve ? 'approve' : 'reject'}`, { note: note.trim() || undefined }),
+    () =>
+      api.post<CoachAbsence & { notified?: number }>(`/coach-absences/${decision!.a.id}/${decision!.approve ? 'approve' : 'reject'}`, {
+        note: note.trim() || undefined,
+        ...(decision!.approve
+          ? { resolution: res.resolution, replacementCoachId: res.resolution === 'REPLACED' ? res.replacementCoachId : undefined }
+          : {}),
+      }),
     {
       invalidate: [...KEYS, ['emails'], ['audit']],
       success: (r) =>
@@ -189,7 +251,7 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
           <Section title="En attente de validation">
             <CardGrid>
               {pending.map((a) => (
-                <AbsenceCard key={a.id} a={a} admin={admin} onDecide={(x, approve) => (setNote(''), setDecision({ a: x, approve }))} />
+                <AbsenceCard key={a.id} a={a} admin={admin} onDecide={(x, approve) => (setNote(''), setRes({ resolution: '', replacementCoachId: '' }), setDecision({ a: x, approve }))} />
               ))}
             </CardGrid>
           </Section>
@@ -218,7 +280,14 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
         footer={
           <>
             <Button onClick={() => setDecision(undefined)}>Annuler</Button>
-            <Button variant={decision?.approve ? 'primary' : 'danger'} onClick={() => decide.mutate()} disabled={decide.isPending}>
+            <Button
+              variant={decision?.approve ? 'primary' : 'danger'}
+              onClick={() => decide.mutate()}
+              disabled={
+                decide.isPending ||
+                (decision?.approve && (!res.resolution || (res.resolution === 'REPLACED' && !res.replacementCoachId)))
+              }
+            >
               {decision?.approve ? 'Valider' : 'Refuser'}
             </Button>
           </>
@@ -229,6 +298,11 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
             {fullName(decision.a.coach).trim()} · {fD(decision.a.date, { weekday: 'long', day: 'numeric', month: 'long' })}
             {decision.approve && decision.a.notifyGroups ? ' · les groupes concernés seront prévenus par email.' : ''}
           </p>
+        )}
+        {decision?.approve && (
+          <div className="grid grid-cols-1 gap-3">
+            <ResolutionFields value={res} onChange={setRes} absentCoachId={decision.a.coach.id} />
+          </div>
         )}
         <TextField label="Note (facultatif)" value={note} onChange={(e) => setNote(e.target.value)} />
       </Modal>

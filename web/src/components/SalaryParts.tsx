@@ -21,7 +21,8 @@ export function shiftMonth(month: string, n: number): string {
 export const EMPLOYEE_TYPE_LABEL: Record<EmployeeType, string> = {
   COACH: 'Entraîneur',
   ADMIN_AGENT: 'Agent administratif',
-  TECHNICAL_DIRECTOR: 'Directeur technique',
+  SUPERVISOR: 'Agent superviseur',
+  TECH_DIRECTOR: 'Directeur technique',
 };
 
 const h = (n: number) => `${Math.round(n * 100) / 100} h`;

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ROLE_LABEL, useAuth, useMe } from '../auth/AuthContext';
+import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
@@ -14,7 +14,6 @@ import { formatDate, formatDateTime } from '../lib/format';
 import { LANGS, useI18n, type Lang } from '../lib/i18n';
 import { useAction } from '../lib/useAction';
 
-const POSITION = { ADMIN_AGENT: 'Agent administratif', TECHNICAL_DIRECTOR: 'Directeur technique' } as const;
 
 /**
  * Paramètres (tous les rôles) : informations du compte en lecture seule (modifiables par le club seulement),
@@ -57,8 +56,7 @@ export function SettingsPage() {
               <KeyValue label="Nom">
                 {me.firstName} {me.lastName}
               </KeyValue>
-              <KeyValue label="Rôle">{t(ROLE_LABEL[me.role])}</KeyValue>
-              {me.position && <KeyValue label="Fonction">{t(POSITION[me.position])}</KeyValue>}
+              <KeyValue label="Rôles">{me.roles.map((r) => t(ACTOR_LABEL[r])).join(', ')}</KeyValue>
               <KeyValue label="Identifiant">{me.email ?? me.cin ?? '—'}</KeyValue>
               <KeyValue label="Email">{me.email ?? '—'}</KeyValue>
               <KeyValue label="Téléphone">{me.phone ?? '—'}</KeyValue>

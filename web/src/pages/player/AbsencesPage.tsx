@@ -39,7 +39,7 @@ export function AbsencesPage() {
               <Card key={a.id}>
                 <CardRow>
                   <h3>{a.group.name}</h3>
-                  <Pill tone="r">Absent</Pill>
+                  {a.status === 'LATE' ? <Pill tone="b">En retard</Pill> : <Pill tone="r">Absent</Pill>}
                 </CardRow>
                 <Pills>
                   <Pill tone="b">{fD(a.date)}</Pill>
