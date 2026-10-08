@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useAuth, useMe } from '../auth/AuthContext';
-import { BookingGrid, type Pick } from '../components/BookingGrid';
+import { BookingGrid, endOf, toMinutes, type Pick } from '../components/BookingGrid';
 import { KidSelect } from '../components/KidSelect';
 import { Button } from '../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState, Kpi } from '../components/ui/Card';
@@ -16,11 +16,12 @@ import { Pill, Pills } from '../components/ui/Pill';
 import { Section } from '../components/ui/Section';
 import { useToast } from '../components/ui/Toast';
 import { api } from '../lib/api';
-import { addDays, DT, fD, pad, todayIso } from '../lib/format';
+import { addDays, DT, fD, todayIso } from '../lib/format';
 import type { CourtRate, Grid, Player, Reservation, Settings, SlotState } from '../lib/types';
 import { useAction } from '../lib/useAction';
 
 const BLOCKED: Partial<Record<SlotState, string>> = {
+  short: 'Une réservation dure une heure : la demi-heure suivante est déjà occupée. Choisissez un autre départ.',
   unlit: 'Ce terrain n’est pas éclairé : réservation impossible la nuit.',
   maintenance: 'Terrain en entretien.',
   past: 'Créneau passé : modification impossible (R10).',
@@ -66,15 +67,25 @@ export function BookPage() {
 
   useEffect(() => setPick(null), [day, playerId]);
 
-  const night = (hour: number) => hour >= (settings.data?.nightStartHour ?? 18);
-  const price = pick ? rates.data?.find((r) => r.type === type && r.period === (night(pick.hour) ? 'NIGHT' : 'DAY'))?.pricePerHour : undefined;
+  // Une heure de jeu, prix au prorata jour / nuit (ex. 17:30–18:30 : 30 min de jour + 30 min de nuit).
+  const nightStart = (settings.data?.nightStartHour ?? 18) * 60;
+  const nightMinutes = pick ? Math.max(0, toMinutes(pick.time) + 60 - Math.max(toMinutes(pick.time), nightStart)) : 0;
+  const rateOf = (period: 'DAY' | 'NIGHT') => rates.data?.find((r) => r.type === type && r.period === period)?.pricePerHour;
+  const price = (() => {
+    if (!pick) return undefined;
+    const day = rateOf('DAY');
+    const night = rateOf('NIGHT');
+    if ((nightMinutes < 60 && day === undefined) || (nightMinutes > 0 && night === undefined)) return undefined;
+    return Math.round((((60 - nightMinutes) * (day ?? 0)) / 60 + (nightMinutes * (night ?? 0)) / 60) * 1000) / 1000;
+  })();
+  const periodLabel = nightMinutes === 0 ? 'Jour' : nightMinutes === 60 ? 'Nuit ☾' : 'Jour et nuit ☾ (prix au prorata)';
   const court = pick ? grid.data?.courts.find((c) => c.id === pick.courtId) : undefined;
 
   const reserve = useAction(
-    () => api.post<Reservation>('/reservations', { courtId: pick!.courtId, date: day, hour: pick!.hour, playerId: isCoach ? student : playerId }),
+    () => api.post<Reservation>('/reservations', { courtId: pick!.courtId, date: day, time: pick!.time, playerId: isCoach ? student : playerId }),
     {
       invalidate: [['grid'], ['reservations'], ['overview']],
-      success: (r) => `Réservation confirmée : ${r.court.name}, ${fD(r.date)} à ${pad(r.hour)}h.`,
+      success: (r) => `Réservation confirmée : ${r.court.name}, ${fD(r.date)} de ${r.time} à ${r.endTimeLabel}.`,
       onSuccess: () => setPick(null),
     },
   );
@@ -111,11 +122,11 @@ export function BookPage() {
 
       <DayChips value={day} onChange={setDay} />
       <Pills className="my-3">
-        <span className="inline-flex items-center rounded-full bg-fld px-[13px] py-[5px] text-[13px] font-medium text-fg">Libre</span>
+        <Pill tone="g">Libre</Pill>
         <Pill tone="r">Pris</Pill>
-        <Pill tone="g">Mes réservations</Pill>
-        <Pill tone="s">Entretien / sans éclairage</Pill>
-        <Pill tone="b">☀ éclairé · ☾ nuit dès {settings.data?.nightStartHour ?? 18}h</Pill>
+        <Pill tone="b">Mes réservations</Pill>
+        <Pill tone="s">30 min libres seulement · entretien · sans éclairage</Pill>
+        <Pill tone="b">☀ éclairé · ☾ nuit dès {settings.data?.nightStartHour ?? 18}h · départ à l’heure ou à la demi-heure</Pill>
       </Pills>
 
       <div className="grid grid-cols-1 items-start gap-4 min-[1101px]:grid-cols-[minmax(0,1fr)_300px]">
@@ -132,9 +143,9 @@ export function BookPage() {
                 <KeyValue label="Terrain">{court.name}</KeyValue>
                 <KeyValue label="Date">{fD(day)}</KeyValue>
                 <KeyValue label="Heure">
-                  {pad(pick.hour)}:00 – {pad(pick.hour + 1)}:00
+                  {pick.time} – {endOf(pick.time)}
                 </KeyValue>
-                <KeyValue label="Période">{night(pick.hour) ? 'Nuit ☾' : 'Jour'}</KeyValue>
+                <KeyValue label="Période">{periodLabel}</KeyValue>
                 <KeyValue label="Type">{typeLabel}</KeyValue>
                 {isCoach && studentName && (
                   <KeyValue label="Élève">
@@ -171,7 +182,9 @@ export function BookPage() {
                     </CardRow>
                     <Pills>
                       <Pill tone="b">{fD(r.date)}</Pill>
-                      <Pill tone="b">{pad(r.hour)}:00</Pill>
+                      <Pill tone="b">
+                        {r.time} – {r.endTimeLabel}
+                      </Pill>
                       <Pill tone="s">{r.type === 'PRIVATE' ? 'Séance privée' : 'Loisir'}</Pill>
                     </Pills>
                     {isCoach && r.player && (
@@ -210,7 +223,7 @@ export function BookPage() {
       <ConfirmModal
         open={Boolean(toCancel)}
         title="Annuler la réservation ?"
-        text={toCancel ? `${toCancel.court.name}, ${fD(toCancel.date)} à ${pad(toCancel.hour)}h. Le créneau redeviendra libre.` : ''}
+        text={toCancel ? `${toCancel.court.name}, ${fD(toCancel.date)} à ${toCancel.time}. Le créneau redeviendra libre.` : ''}
         cta="Annuler la réservation"
         pending={cancel.isPending}
         onConfirm={() => toCancel && cancel.mutate(toCancel.id)}

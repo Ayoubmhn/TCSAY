@@ -27,10 +27,17 @@ class CreateReservationDto {
   @Matches(DATE, { message: 'Date au format AAAA-MM-JJ.' })
   date: string;
 
+  /** Départ « HH:MM », à l'heure pile ou à la demi-heure (ex. « 17:30 »). */
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):(00|30)$/, { message: 'Heure de départ au format HH:MM (heure pile ou demi-heure).' })
+  time?: string;
+
+  /** Ancien format (heure pile) : utiliser « time ». */
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(23)
-  hour: number;
+  hour?: number;
 
   @IsOptional()
   @Transform(emptyToUndefined)

@@ -9,7 +9,7 @@ import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
-import { addDays, fD, fullName, pad, todayIso } from '../../lib/format';
+import { addDays, fD, fullName, todayIso } from '../../lib/format';
 import type { Reservation } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
@@ -38,7 +38,7 @@ export function ReservationsAdminPage() {
                 <Card key={r.id}>
                   <CardRow>
                     <h3>
-                      {r.court.name} · {pad(r.hour)}:00
+                      {r.court.name} · {r.time} – {r.endTimeLabel}
                     </h3>
                     <Pill tone="g">Confirmée</Pill>
                   </CardRow>
@@ -69,7 +69,7 @@ export function ReservationsAdminPage() {
         title="Annulation forcée"
         text={
           toCancel
-            ? `${toCancel.court.name}, ${fD(toCancel.date)} à ${pad(toCancel.hour)}h${toCancel.player ? ` pour ${fullName(toCancel.player)}` : ''}. Le joueur sera prévenu par email.`
+            ? `${toCancel.court.name}, ${fD(toCancel.date)} à ${toCancel.time}${toCancel.player ? ` pour ${fullName(toCancel.player)}` : ''}. Le joueur sera prévenu par email.`
             : ''
         }
         cta="Forcer l’annulation"

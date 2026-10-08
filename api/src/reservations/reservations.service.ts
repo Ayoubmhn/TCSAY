@@ -7,12 +7,23 @@ import { AuthUser } from '../auth/auth-user';
 import { addDaysIso, localDayOf, localInstant, pad, todayIso, weekday } from '../common/dates';
 import { num } from '../common/money';
 import { fullName, notFound, rule } from '../common/rules';
-import { periodSelect, slotOccupiesHour, withPeriod } from '../common/sessions';
+import { periodSelect, slotOccupies, withPeriod } from '../common/sessions';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
 
-export type SlotState = 'free' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
+export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
+
+/** Une réservation dure une heure ; elle peut commencer à l'heure pile ou à la demi-heure (ex. 17:30). */
+export const BOOKING_MINUTES = 60;
+export const BOOKING_STEP = 30;
+
+/** 1050 → « 17:30 ». */
+export const hhmm = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+/** Minutes depuis minuit (heure du club) d'un instant. */
+const minutesOfDay = (d: Date) => d.getHours() * 60 + d.getMinutes();
+/** Instant local du club à `min` minutes après minuit du jour donné. */
+const instantAt = (day: string, min: number) => localInstant(day, hhmm(min));
 
 const include = {
   court: { select: { id: true, name: true } },
@@ -52,30 +63,48 @@ export class ReservationsService {
         ).map(withPeriod)
       : [];
     const now = new Date();
-    const hours = Array.from({ length: s.closingHour - s.openingHour }, (_, i) => s.openingHour + i);
+    // Départs possibles toutes les 30 min ; la dernière réservation se termine à la fermeture.
+    const times: number[] = [];
+    for (let m = s.openingHour * 60; m + BOOKING_MINUTES <= s.closingHour * 60; m += BOOKING_STEP) times.push(m);
+    const night = s.nightStartHour * 60;
 
-    const slots = courts.map((court) => ({
-      courtId: court.id,
-      hours: hours.map((hour) => {
-        const state = ((): SlotState => {
-          if (localInstant(day, hour) < now) return 'past';
-          if (!court.active || court.maintenance) return 'maintenance';
-          if (!court.lit && hour >= s.nightStartHour) return 'unlit';
-          const r = reservations.find((x) => x.courtId === court.id && x.startTime.getHours() === hour);
-          if (r) {
-            const mine = user.role === Role.COACH ? r.coachId === user.coachId : ownPlayer !== null && r.playerId === ownPlayer;
-            return mine ? 'mine' : 'taken';
+    // Chaque ligne montre l'occupation réelle de sa demi-heure [t, t + 30 min[ ;
+    // « short » : demi-heure libre mais la suivante ne l'est pas (impossible d'y commencer une heure de jeu).
+    const slots = courts.map((court) => {
+      const block = (start: number): SlotState => {
+        const end = start + BOOKING_STEP;
+        if (!court.active || court.maintenance) return 'maintenance';
+        if (!court.lit && end > night) return 'unlit';
+        const r = reservations.find(
+          (x) => x.courtId === court.id && minutesOfDay(x.startTime) < end && start < minutesOfDay(x.endTime),
+        );
+        if (r) {
+          const mine = user.role === Role.COACH ? r.coachId === user.coachId : ownPlayer !== null && r.playerId === ownPlayer;
+          return mine ? 'mine' : 'taken';
+        }
+        if (groupSlots.some((g) => g.courtId === court.id && slotOccupies(g, day, start, BOOKING_STEP))) return 'group';
+        return 'free';
+      };
+      return {
+        courtId: court.id,
+        times: times.map((start) => {
+          const own = block(start);
+          let state: SlotState = own;
+          if (instantAt(day, start) < now) state = 'past';
+          else if (own === 'free') {
+            for (let m = start + BOOKING_STEP; m < start + BOOKING_MINUTES; m += BOOKING_STEP) {
+              if (block(m) !== 'free') state = 'short';
+            }
           }
-          if (groupSlots.some((g) => g.courtId === court.id && slotOccupiesHour(g, day, hour))) return 'group';
-          return 'free';
-        })();
-        return { hour, state };
-      }),
-    }));
+          return { time: hhmm(start), state };
+        }),
+      };
+    });
 
     return {
       date: day,
-      hours,
+      times: times.map(hhmm),
+      durationMinutes: BOOKING_MINUTES,
       nightStartHour: s.nightStartHour,
       courts: courts.map((c) => ({ id: c.id, name: c.name, lit: c.lit, maintenance: c.maintenance, active: c.active })),
       slots,
@@ -106,20 +135,29 @@ export class ReservationsService {
     return rows.map((r) => this.view(r));
   }
 
-  async create(user: AuthUser, dto: { courtId: string; date: string; hour: number; playerId?: string; type?: ReservationType }) {
+  async create(
+    user: AuthUser,
+    dto: { courtId: string; date: string; time?: string; hour?: number; playerId?: string; type?: ReservationType },
+  ) {
     const s = await this.settings.all();
-    if (dto.hour < s.openingHour || dto.hour >= s.closingHour) {
-      throw new BadRequestException(`Créneaux de ${s.openingHour}h à ${s.closingHour}h.`);
+    // Départ « HH:MM » à l'heure pile ou à la demi-heure (« hour » accepté pour compatibilité).
+    const startMin = dto.time ? Number(dto.time.slice(0, 2)) * 60 + Number(dto.time.slice(3, 5)) : (dto.hour ?? -1) * 60;
+    const endMin = startMin + BOOKING_MINUTES;
+    if (startMin % BOOKING_STEP !== 0) throw new BadRequestException('Départ à l’heure pile ou à la demi-heure (ex. 17:30).');
+    if (startMin < s.openingHour * 60 || endMin > s.closingHour * 60) {
+      throw new BadRequestException(`Créneaux de ${s.openingHour}h à ${s.closingHour}h (une heure de jeu).`);
     }
-    const start = localInstant(dto.date, dto.hour);
-    const end = localInstant(dto.date, dto.hour + 1);
+    const start = instantAt(dto.date, startMin);
+    const end = instantAt(dto.date, endMin);
+    const label = (courtName: string) => `${courtName} ${dto.date} ${hhmm(startMin)}`;
     if (start <= new Date()) throw rule.conflict('R10', 'Créneau passé : réservation impossible.');
 
     const court = await this.prisma.court.findUnique({ where: { id: dto.courtId } });
     if (!court) throw notFound('Terrain');
     if (!court.active || court.maintenance) throw new ConflictException(`${court.name} est en entretien ou désactivé.`);
-    if (!court.lit && dto.hour >= s.nightStartHour) {
-      throw new ConflictException('Ce terrain n’est pas éclairé : réservation impossible la nuit.');
+    const night = s.nightStartHour * 60;
+    if (!court.lit && endMin > night) {
+      throw new ConflictException(`Ce terrain n’est pas éclairé : pas de jeu après ${s.nightStartHour}h.`);
     }
 
     // Qui réserve, pour qui, quel type.
@@ -149,35 +187,53 @@ export class ReservationsService {
         include: { group: { select: { name: true, ...periodSelect } } },
       })
     ).map(withPeriod);
-    const busy = slots.find((g) => slotOccupiesHour(g, dto.date, dto.hour));
+    const busy = slots.find((g) => slotOccupies(g, dto.date, startMin, BOOKING_MINUTES));
     if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.group.name} ».`);
 
-    const rate = await this.prisma.courtRate.findUnique({
-      where: { type_period: { type, period: dto.hour >= s.nightStartHour ? 'NIGHT' : 'DAY' } },
-    });
-    if (!rate) throw new BadRequestException('Tarif terrain manquant : renseignez les tarifs terrains.');
+    // Prix à l'heure, au prorata jour / nuit (ex. 17:30–18:30 : 30 min de jour + 30 min de nuit).
+    const nightMin = Math.max(0, endMin - Math.max(startMin, night));
+    const dayMin = BOOKING_MINUTES - nightMin;
+    const rates = await this.prisma.courtRate.findMany({ where: { type } });
+    const rateOf = (period: 'DAY' | 'NIGHT') => rates.find((r) => r.period === period);
+    if ((dayMin && !rateOf('DAY')) || (nightMin && !rateOf('NIGHT'))) {
+      throw new BadRequestException('Tarif terrain manquant : renseignez les tarifs terrains.');
+    }
+    const price =
+      Math.round(((dayMin * num(rateOf('DAY')?.pricePerHour)) / 60 + (nightMin * num(rateOf('NIGHT')?.pricePerHour)) / 60) * 1000) / 1000;
 
     try {
-      const r = await this.prisma.reservation.create({
-        data: {
-          courtId: court.id,
-          playerId,
-          coachId,
-          type,
-          startTime: start,
-          endTime: end,
-          price: rate.pricePerHour,
-          bookedById: user.id,
-          activeKey: `${court.id}|${start.toISOString()}`, // pas de double réservation
-        },
-        include,
+      // Pas de double réservation ni de chevauchement : verrou par terrain le temps de vérifier et d'écrire.
+      const r = await this.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${court.id}))`;
+        const overlap = await tx.reservation.findFirst({
+          where: { courtId: court.id, activeKey: { not: null }, startTime: { lt: end }, endTime: { gt: start } },
+        });
+        if (overlap) {
+          throw new ConflictException(
+            `Créneau déjà pris (${hhmm(minutesOfDay(overlap.startTime))} – ${hhmm(minutesOfDay(overlap.endTime))}) : pas de double réservation.`,
+          );
+        }
+        return tx.reservation.create({
+          data: {
+            courtId: court.id,
+            playerId,
+            coachId,
+            type,
+            startTime: start,
+            endTime: end,
+            price,
+            bookedById: user.id,
+            activeKey: `${court.id}|${start.toISOString()}`,
+          },
+          include,
+        });
       });
       if (user.role === Role.COACH) {
         await this.audit.log(user.id, {
           action: 'Séance privée réservée',
           entity: 'Reservation',
           entityId: r.id,
-          target: `${court.name} ${dto.date} ${pad(dto.hour)}h`,
+          target: label(court.name),
           after: r.player ? fullName(r.player) : null,
         });
       }
@@ -216,7 +272,7 @@ export class ReservationsService {
       where: { id },
       data: { activeKey: null, cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason?.trim() || null },
     });
-    const label = `${r.court.name} ${localDayOf(r.startTime)} ${pad(r.startTime.getHours())}h`;
+    const label = `${r.court.name} ${localDayOf(r.startTime)} ${hhmm(minutesOfDay(r.startTime))}`;
     if (user.role === Role.COACH) {
       await this.audit.log(user.id, { action: 'Séance privée annulée', entity: 'Reservation', entityId: id, target: label });
     }
@@ -260,6 +316,8 @@ export class ReservationsService {
       id: r.id,
       date: localDayOf(r.startTime),
       hour: r.startTime.getHours(),
+      time: hhmm(minutesOfDay(r.startTime)),
+      endTimeLabel: hhmm(minutesOfDay(r.endTime)),
       startTime: r.startTime,
       type: r.type,
       price: num(r.price),

@@ -66,11 +66,20 @@ export function slotsOverlap(a: Slot, b: Slot): boolean {
   return a.day === b.day && minutesOf(a.startTime) < minutesOf(b.endTime) && minutesOf(b.startTime) < minutesOf(a.endTime);
 }
 
+/** Le créneau occupe-t-il l'intervalle [startMin, startMin + durationMin[ (minutes depuis minuit) ce jour-là ? */
+export function slotOccupies(
+  slot: Slot & { periodFrom?: string; periodTo?: string },
+  day: string,
+  startMin: number,
+  durationMin = 60,
+): boolean {
+  if (!slotRunsOn(slot, day)) return false;
+  return minutesOf(slot.startTime) < startMin + durationMin && startMin < minutesOf(slot.endTime);
+}
+
 /** Le créneau occupe-t-il l'heure pleine `hour` (réservation d'une heure) ce jour-là ? */
 export function slotOccupiesHour(slot: Slot & { periodFrom?: string; periodTo?: string }, day: string, hour: number): boolean {
-  if (!slotRunsOn(slot, day)) return false;
-  const start = hour * 60;
-  return minutesOf(slot.startTime) < start + 60 && start < minutesOf(slot.endTime);
+  return slotOccupies(slot, day, hour * 60);
 }
 
 export const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];

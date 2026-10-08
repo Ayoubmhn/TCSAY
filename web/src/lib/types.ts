@@ -264,20 +264,25 @@ export type ReceiptLayout = {
   footer: string[];
 };
 
-export type SlotState = 'free' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
+export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
 
+/** Grille de réservation : départs toutes les 30 min (« 17:30 »), une heure de jeu. */
 export type Grid = {
   date: string;
-  hours: number[];
+  times: string[];
+  durationMinutes: number;
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
-  slots: { courtId: string; hours: { hour: number; state: SlotState }[] }[];
+  slots: { courtId: string; times: { time: string; state: SlotState }[] }[];
 };
 
 export type Reservation = {
   id: string;
   date: string;
   hour: number;
+  /** Départ « HH:MM » et fin « HH:MM ». */
+  time: string;
+  endTimeLabel: string;
   startTime: string;
   type: 'LEISURE' | 'PRIVATE';
   price: number;
