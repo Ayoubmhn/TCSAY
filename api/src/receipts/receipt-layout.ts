@@ -42,7 +42,7 @@ export const DEFAULT_RECEIPT_LAYOUT: ReceiptLayout = {
   fields: {
     label: { x: 124, y: 32, w: 46 }, // « 1ère tranche », sous le nom arabe du club
     payerName: { x: 108, y: 61.5, w: 44 }, // après « توصلت من السيد: »
-    amountWords: { x: 14, y: 61.5, w: 74 }, // après « ما قدره: »
+    amountWords: { x: 8, y: 61.5, w: 72 }, // après « ما قدره: »
     amountDigits: { x: 142, y: 72, w: 32 }, // montant en chiffres, avant « نقدا »
     barCheque: { x: 78, y: 70, w: 47 }, // espèces : on barre « صكا . عدد الصك »
     barCash: { x: 128.5, y: 70, w: 8 }, // chèque : on barre « نقدا »
