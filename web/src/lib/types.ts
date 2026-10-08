@@ -385,9 +385,31 @@ export type EmailLog = {
   to: string;
   subject: string;
   kind: 'CREDENTIALS' | 'REMINDER' | 'SALARY' | 'RESERVATION' | 'OTHER';
-  status: 'SENT' | 'FAILED';
+  status: EmailStatus;
   error: string | null;
+  attempts: number;
+  sentAt: string | null;
   createdAt: string;
+};
+
+export type EmailStatus = 'PENDING' | 'SENT' | 'FAILED';
+
+/** Serveur SMTP en vigueur (sans mot de passe) et état de la file d'envoi. */
+export type MailConfig = {
+  host: string;
+  port: number;
+  security: 'tls' | 'starttls' | 'none';
+  auth: boolean;
+  user: string | null;
+  passwordSet: boolean;
+  from: string;
+  fromName: string;
+  replyTo: string | null;
+  appUrl: string;
+  devCapture: boolean;
+  pending: number;
+  sent: number;
+  failed: number;
 };
 
 export type AuditEntry = {

@@ -291,6 +291,24 @@ const DICT: Record<string, [string, string]> = {
     'Personal information can only be changed by the club.',
     'لا يمكن تعديل المعلومات الشخصية إلا من طرف النادي.',
   ],
+  // Emails
+  'Messagerie': ['Messaging', 'المراسلة'],
+  'Serveur d’envoi': ['Mail server', 'خادم الإرسال'],
+  'File d’envoi': ['Sending queue', 'قائمة الإرسال'],
+  'Tester la configuration': ['Test the configuration', 'اختبار الإعدادات'],
+  'Envoyer un email de test à': ['Send a test email to', 'إرسال بريد تجريبي إلى'],
+  'Envoyer le test': ['Send the test', 'إرسال الاختبار'],
+  'Envoyé': ['Sent', 'أُرسل'],
+  'Échec': ['Failed', 'فشل'],
+  'Renvoyer': ['Resend', 'إعادة الإرسال'],
+  'Tous les statuts': ['All statuses', 'كل الحالات'],
+  'Envoyés': ['Sent', 'المرسلة'],
+  'Échecs': ['Failed', 'الفاشلة'],
+  'Aucun email.': ['No emails.', 'لا توجد رسائل.'],
+  'Sans authentification': ['No authentication', 'بدون مصادقة'],
+  'Sans chiffrement': ['No encryption', 'بدون تشفير'],
+  'Production': ['Production', 'الإنتاج'],
+  'Mailpit (développement)': ['Mailpit (development)', 'Mailpit (التطوير)'],
 };
 
 const INDEX: Record<Lang, number> = { fr: -1, en: 0, ar: 1 };
