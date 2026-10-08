@@ -172,7 +172,7 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
         to: row.to,
         subject: row.subject,
         text: row.body,
-        html: renderHtml(row.subject, row.body, this.actionFor(row.kind), `${this.appUrl}/logo-tcsay.png`),
+        html: renderHtml(row.subject, row.body, this.actionFor(row.kind), this.logoUrl()),
       });
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
@@ -188,6 +188,11 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
       },
     });
     return error;
+  }
+
+  /** Logo seulement si le site est public : Gmail, Outlook… ne peuvent pas charger une image de localhost. */
+  private logoUrl(): string | undefined {
+    return /^https?:\/\/(localhost|127\.|0\.0\.0\.0|192\.168\.|10\.)/i.test(this.appUrl) ? undefined : `${this.appUrl}/logo-tcsay.png`;
   }
 
   private actionFor(kind: EmailKind): MailAction {
