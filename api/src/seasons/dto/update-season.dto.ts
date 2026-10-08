@@ -23,4 +23,14 @@ export class UpdateSeasonDto {
   @IsOptional()
   @IsISO8601({ strict: true }, { message: 'endDate doit être une date AAAA-MM-JJ' })
   endDate?: string;
+
+  @ApiPropertyOptional({ example: '2026-10-01', description: 'Loisirs : début (par défaut 1er octobre)' })
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'leisureStartDate doit être une date AAAA-MM-JJ' })
+  leisureStartDate?: string;
+
+  @ApiPropertyOptional({ example: '2027-06-30', description: 'Loisirs : fin (par défaut 30 juin)' })
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'leisureEndDate doit être une date AAAA-MM-JJ' })
+  leisureEndDate?: string;
 }

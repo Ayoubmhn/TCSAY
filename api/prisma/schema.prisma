@@ -12,18 +12,42 @@ datasource db {
 
 // ───────────────────────── Énumérations ─────────────────────────
 
+/// Acteurs : un utilisateur peut en cumuler plusieurs (ex. directeur technique et entraîneur, entraîneur et joueur).
 enum Role {
-  ADMIN
+  PRESIDENT // Président du club : tous les accès, gère les autorisations
+  ADMIN_AGENT // Agent administratif : paiements, salaires, utilisateurs
+  SUPERVISOR // Agent administratif superviseur : statistiques seulement
+  TECH_DIRECTOR // Directeur technique : entraîneurs, groupes, emploi du temps
   COACH
   PARENT
   PLAYER
-  STAFF // personnel du club (agent administratif, directeur technique…)
+  ADMIN // espace administration (rôle d'action, attribué automatiquement aux rôles ci-dessus)
+  STAFF // ancien rôle « personnel », remplacé par les rôles ci-dessus
 }
 
-/// Fonction du personnel (liste à compléter par le club).
-enum StaffPosition {
-  ADMIN_AGENT // Agent administratif
-  TECHNICAL_DIRECTOR // Directeur technique
+enum CourtSurface {
+  CLAY // Terre battue
+  HARD // Dur
+  GRASS // Gazon
+}
+
+/// Type de groupe : loisirs (octobre → juin) ou compétitif (jusqu'en août, stage d'été inclus).
+enum GroupKind {
+  LEISURE
+  COMPETITIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE // en retard
+}
+
+/// Décision de la direction sur la séance d'un entraîneur absent.
+enum AbsenceResolution {
+  REPLACED // animée par un autre entraîneur
+  PHYSICAL // transformée en séance physique
+  CANCELLED // annulée
 }
 
 /// Rémunération d'un employé (entraîneur ou personnel).
@@ -57,6 +81,7 @@ enum CategoryFamily {
   VETERAN // Vétérans
   CORPORATE // Entreprise
   PADEL // Padel
+  LEISURE // Loisirs
 }
 
 enum SeasonStatus {
@@ -116,23 +141,22 @@ enum ImportStatus {
 // ───────────────────────── Comptes ─────────────────────────
 
 model User {
-  id                 String         @id @default(uuid()) @db.Uuid
-  email              String?        @unique // identifiant (ou CIN si pas d'email)
-  cin                String?        @unique // carte d'identité nationale
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String?   @unique // identifiant (ou CIN si pas d'email)
+  cin                String?   @unique // carte d'identité nationale
   passwordHash       String
-  role               Role
+  roles              Role[]    @default([]) // plusieurs acteurs possibles
   firstName          String
   lastName           String
   phone              String?
-  position           StaffPosition? // personnel seulement
   payMode            PayMode? // employés : à l'heure ou au mois
-  payRate            Decimal?       @db.Decimal(10, 3) // DT par heure ou par mois
-  mustChangePassword Boolean        @default(true)
-  isActive           Boolean        @default(true) // comptes désactivés, jamais supprimés
+  payRate            Decimal?  @db.Decimal(10, 3) // DT par heure ou par mois
+  mustChangePassword Boolean   @default(true)
+  isActive           Boolean   @default(true) // comptes désactivés, jamais supprimés
   lastLoginAt        DateTime?
-  version            Int            @default(1)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   player           Player?
   coach            Coach?
@@ -144,6 +168,15 @@ model User {
   attendances      Attendance[]
   salaries         Salary[]
   absenceDecisions CoachAbsence[] @relation("AbsenceDecidedBy")
+}
+
+/// Autorisations par rôle, modifiables par le président (le président a toujours tout).
+model RolePermission {
+  role       Role
+  permission String // ex. « payments.collect »
+  createdAt  DateTime @default(now())
+
+  @@id([role, permission])
 }
 
 model Player {
@@ -194,21 +227,24 @@ model Coach {
   user         User           @relation(fields: [userId], references: [id])
   slots        SlotCoach[]
   absences     CoachAbsence[]
+  replacements CoachAbsence[] @relation("AbsenceReplacement")
   reservations Reservation[]
 }
 
 // ───────────────────────── Saisons et catégories ─────────────────────────
 
 model Season {
-  id         String       @id @default(uuid()) @db.Uuid
-  label      String       @unique // ex. « 2026-2027 »
-  startDate  DateTime     @db.Date
-  endDate    DateTime     @db.Date
-  status     SeasonStatus @default(DRAFT)
-  archivedAt DateTime? // R8 : suppression = archivage
-  version    Int          @default(1) // R13 : verrouillage optimiste
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  id               String       @id @default(uuid()) @db.Uuid
+  label            String       @unique // ex. « 2026-2027 »
+  startDate        DateTime     @db.Date // début du compétitif
+  endDate          DateTime     @db.Date // fin du compétitif (août, stage d'été inclus)
+  leisureStartDate DateTime?    @db.Date // loisirs : octobre
+  leisureEndDate   DateTime?    @db.Date // loisirs : juin
+  status           SeasonStatus @default(DRAFT)
+  archivedAt       DateTime? // R8 : suppression = archivage
+  version          Int          @default(1) // R13 : verrouillage optimiste
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 
   enrollments   Enrollment[]
   groups        TrainingGroup[]
@@ -261,16 +297,16 @@ model Enrollment {
 // ───────────────────────── Groupes et terrains ─────────────────────────
 
 model Court {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @unique
-  surface     String
-  lit         Boolean  @default(false) // éclairé : réservable la nuit
-  active      Boolean  @default(true) // R11
-  maintenance Boolean  @default(false)
-  sortOrder   Int      @default(0)
-  version     Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  surface     CourtSurface
+  lit         Boolean      @default(false) // éclairé : réservable la nuit
+  active      Boolean      @default(true) // R11
+  maintenance Boolean      @default(false)
+  sortOrder   Int          @default(0)
+  version     Int          @default(1)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   slots        GroupSlot[]
   reservations Reservation[]
@@ -281,6 +317,7 @@ model TrainingGroup {
   seasonId   String    @db.Uuid
   name       String
   categoryId String?   @db.Uuid // catégorie principale (facultative : groupes mixtes)
+  kind       GroupKind @default(COMPETITIVE)
   capacity   Int
   archivedAt DateTime?
   version    Int       @default(1)
@@ -383,15 +420,16 @@ model Reservation {
 // ───────────────────────── Cotisations et paiements ─────────────────────────
 
 model FeeSchedule {
-  id            String   @id @default(uuid()) @db.Uuid
-  seasonId      String   @db.Uuid
-  categoryId    String   @db.Uuid
-  groupId       String?  @db.Uuid
-  amount        Decimal  @db.Decimal(10, 3) // montant de la saison
-  depositAmount Decimal  @default(0) @db.Decimal(10, 3) // acompte à l'inscription
-  version       Int      @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id               String   @id @default(uuid()) @db.Uuid
+  seasonId         String   @db.Uuid
+  categoryId       String   @db.Uuid
+  groupId          String?  @db.Uuid
+  amount           Decimal  @db.Decimal(10, 3) // montant de la saison
+  depositAmount    Decimal  @default(0) @db.Decimal(10, 3) // acompte à l'inscription
+  physicalIncluded Boolean  @default(false) // séance physique incluse
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   season      Season         @relation(fields: [seasonId], references: [id])
   category    Category       @relation(fields: [categoryId], references: [id])
@@ -475,36 +513,39 @@ model Salary {
 
 /// Absence d'un entraîneur : déclarée par lui, validée par l'administration, puis groupes prévenus.
 model CoachAbsence {
-  id           String        @id @default(uuid()) @db.Uuid
-  coachId      String        @db.Uuid
-  date         DateTime      @db.Date
-  slotId       String?       @db.Uuid // null = toute la journée
-  reason       String
-  status       AbsenceStatus @default(PENDING)
-  notifyGroups Boolean       @default(true)
-  decidedById  String?       @db.Uuid
-  decidedAt    DateTime?
-  decisionNote String?
-  createdAt    DateTime      @default(now())
+  id                 String             @id @default(uuid()) @db.Uuid
+  coachId            String             @db.Uuid
+  date               DateTime           @db.Date
+  slotId             String?            @db.Uuid // null = toute la journée
+  reason             String
+  status             AbsenceStatus      @default(PENDING)
+  notifyGroups       Boolean            @default(true)
+  decidedById        String?            @db.Uuid
+  decidedAt          DateTime?
+  decisionNote       String?
+  resolution         AbsenceResolution? // décidée à la validation
+  replacementCoachId String?            @db.Uuid // si REPLACED
+  createdAt          DateTime           @default(now())
 
-  coach     Coach      @relation(fields: [coachId], references: [id])
-  slot      GroupSlot? @relation(fields: [slotId], references: [id])
-  decidedBy User?      @relation("AbsenceDecidedBy", fields: [decidedById], references: [id])
+  coach            Coach      @relation(fields: [coachId], references: [id])
+  replacementCoach Coach?     @relation("AbsenceReplacement", fields: [replacementCoachId], references: [id])
+  slot             GroupSlot? @relation(fields: [slotId], references: [id])
+  decidedBy        User?      @relation("AbsenceDecidedBy", fields: [decidedById], references: [id])
 
   @@index([date])
 }
 
 model Attendance {
-  id           String   @id @default(uuid()) @db.Uuid
-  groupId      String   @db.Uuid
-  slotId       String   @db.Uuid
-  playerId     String   @db.Uuid
-  date         DateTime @db.Date
-  present      Boolean
-  reason       String? // motif d'absence
-  recordedById String   @db.Uuid
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id           String           @id @default(uuid()) @db.Uuid
+  groupId      String           @db.Uuid
+  slotId       String           @db.Uuid
+  playerId     String           @db.Uuid
+  date         DateTime         @db.Date
+  status       AttendanceStatus
+  reason       String? // motif d'absence ou de retard
+  recordedById String           @db.Uuid
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
   group      TrainingGroup @relation(fields: [groupId], references: [id])
   slot       GroupSlot     @relation(fields: [slotId], references: [id])

@@ -37,7 +37,7 @@ export class AuditService {
     return this.prisma.auditLog.findMany({
       where: { createdAt: { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) } },
       orderBy: { createdAt: 'desc' },
-      include: { user: { select: { firstName: true, lastName: true, role: true } } },
+      include: { user: { select: { firstName: true, lastName: true, roles: true } } },
     });
   }
 }

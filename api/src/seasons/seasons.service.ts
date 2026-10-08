@@ -82,11 +82,13 @@ export class SeasonsService {
     const startDate = toDate(dto.startDate);
     const endDate = toDate(dto.endDate);
     assertDateRange(startDate, endDate);
+    const leisure = leisurePeriod(startDate, endDate, dto.leisureStartDate, dto.leisureEndDate);
     const season = await this.prisma.season.create({
       data: {
         label: dto.label.trim(),
         startDate,
         endDate,
+        ...leisure,
         status: dto.status ?? SeasonStatus.DRAFT,
       },
     });
@@ -114,10 +116,17 @@ export class SeasonsService {
     const endDate = dto.endDate ? toDate(dto.endDate) : season.endDate;
     assertDateRange(startDate, endDate);
 
+    const leisure = leisurePeriod(
+      startDate,
+      endDate,
+      dto.leisureStartDate ?? (season.leisureStartDate ? iso(season.leisureStartDate) : undefined),
+      dto.leisureEndDate ?? (season.leisureEndDate ? iso(season.leisureEndDate) : undefined),
+    );
     const updated = await this.writeWithVersion(id, dto.version, {
       label: dto.label?.trim(),
       startDate,
       endDate,
+      ...leisure,
     });
     await this.audit.log(userId, {
       action: 'Saison modifiée',
@@ -230,6 +239,22 @@ export class SeasonsService {
 function toDate(value: string): Date {
   // Date seule (colonne @db.Date) : on fixe minuit UTC pour éviter tout décalage de jour.
   return new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+}
+
+/**
+ * Période loisirs : par défaut du 1er octobre au 30 juin de la saison, bornée par la saison
+ * (le compétitif va du début à la fin de saison, août et stage d'été inclus).
+ */
+function leisurePeriod(start: Date, end: Date, from?: string, to?: string): { leisureStartDate: Date; leisureEndDate: Date } {
+  const y = start.getUTCFullYear();
+  const defStart = new Date(Date.UTC(start.getUTCMonth() > 9 ? y + 1 : y, 9, 1));
+  const leisureStartDate = from ? toDate(from) : defStart < start ? start : defStart;
+  const defEnd = new Date(Date.UTC(leisureStartDate.getUTCFullYear() + 1, 5, 30));
+  const leisureEndDate = to ? toDate(to) : defEnd > end ? end : defEnd;
+  if (leisureStartDate < start || leisureEndDate > end || leisureEndDate <= leisureStartDate) {
+    throw new BadRequestException('La période loisirs doit être comprise dans la saison (par défaut octobre → juin).');
+  }
+  return { leisureStartDate, leisureEndDate };
 }
 
 function assertDateRange(start: Date, end: Date): void {

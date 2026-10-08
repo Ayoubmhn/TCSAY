@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { ChangeCategoryDto, CreatePlayerDto, ListPlayersQuery, UpdateContactDto, UpdatePlayerDto } from './players.dto';
 import { PlayersService } from './players.service';
 
@@ -19,43 +19,43 @@ export class PlayersController {
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage', 'payments.collect', 'groups.manage')
   get(@Param('id', ParseUUIDPipe) id: string) {
     return this.players.get(id);
   }
 
   @Get(':id/profile')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage', 'payments.collect', 'groups.manage', 'parents.manage')
   profile(@Param('id', ParseUUIDPipe) id: string) {
     return this.players.profile(id);
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Perm('players.manage')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreatePlayerDto) {
     return this.players.create(user, dto);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage')
   update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdatePlayerDto) {
     return this.players.update(user, id, dto);
   }
 
   @Post(':id/category')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage')
   changeCategory(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ChangeCategoryDto) {
     return this.players.changeCategory(user, id, dto);
   }
 
   @Post(':id/archive')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage')
   archive(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.players.archive(user, id);
   }
 
   @Post(':id/restore')
-  @Roles(Role.ADMIN)
+  @Perm('players.manage')
   restore(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.players.restore(user, id);
   }

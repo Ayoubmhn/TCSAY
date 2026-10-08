@@ -6,7 +6,7 @@ import { AccessService } from '../access/access.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, todayIso } from '../common/dates';
 import { num } from '../common/money';
-import { sessionsBetween } from '../common/sessions';
+import { periodSelect, sessionsBetween, withPeriod } from '../common/sessions';
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -42,9 +42,9 @@ export class MeController {
     });
     const groups = await this.prisma.trainingGroup.findMany({
       where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId } } } },
-      include: { slots: { include: slotInclude } },
+      include: { slots: { include: slotInclude }, season: periodSelect.season },
     });
-    const slots = groups.flatMap((g) => g.slots.map((s) => ({ ...s, groupName: g.name })));
+    const slots = groups.flatMap((g) => g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season } })));
     const now = new Date();
     const next = sessionsBetween(slots, todayIso(), addDaysIso(todayIso(), 14)).find((s) => s.start > now);
 
@@ -58,7 +58,7 @@ export class MeController {
 
     const [reservations, absences] = await Promise.all([
       this.prisma.reservation.count({ where: { playerId, activeKey: { not: null }, startTime: { gte: now } } }),
-      this.prisma.attendance.count({ where: { playerId, present: false, group: { seasonId: season.id } } }),
+      this.prisma.attendance.count({ where: { playerId, status: 'ABSENT', group: { seasonId: season.id } } }),
     ]);
 
     return {

@@ -5,7 +5,7 @@ import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxL
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { ageAtYearEnd } from '../common/dates';
 import { assertVersion, fullName, notFound, rule } from '../common/rules';
 import { slotInclude, slotView } from '../groups/groups.controller';
@@ -81,7 +81,7 @@ export class ParentsController {
   @Get()
   async list() {
     const parents = await this.prisma.user.findMany({
-      where: { role: Role.PARENT },
+      where: { roles: { has: Role.PARENT } },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       include: {
         parentLinks: {
@@ -97,13 +97,15 @@ export class ParentsController {
       email: p.email,
       phone: p.phone,
       cin: p.cin,
-      isActive: p.isActive,
+      isActive: p.isActive && p.roles.includes(Role.PARENT),
+      otherRoles: p.roles.filter((r) => r !== Role.PARENT),
       version: p.version,
       players: p.parentLinks.map((l) => l.player),
     }));
   }
 
   @Post()
+  @Perm('parents.manage', 'players.manage')
   async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateParentDto) {
     const { user, password } = await this.prisma.$transaction(async (tx) => {
       const created = await this.accounts.create(tx, { ...dto, role: Role.PARENT });
@@ -114,10 +116,11 @@ export class ParentsController {
       );
       return created;
     });
-    return { id: user.id, ...(await this.accounts.sendCredentials(user, password)) };
+    return { id: user.id, ...(await this.accounts.sendCredentials(user, password, Role.PARENT)) };
   }
 
   @Patch(':id')
+  @Perm('parents.manage', 'players.manage')
   async update(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateParentDto) {
     const parent = await this.find(id);
     assertVersion(parent, dto.version, 'Ce parent');
@@ -144,6 +147,7 @@ export class ParentsController {
 
   /** Profil d'un parent : informations, enfants et leurs groupes (créneaux). */
   @Get(':id/profile')
+  @Perm('parents.manage', 'players.manage', 'payments.collect')
   async profile(@Param('id', ParseUUIDPipe) id: string) {
     const parent = await this.find(id);
     const season = await this.access.activeSeason().catch(() => null);
@@ -187,6 +191,7 @@ export class ParentsController {
   }
 
   @Post(':id/links')
+  @Perm('parents.manage', 'players.manage')
   async link(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: LinkDto) {
     const parent = await this.find(id);
     const player = await this.prisma.player.findUnique({ where: { id: dto.playerId } });
@@ -207,6 +212,7 @@ export class ParentsController {
 
   /** R9 : un mineur garde toujours au moins un parent lié. */
   @Delete(':id/links/:playerId')
+  @Perm('parents.manage', 'players.manage')
   async unlink(
     @CurrentUser() actor: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -232,20 +238,23 @@ export class ParentsController {
   }
 
   @Post(':id/deactivate')
+  @Perm('parents.manage', 'players.manage')
   async deactivate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.find(id);
-    return this.accounts.setActive(actor.id, id, false);
+    return this.accounts.setRoleActive(actor.id, id, Role.PARENT, false);
   }
 
   @Post(':id/activate')
+  @Perm('parents.manage', 'players.manage')
   async activate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.find(id);
-    return this.accounts.setActive(actor.id, id, true);
+    return this.accounts.setRoleActive(actor.id, id, Role.PARENT, true);
   }
 
   private async find(id: string) {
     const parent = await this.prisma.user.findUnique({ where: { id } });
-    if (!parent || parent.role !== Role.PARENT) throw notFound('Parent');
+    if (!parent) throw notFound('Parent');
+    if (!parent.roles.includes(Role.PARENT) && !(await this.prisma.parentLink.count({ where: { parentId: id } }))) throw notFound('Parent');
     return parent;
   }
 }

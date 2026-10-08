@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { IsInt } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { SettingsService } from './settings.service';
 
 class SetValueDto {
@@ -26,7 +26,7 @@ export class SettingsController {
   }
 
   @Patch(':key')
-  @Roles(Role.ADMIN)
+  @Perm('reservations.manage', 'courts.manage')
   async set(@CurrentUser() user: AuthUser, @Param('key') key: string, @Body() dto: SetValueDto) {
     const before = await this.settings.all();
     const after = await this.settings.set(key, dto.value);

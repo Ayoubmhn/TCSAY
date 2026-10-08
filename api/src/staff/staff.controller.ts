@@ -1,22 +1,22 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { PayMode, Role, StaffPosition } from '@prisma/client';
+import { PayMode, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsEmail, IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
 import { dt, num } from '../common/money';
 import { assertVersion, fullName, notFound } from '../common/rules';
+import { ROLE_LABEL } from '../permissions/permissions';
 import { PrismaService } from '../prisma/prisma.service';
 import { view as salaryView } from '../salaries/salaries.controller';
 
 const emptyToUndefined = ({ value }: { value: unknown }) => (value === '' || value === null ? undefined : value);
 
-export const POSITION_LABEL: Record<StaffPosition, string> = {
-  ADMIN_AGENT: 'Agent administratif',
-  TECHNICAL_DIRECTOR: 'Directeur technique',
-};
+/** Fonctions du personnel administratif (le rôle de président s'attribue dans « Autorisations »). */
+export const STAFF_FUNCTIONS = [Role.ADMIN_AGENT, Role.SUPERVISOR, Role.TECH_DIRECTOR] as const;
+const STAFF_SCOPE: Role[] = [Role.PRESIDENT, ...STAFF_FUNCTIONS];
 
 class StaffFields {
   @IsString()
@@ -38,8 +38,11 @@ class StaffFields {
   @MaxLength(30)
   phone?: string;
 
-  @IsEnum(StaffPosition, { message: 'Fonction obligatoire.' })
-  position: StaffPosition;
+  /** Une ou plusieurs fonctions : agent administratif, agent superviseur, directeur technique. */
+  @IsArray()
+  @ArrayNotEmpty({ message: 'Choisissez au moins une fonction.' })
+  @IsIn(STAFF_FUNCTIONS, { each: true, message: 'Fonction inconnue.' })
+  functions: Role[];
 
   @IsEnum(PayMode)
   payMode: PayMode;
@@ -62,10 +65,16 @@ class UpdateStaffDto extends StaffFields {
   version: number;
 }
 
-/** Personnel du club (agents administratifs, directeur technique…) : fonctions à compléter par le club. */
+const functionsLabel = (roles: Role[]) =>
+  roles
+    .filter((r) => STAFF_SCOPE.includes(r))
+    .map((r) => ROLE_LABEL[r])
+    .join(', ');
+
+/** Personnel du club : président, agents administratifs, agent superviseur, directeur technique. */
 @ApiTags('Personnel')
 @ApiBearerAuth()
-@Roles(Role.ADMIN)
+@Perm('staff.manage')
 @Controller('staff')
 export class StaffController {
   constructor(
@@ -76,7 +85,10 @@ export class StaffController {
 
   @Get()
   async list() {
-    const users = await this.prisma.user.findMany({ where: { role: Role.STAFF }, orderBy: [{ position: 'asc' }, { firstName: 'asc' }] });
+    const users = await this.prisma.user.findMany({
+      where: { roles: { hasSome: STAFF_SCOPE } },
+      orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+    });
     return users.map(view);
   }
 
@@ -85,30 +97,48 @@ export class StaffController {
     const user = await this.find(id);
     const salaries = await this.prisma.salary.findMany({
       where: { employeeId: id },
-      include: { employee: { select: { id: true, firstName: true, lastName: true, email: true, role: true, position: true, coach: { select: { id: true, color: true } } } }, season: { select: { id: true, label: true, status: true } } },
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true, email: true, roles: true, coach: { select: { id: true, color: true } } } },
+        season: { select: { id: true, label: true, status: true } },
+      },
       orderBy: { month: 'desc' },
     });
     return { ...view(user), salaries: salaries.map(salaryView) };
   }
 
+  /** Création ; si la personne a déjà un compte (même email ou CIN, ex. un entraîneur), les fonctions lui sont ajoutées. */
   @Post()
   async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateStaffDto) {
+    const [first, ...others] = dto.functions;
     const { user, password } = await this.prisma.$transaction(async (tx) => {
-      const created = await this.accounts.create(tx, { ...dto, role: Role.STAFF });
+      const created = await this.accounts.create(tx, {
+        email: dto.email,
+        cin: dto.cin,
+        role: first,
+        extraRoles: others,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phone: dto.phone,
+        payMode: dto.payMode,
+        payRate: dto.payRate,
+      });
       await this.audit.log(
         actor.id,
-        { action: 'Personnel créé', entity: 'User', entityId: created.user.id, target: fullName(created.user), after: POSITION_LABEL[dto.position] },
+        { action: 'Personnel créé', entity: 'User', entityId: created.user.id, target: fullName(created.user), after: functionsLabel(dto.functions) },
         tx,
       );
       return created;
     });
-    return { id: user.id, ...(await this.accounts.sendCredentials(user, password)) };
+    return { id: user.id, ...(await this.accounts.sendCredentials(user, password, first)) };
   }
 
   @Patch(':id')
   async update(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateStaffDto) {
     const user = await this.find(id);
     assertVersion(user, dto.version, 'Ce compte');
+    // Les fonctions du personnel sont remplacées ; les autres rôles (président, entraîneur, joueur, parent) sont conservés.
+    const roles = [...user.roles.filter((r) => !(STAFF_FUNCTIONS as readonly Role[]).includes(r)), ...dto.functions];
+    if (!roles.length) throw new BadRequestException('Choisissez au moins une fonction.');
     const updated = await this.prisma.user.update({
       where: { id },
       data: {
@@ -116,7 +146,7 @@ export class StaffController {
         lastName: dto.lastName.trim(),
         cin: dto.cin.trim(),
         phone: dto.phone?.trim() || null,
-        position: dto.position,
+        roles: [...new Set(roles)],
         payMode: dto.payMode,
         payRate: dto.payRate,
         version: { increment: 1 },
@@ -127,8 +157,8 @@ export class StaffController {
       entity: 'User',
       entityId: id,
       target: fullName(updated),
-      before: `${user.position ? POSITION_LABEL[user.position] : '—'} · ${dt(num(user.payRate))}`,
-      after: `${POSITION_LABEL[dto.position]} · ${dt(dto.payRate)}`,
+      before: `${functionsLabel(user.roles) || '—'} · ${dt(num(user.payRate))}`,
+      after: `${functionsLabel(updated.roles)} · ${dt(dto.payRate)}`,
     });
     return view(updated);
   }
@@ -136,18 +166,18 @@ export class StaffController {
   @Post(':id/deactivate')
   async deactivate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.find(id);
-    return this.accounts.setActive(actor.id, id, false);
+    return view(await this.accounts.setActive(actor.id, id, false));
   }
 
   @Post(':id/activate')
   async activate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     await this.find(id);
-    return this.accounts.setActive(actor.id, id, true);
+    return view(await this.accounts.setActive(actor.id, id, true));
   }
 
   private async find(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
-    if (!user || user.role !== Role.STAFF) throw notFound('Membre du personnel');
+    if (!user || !user.roles.some((r) => STAFF_SCOPE.includes(r))) throw notFound('Membre du personnel');
     return user;
   }
 }
@@ -159,7 +189,7 @@ function view(u: {
   email: string | null;
   phone: string | null;
   cin: string | null;
-  position: StaffPosition | null;
+  roles: Role[];
   payMode: PayMode | null;
   payRate: { toNumber(): number } | null;
   isActive: boolean;
@@ -172,8 +202,9 @@ function view(u: {
     email: u.email,
     phone: u.phone,
     cin: u.cin,
-    position: u.position,
-    positionLabel: u.position ? POSITION_LABEL[u.position] : null,
+    roles: u.roles,
+    functions: u.roles.filter((r) => (STAFF_FUNCTIONS as readonly Role[]).includes(r)),
+    functionsLabel: functionsLabel(u.roles),
     payMode: u.payMode,
     payRate: num(u.payRate as never),
     isActive: u.isActive,

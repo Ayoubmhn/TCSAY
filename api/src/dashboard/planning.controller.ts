@@ -1,10 +1,10 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
 import { IsOptional, Matches } from 'class-validator';
-import { Roles } from '../auth/auth-user';
+import { Perm } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, isoDay, localInstant, pad, todayIso, weekday } from '../common/dates';
 import { fullName } from '../common/rules';
+import { periodSelect, slotRunsOn, withPeriod } from '../common/sessions';
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -21,7 +21,7 @@ class DayQuery {
  */
 @ApiTags('Dashboard')
 @ApiBearerAuth()
-@Roles(Role.ADMIN, Role.STAFF)
+@Perm('planning.view', 'groups.manage')
 @Controller('planning')
 export class PlanningController {
   constructor(
@@ -37,9 +37,12 @@ export class PlanningController {
       this.prisma.court.findMany({ orderBy: { sortOrder: 'asc' } }),
       this.prisma.groupSlot.findMany({
         where: { day: weekday(date), group: { archivedAt: null, season: { status: 'ACTIVE' } } },
-        include: { ...slotInclude, group: { select: { id: true, name: true } } },
+        include: { ...slotInclude, group: { select: { id: true, name: true, ...periodSelect } } },
       }),
-      this.prisma.coachAbsence.findMany({ where: { date: dayFromIso(date), status: 'APPROVED' } }),
+      this.prisma.coachAbsence.findMany({
+        where: { date: dayFromIso(date), status: 'APPROVED' },
+        include: { replacementCoach: { select: { id: true, color: true, user: { select: { firstName: true, lastName: true } } } } },
+      }),
       this.prisma.reservation.findMany({
         where: { activeKey: { not: null }, startTime: { gte: localInstant(date, 0), lt: localInstant(addDaysIso(date, 1), 0) } },
         include: {
@@ -57,16 +60,26 @@ export class PlanningController {
       closingHour: s.closingHour,
       nightStartHour: s.nightStartHour,
       courts: courts.map((c) => ({ id: c.id, name: c.name, lit: c.lit, maintenance: c.maintenance, active: c.active })),
-      sessions: slots.map((slot) => {
-        const v = slotView(slot);
-        return {
-          ...v,
-          group: slot.group,
-          absentCoachIds: v.coaches
-            .filter((c) => absences.some((a) => a.coachId === c.id && (!a.slotId || a.slotId === slot.id)))
-            .map((c) => c.id),
-        };
-      }),
+      // Seules les séances dont le groupe s'entraîne à cette date (loisirs : octobre → juin ; compétitif : jusqu'en août).
+      sessions: slots
+        .map(withPeriod)
+        .filter((slot) => slotRunsOn(slot, date))
+        .map((slot) => {
+          const v = slotView(slot);
+          const own = absences.filter((a) => v.coaches.some((c) => c.id === a.coachId) && (!a.slotId || a.slotId === slot.id));
+          // Décision de la direction : remplacement, séance physique ou annulation.
+          const decided = own.find((a) => a.resolution) ?? own[0];
+          const replacement = decided?.replacementCoach;
+          return {
+            ...v,
+            group: { id: slot.group.id, name: slot.group.name },
+            absentCoachIds: own.map((a) => a.coachId),
+            resolution: decided ? (decided.resolution ?? 'CANCELLED') : null,
+            replacement: replacement
+              ? { id: replacement.id, firstName: replacement.user.firstName, lastName: replacement.user.lastName, color: replacement.color }
+              : null,
+          };
+        }),
       reservations: reservations.map((r) => ({
         id: r.id,
         courtId: r.courtId,

@@ -38,7 +38,7 @@ async function wipe() {
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
     'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
     'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'user', 'courtRate', 'court',
-    'category', 'season', 'event', 'setting',
+    'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
     await prisma[model].deleteMany();
   }
@@ -73,6 +73,7 @@ function categories() {
     { code: 'E1M', name: 'Entreprise Messieurs', family: 'CORPORATE', gender: 'M', pairCode: 'E1' },
     { code: 'E1F', name: 'Entreprise Dames', family: 'CORPORATE', gender: 'F', pairCode: 'E1' },
     { code: 'P1X', name: 'Padel', family: 'PADEL', gender: 'MIXED', pairCode: 'P1', note: 'Mixte ? à confirmer' },
+    { code: 'LSR', name: 'Loisirs', family: 'LEISURE', gender: 'MIXED', pairCode: 'L1', note: 'Tous âges · octobre → juin' },
   );
   return list.map((c, i) => ({ ...c, sortOrder: i + 1 }));
 }
@@ -130,12 +131,24 @@ async function main() {
   // Saisons
   const S_ = {};
   for (const s of [
-    { label: '2010-2011', startDate: '2010-09-01', endDate: '2011-06-30', status: 'HISTORICAL' },
-    { label: '2025-2026', startDate: '2025-09-01', endDate: '2026-06-30', status: 'CLOSED' },
-    { label: '2026-2027', startDate: '2026-09-01', endDate: '2027-06-30', status: 'ACTIVE' },
-    { label: '2027-2028', startDate: '2027-09-01', endDate: '2028-06-30', status: 'DRAFT' },
+    // Compétitif : septembre → août (stage d'été inclus) ; loisirs : octobre → juin.
+    { label: '2010-2011', startDate: '2010-09-01', endDate: '2011-08-31', status: 'HISTORICAL' },
+    { label: '2025-2026', startDate: '2025-09-01', endDate: '2026-08-31', status: 'CLOSED' },
+    { label: '2026-2027', startDate: '2026-09-01', endDate: '2027-08-31', status: 'ACTIVE' },
+    { label: '2027-2028', startDate: '2027-09-01', endDate: '2028-08-31', status: 'DRAFT' },
   ]) {
-    S_[s.label] = (await prisma.season.create({ data: { ...s, startDate: day(s.startDate), endDate: day(s.endDate) } })).id;
+    const y = Number(s.startDate.slice(0, 4));
+    S_[s.label] = (
+      await prisma.season.create({
+        data: {
+          ...s,
+          startDate: day(s.startDate),
+          endDate: day(s.endDate),
+          leisureStartDate: day(`${y}-10-01`),
+          leisureEndDate: day(`${y + 1}-06-30`),
+        },
+      })
+    ).id;
   }
   const CUR = S_['2026-2027'];
   const PREV = S_['2025-2026'];
@@ -143,10 +156,10 @@ async function main() {
   // Terrains du programme (éclairage de l'Annexe : à confirmer)
   const T = {};
   for (const [i, [key, data]] of [
-    ['C1', { name: 'Court 1', lit: true, surface: 'Terre battue' }],
-    ['C2', { name: 'Court 2', lit: true, surface: 'Terre battue' }],
-    ['C3', { name: 'Court 3', lit: true, surface: 'Dur' }],
-    ['AN', { name: 'Annexe', lit: false, surface: 'À préciser' }],
+    ['C1', { name: 'Court 1', lit: true, surface: 'CLAY' }],
+    ['C2', { name: 'Court 2', lit: true, surface: 'CLAY' }],
+    ['C3', { name: 'Court 3', lit: true, surface: 'HARD' }],
+    ['AN', { name: 'Annexe', lit: false, surface: 'CLAY' }], // surface à confirmer
   ].entries()) {
     T[key] = (await prisma.court.create({ data: { ...data, sortOrder: i + 1 } })).id;
   }
@@ -163,20 +176,24 @@ async function main() {
 
   // ───── Comptes ─────
   const temp = hashPassword('temporaire');
-  const user = (data) => prisma.user.create({ data: { passwordHash: temp, ...data } });
+  // Un compte peut cumuler plusieurs rôles (ex. directeur technique et entraîneur).
+  const user = ({ role, roles, ...data }) => prisma.user.create({ data: { passwordHash: temp, roles: roles ?? [role], ...data } });
 
   const admin = await user({
     email: 'admin@tcsay.tn',
-    role: 'ADMIN',
-    firstName: 'Admin',
+    role: 'PRESIDENT',
+    firstName: 'Président',
     lastName: 'Bureau',
     passwordHash: hashPassword('admin1234'),
     mustChangePassword: false,
   });
 
   // Personnel du club (DÉMO)
-  await user({ email: 'agent@tcsay.tn', role: 'STAFF', position: 'ADMIN_AGENT', firstName: 'Agent', lastName: 'Administratif', cin: '09000001', payMode: 'MONTHLY', payRate: 700 });
-  await user({ email: 'dt@tcsay.tn', role: 'STAFF', position: 'TECHNICAL_DIRECTOR', firstName: 'Directeur', lastName: 'Technique', cin: '09000002', payMode: 'MONTHLY', payRate: 1200 });
+  await user({ email: 'agent@tcsay.tn', role: 'ADMIN_AGENT', firstName: 'Agent', lastName: 'Administratif', cin: '09000001', payMode: 'MONTHLY', payRate: 700 });
+  await user({ email: 'superviseur@tcsay.tn', role: 'SUPERVISOR', firstName: 'Agent', lastName: 'Superviseur', cin: '09000003', payMode: 'MONTHLY', payRate: 600 });
+  // Directeur technique qui entraîne aussi (deux rôles, deux espaces)
+  const dt = await user({ email: 'dt@tcsay.tn', roles: ['TECH_DIRECTOR', 'COACH'], firstName: 'Directeur', lastName: 'Technique', cin: '09000002', payMode: 'MONTHLY', payRate: 1200 });
+  await prisma.coach.create({ data: { userId: dt.id, color: '#7030a0' } });
 
   // Entraîneurs du programme, couleurs de la légende (noms de famille et CIN à compléter, rémunérations DÉMO)
   const C = {};
@@ -271,24 +288,25 @@ async function main() {
     if (groupName) await prisma.groupMember.create({ data: { groupId: G[groupName], enrollmentId: E[pid] } });
   }
 
-  // Tarifs d'entraînement par catégorie (DÉMO) : montant de la saison + acompte
+  // Tarifs d'entraînement 2026-2027 (tarifs du club) : Lutins / Lutines 800 DT, autres catégories 1000 DT.
+  // Acompte : à définir par le club (0 par défaut). Saison 2025-2026 : montants de démonstration.
   const F = {};
-  for (const [key, season, code, amount, deposit] of [
-    ['J12M', CUR, 'J12M', 600, 100], ['J10F', CUR, 'J10F', 500, 100], ['A1M', CUR, 'A1M', 700, 150],
-    ['J16F', CUR, 'J16F', 600, 100], ['J14M', CUR, 'J14M', 600, 100], ['J8M', CUR, 'J8M', 450, 50],
-    ['V35M', CUR, 'V35M', 700, 150], ['P11', PREV, 'J11M', 560, 0], ['PA1', PREV, 'A1M', 650, 0],
-  ]) {
-    F[key] = (await prisma.feeSchedule.create({
-      data: { seasonId: season, categoryId: cat[code], amount, depositAmount: deposit },
+  const LUTINS = ['J6M', 'J6F', 'J7M', 'J7F', 'J8M', 'J8F'];
+  for (const [code, id] of Object.entries(cat)) {
+    F[code] = (await prisma.feeSchedule.create({
+      data: { seasonId: CUR, categoryId: id, amount: LUTINS.includes(code) ? 800 : 1000, depositAmount: 0 },
     })).id;
   }
+  for (const [key, code, amount] of [['P11', 'J11M', 560], ['PA1', 'A1M', 650]]) {
+    F[key] = (await prisma.feeSchedule.create({ data: { seasonId: PREV, categoryId: cat[code], amount, depositAmount: 0 } })).id;
+  }
 
-  // Cotisations, tranches et paiements (DÉMO)
+  // Cotisations, tranches et paiements (montants payés : DÉMO)
   const memberships = [
-    [E.J1, F.J12M, 'SEMESTER', 600, [['2026-10-15', 300, 300, '2026-09-18'], ['2027-01-15', 300, 0]]],
-    [E.J2, F.J10F, 'SEMESTER', 500, [['2026-10-15', 250, 150, '2026-09-20'], ['2027-01-15', 250, 0]]],
-    [E.J3, F.A1M, 'FULL', 700, [['2026-09-12', 700, 700, '2026-09-12']]],
-    [E.J4, F.J16F, 'MONTHLY', 600, [['2026-09-30', 200, 0], ['2026-12-31', 200, 0], ['2027-03-31', 200, 0]]],
+    [E.J1, F.J12M, 'SEMESTER', 1000, [['2026-10-15', 500, 500, '2026-09-18'], ['2027-01-15', 500, 0]]],
+    [E.J2, F.J10F, 'SEMESTER', 1000, [['2026-10-15', 500, 150, '2026-09-20'], ['2027-01-15', 500, 0]]],
+    [E.J3, F.A1M, 'FULL', 1000, [['2026-09-12', 1000, 1000, '2026-09-12']]],
+    [E.J4, F.J16F, 'MONTHLY', 1000, [['2026-09-30', 334, 0], ['2026-12-31', 333, 0], ['2027-03-31', 333, 0]]],
     [E_PREV.J1, F.P11, 'SEMESTER', 560, [['2025-10-15', 280, 280, '2025-10-10'], ['2026-01-15', 280, 280, '2026-01-12']]],
     [E_PREV.J3, F.PA1, 'FULL', 650, [['2025-10-15', 650, 650, '2025-10-01']]],
   ];
@@ -349,16 +367,18 @@ async function main() {
       slotId: SLOT[`Lutins 1|${V}|17:30`],
       reason: 'Rendez-vous médical',
       status: 'APPROVED',
+      resolution: 'REPLACED',
+      replacementCoachId: C.Abdesattar,
       decidedById: admin.id,
       decidedAt: new Date(),
     },
   });
 
   // Présences (DÉMO) : séances passées des Lutins 1 et Benjamins G
-  for (const [g, d, start, pid, present, reason] of [
-    ['Lutins 1', '2026-10-05', '17:30', 'J6', true],
-    ['Benjamins G', '2026-10-06', '17:30', 'J1', false, 'Malade (justifié par le parent)'],
-    ['Poussines F', '2026-10-05', '19:00', 'J2', false, 'Non justifiée'],
+  for (const [g, d, start, pid, status, reason] of [
+    ['Lutins 1', '2026-10-05', '17:30', 'J6', 'PRESENT'],
+    ['Benjamins G', '2026-10-06', '17:30', 'J1', 'ABSENT', 'Malade (justifié par le parent)'],
+    ['Poussines F', '2026-10-05', '19:00', 'J2', 'LATE', 'Arrivée à 19:20'],
   ]) {
     const wd = new Date(`${d}T00:00:00Z`).getUTCDay();
     await prisma.attendance.create({
@@ -367,7 +387,7 @@ async function main() {
         slotId: SLOT[`${g}|${wd}|${start}`],
         playerId: J_[pid],
         date: day(d),
-        present,
+        status,
         reason,
         recordedById: coachUser.Iheb,
       },
@@ -395,7 +415,7 @@ async function main() {
 
   console.log('Seed chargé : programme réel du 05/10 + données de démonstration.');
   console.log('  Admin  : admin@tcsay.tn / admin1234');
-  console.log('  Autres : sana.benali@, omar.trabelsi@, iheb@exemple.tn, agent@tcsay.tn… / temporaire');
+  console.log('  Autres : sana.benali@, omar.trabelsi@, iheb@exemple.tn, agent@, superviseur@, dt@tcsay.tn… / temporaire');
 }
 
 main()

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role, Season, SeasonStatus } from '@prisma/client';
 import { AuthUser } from '../auth/auth-user';
+import { dayFromIso } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 
 /** Visibilité des lignes : admin tout ; joueur lui-même ; parent ses enfants ; coach ses groupes. */
@@ -35,13 +36,29 @@ export class AccessService {
   }
 
   /** Coach : vérifie qu'il anime ce créneau ; l'admin peut tout. */
-  async assertSlotAccess(user: AuthUser, slotId: string): Promise<void> {
+  /**
+   * Accès à une séance : administration, entraîneur du créneau, ou entraîneur remplaçant ce jour-là
+   * (absence validée avec remplacement).
+   */
+  async assertSlotAccess(user: AuthUser, slotId: string, date?: string): Promise<void> {
     if (user.role === Role.ADMIN) return;
     const slot = await this.prisma.groupSlot.findUnique({ where: { id: slotId }, include: { coaches: true } });
     if (!slot) throw new NotFoundException('Séance introuvable.');
-    if (user.role !== Role.COACH || !slot.coaches.some((c) => c.coachId === user.coachId)) {
-      throw new ForbiddenException('Cette séance n’est pas la vôtre.');
+    if (user.role !== Role.COACH || !user.coachId) throw new ForbiddenException('Cette séance n’est pas la vôtre.');
+    if (slot.coaches.some((c) => c.coachId === user.coachId)) return;
+    if (date) {
+      const replacing = await this.prisma.coachAbsence.count({
+        where: {
+          replacementCoachId: user.coachId,
+          status: 'APPROVED',
+          resolution: 'REPLACED',
+          date: dayFromIso(date),
+          OR: [{ slotId }, { slotId: null, coach: { slots: { some: { slotId } } } }],
+        },
+      });
+      if (replacing) return;
     }
+    throw new ForbiddenException('Cette séance n’est pas la vôtre.');
   }
 
   async activeSeason(): Promise<Season> {

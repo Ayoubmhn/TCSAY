@@ -7,7 +7,7 @@ import { AuthUser } from '../auth/auth-user';
 import { addDaysIso, localDayOf, localInstant, pad, todayIso, weekday } from '../common/dates';
 import { num } from '../common/money';
 import { fullName, notFound, rule } from '../common/rules';
-import { slotOccupiesHour } from '../common/sessions';
+import { periodSelect, slotOccupiesHour, withPeriod } from '../common/sessions';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
@@ -44,9 +44,12 @@ export class ReservationsService {
       this.prisma.season.findFirst({ where: { status: 'ACTIVE', archivedAt: null } }),
     ]);
     const groupSlots = season
-      ? await this.prisma.groupSlot.findMany({
-          where: { group: { seasonId: season.id, archivedAt: null }, courtId: { not: null }, day: weekday(day) },
-        })
+      ? (
+          await this.prisma.groupSlot.findMany({
+            where: { group: { seasonId: season.id, archivedAt: null }, courtId: { not: null }, day: weekday(day) },
+            include: { group: { select: periodSelect } },
+          })
+        ).map(withPeriod)
       : [];
     const now = new Date();
     const hours = Array.from({ length: s.closingHour - s.openingHour }, (_, i) => s.openingHour + i);
@@ -140,10 +143,12 @@ export class ReservationsService {
     }
 
     // Créneau occupé par un groupe d'entraînement de la saison active.
-    const slots = await this.prisma.groupSlot.findMany({
-      where: { courtId: court.id, group: { archivedAt: null, season: { status: 'ACTIVE' } } },
-      include: { group: { select: { name: true } } },
-    });
+    const slots = (
+      await this.prisma.groupSlot.findMany({
+        where: { courtId: court.id, group: { archivedAt: null, season: { status: 'ACTIVE' } } },
+        include: { group: { select: { name: true, ...periodSelect } } },
+      })
+    ).map(withPeriod);
     const busy = slots.find((g) => slotOccupiesHour(g, dto.date, dto.hour));
     if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.group.name} ».`);
 

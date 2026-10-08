@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Role, Season } from '@prisma/client';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { ChangeSeasonStatusDto } from './dto/change-season-status.dto';
 import { CreateSeasonDto } from './dto/create-season.dto';
 import { QuerySeasonsDto } from './dto/query-seasons.dto';
@@ -45,14 +45,14 @@ export class SeasonsController {
 
   @Post()
   @ApiOperation({ summary: 'Créer une saison (brouillon ou historique)' })
-  @Roles(Role.ADMIN)
+  @Perm('seasons.manage')
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateSeasonDto): Promise<Season> {
     return this.seasons.create(user.id, dto);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Modifier une saison (R1, R13)' })
-  @Roles(Role.ADMIN)
+  @Perm('seasons.manage')
   update(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -63,7 +63,7 @@ export class SeasonsController {
 
   @Post(':id/status')
   @ApiOperation({ summary: 'Changer le statut : activer, clôturer, rouvrir avec motif (R1, R2, R13)' })
-  @Roles(Role.ADMIN)
+  @Perm('seasons.manage')
   changeStatus(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -75,7 +75,7 @@ export class SeasonsController {
   @Delete(':id')
   @ApiOperation({ summary: 'Archiver une saison (R8, R13)' })
   @ApiQuery({ name: 'version', type: Number, description: 'Version lue avant archivage (R13)' })
-  @Roles(Role.ADMIN)
+  @Perm('seasons.manage')
   archive(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,

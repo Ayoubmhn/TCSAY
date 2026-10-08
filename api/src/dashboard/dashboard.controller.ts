@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
-import { Roles } from '../auth/auth-user';
+import { Perm } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, localInstant, todayIso } from '../common/dates';
 import { num } from '../common/money';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 /** Statistiques admin (vDash du prototype). */
 @ApiTags('Dashboard')
 @ApiBearerAuth()
-@Roles(Role.ADMIN)
+@Perm('stats.view')
 @Controller('dashboard')
 export class DashboardController {
   constructor(

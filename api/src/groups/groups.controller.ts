@@ -1,11 +1,12 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Prisma, Role } from '@prisma/client';
+import { GroupKind, Prisma, Role } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -19,7 +20,7 @@ import {
 } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { minutesOf } from '../common/dates';
 import { assertSeasonOpen, assertVersion, fullName, NIL_UUID, notFound, rule } from '../common/rules';
 import { DAY_LONG, DAY_NAMES, slotsOverlap } from '../common/sessions';
@@ -66,6 +67,11 @@ class GroupFields {
   @Transform(emptyToUndefined)
   @IsUUID()
   categoryId?: string;
+
+  /** Loisirs (octobre → juin) ou compétitif (jusqu'en août, stage d'été inclus). */
+  @IsOptional()
+  @IsEnum(GroupKind, { message: 'Type : loisirs ou compétitif.' })
+  kind?: GroupKind;
 
   @IsInt()
   @Min(1, { message: 'Capacité minimale : 1.' })
@@ -157,7 +163,7 @@ export class GroupsController {
 
   /** Admin et personnel : tous les groupes ; coach : les groupes dont il anime au moins un créneau. */
   @Get()
-  @Roles(Role.ADMIN, Role.COACH, Role.STAFF)
+  @Roles(Role.ADMIN, Role.COACH)
   async list(@CurrentUser() user: AuthUser, @Query() q: ListQuery) {
     const season = await this.access.seasonOrActive(q.seasonId);
     const groups = await this.prisma.trainingGroup.findMany({
@@ -173,7 +179,7 @@ export class GroupsController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Perm('groups.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {
     const season = await this.access.seasonOrActive(dto.seasonId);
     assertSeasonOpen(season);
@@ -183,6 +189,7 @@ export class GroupsController {
         seasonId: season.id,
         name: dto.name.trim(),
         categoryId: dto.categoryId ?? null,
+        kind: dto.kind ?? GroupKind.COMPETITIVE,
         capacity: dto.capacity,
         slots: { create: dto.slots.map((s) => this.slotData(s)) },
       },
@@ -199,7 +206,7 @@ export class GroupsController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Perm('groups.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateGroupDto) {
     const group = await this.find(id);
     assertSeasonOpen(group.season);
@@ -238,7 +245,7 @@ export class GroupsController {
       }
       return tx.trainingGroup.update({
         where: { id },
-        data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, capacity: dto.capacity, version: { increment: 1 } },
+        data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, kind: dto.kind ?? group.kind, capacity: dto.capacity, version: { increment: 1 } },
         include: groupInclude,
       });
     });
@@ -255,7 +262,7 @@ export class GroupsController {
 
   /** R4 : capacité respectée, catégorie correspondante (dérogation avec motif). */
   @Post(':id/members')
-  @Roles(Role.ADMIN)
+  @Perm('groups.manage')
   async addMember(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: AddMemberDto) {
     const group = await this.find(id);
     assertSeasonOpen(group.season);
@@ -288,7 +295,7 @@ export class GroupsController {
   }
 
   @Delete(':id/members/:playerId')
-  @Roles(Role.ADMIN)
+  @Perm('groups.manage')
   async removeMember(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -313,7 +320,7 @@ export class GroupsController {
 
   /** R8 : archivage. */
   @Post(':id/archive')
-  @Roles(Role.ADMIN)
+  @Perm('groups.manage')
   async archive(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const group = await this.find(id);
     assertSeasonOpen(group.season);
@@ -385,6 +392,7 @@ export class GroupsController {
       id: g.id,
       seasonId: g.seasonId,
       name: g.name,
+      kind: g.kind,
       capacity: g.capacity,
       version: g.version,
       category: g.category,

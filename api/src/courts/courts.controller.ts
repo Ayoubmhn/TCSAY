@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { CourtSurface, Role } from '@prisma/client';
+import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { assertVersion, notFound, rule } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
+
+export const SURFACE_LABEL: Record<CourtSurface, string> = { CLAY: 'Terre battue', HARD: 'Dur', GRASS: 'Gazon' };
 
 class CreateCourtDto {
   @IsString()
@@ -13,10 +15,8 @@ class CreateCourtDto {
   @MaxLength(40)
   name: string;
 
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(40)
-  surface: string;
+  @IsEnum(CourtSurface, { message: 'Surface : terre battue, dur ou gazon.' })
+  surface: CourtSurface;
 
   @IsBoolean()
   lit: boolean;
@@ -34,10 +34,8 @@ class UpdateCourtDto {
   name?: string;
 
   @IsOptional()
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(40)
-  surface?: string;
+  @IsEnum(CourtSurface, { message: 'Surface : terre battue, dur ou gazon.' })
+  surface?: CourtSurface;
 
   @IsOptional()
   @IsBoolean()
@@ -71,38 +69,38 @@ export class CourtsController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateCourtDto) {
     const max = await this.prisma.court.aggregate({ _max: { sortOrder: true } });
     const court = await this.prisma.court.create({
-      data: { name: dto.name.trim(), surface: dto.surface.trim(), lit: dto.lit, sortOrder: (max._max.sortOrder ?? 0) + 1 },
+      data: { name: dto.name.trim(), surface: dto.surface, lit: dto.lit, sortOrder: (max._max.sortOrder ?? 0) + 1 },
     });
     await this.audit.log(user.id, { action: 'Terrain créé', entity: 'Court', entityId: court.id, target: court.name });
     return court;
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCourtDto) {
     const court = await this.find(id);
     assertVersion(court, dto.version, 'Ce terrain');
     const updated = await this.prisma.court.update({
       where: { id },
-      data: { name: dto.name?.trim(), surface: dto.surface?.trim(), lit: dto.lit, version: { increment: 1 } },
+      data: { name: dto.name?.trim(), surface: dto.surface, lit: dto.lit, version: { increment: 1 } },
     });
     await this.audit.log(user.id, {
       action: 'Terrain modifié',
       entity: 'Court',
       entityId: id,
       target: updated.name,
-      before: `${court.name} · ${court.surface} · ${court.lit ? 'éclairé' : 'sans éclairage'}`,
-      after: `${updated.name} · ${updated.surface} · ${updated.lit ? 'éclairé' : 'sans éclairage'}`,
+      before: `${court.name} · ${SURFACE_LABEL[court.surface]} · ${court.lit ? 'éclairé' : 'sans éclairage'}`,
+      after: `${updated.name} · ${SURFACE_LABEL[updated.surface]} · ${updated.lit ? 'éclairé' : 'sans éclairage'}`,
     });
     return updated;
   }
 
   @Post(':id/maintenance')
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async maintenance(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: MaintenanceDto) {
     const court = await this.find(id);
     const updated = await this.prisma.court.update({
@@ -122,7 +120,7 @@ export class CourtsController {
 
   /** R11 : un terrain avec réservations futures ne peut pas être désactivé. */
   @Post(':id/deactivate')
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async deactivate(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const court = await this.find(id);
     const future = await this.prisma.reservation.count({
@@ -135,7 +133,7 @@ export class CourtsController {
   }
 
   @Post(':id/activate')
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async activate(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.setActive(user, await this.find(id), true);
   }

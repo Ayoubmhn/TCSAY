@@ -12,6 +12,7 @@ import { CourtRatesController } from './court-rates/court-rates.controller';
 import { CourtsController } from './courts/courts.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { PlanningController } from './dashboard/planning.controller';
+import { SeasonStatsController } from './dashboard/season-stats.controller';
 import { EventsController } from './events/events.controller';
 import { FeesController } from './fees/fees.controller';
 import { GroupsController } from './groups/groups.controller';
@@ -19,6 +20,7 @@ import { HealthController } from './health.controller';
 import { EmailsController } from './mail/emails.controller';
 import { MeController } from './me/me.controller';
 import { ParentsController } from './parents/parents.controller';
+import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
 import { PlayersController } from './players/players.controller';
@@ -40,6 +42,7 @@ import { StaffController } from './staff/staff.controller';
     MeController,
     DashboardController,
     PlanningController,
+    SeasonStatsController,
     PlayersController,
     ParentsController,
     CoachesController,
@@ -58,6 +61,7 @@ import { StaffController } from './staff/staff.controller';
     EmailsController,
     AuditController,
     SettingsController,
+    PermissionsController,
   ],
   providers: [
     PlayersService,

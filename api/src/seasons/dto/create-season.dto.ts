@@ -16,7 +16,7 @@ export class CreateSeasonDto {
   @IsISO8601({ strict: true }, { message: 'startDate doit être une date AAAA-MM-JJ' })
   startDate: string;
 
-  @ApiProperty({ example: '2027-06-30', description: 'Date de fin (AAAA-MM-JJ)' })
+  @ApiProperty({ example: '2027-08-31', description: 'Fin du compétitif, stage d’été inclus (AAAA-MM-JJ)' })
   @IsISO8601({ strict: true }, { message: 'endDate doit être une date AAAA-MM-JJ' })
   endDate: string;
 
@@ -28,4 +28,14 @@ export class CreateSeasonDto {
   @IsOptional()
   @IsIn(CREATABLE_STATUSES, { message: 'status doit être DRAFT ou HISTORICAL' })
   status?: (typeof CREATABLE_STATUSES)[number];
+
+  @ApiPropertyOptional({ example: '2026-10-01', description: 'Loisirs : début (par défaut 1er octobre)' })
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'leisureStartDate doit être une date AAAA-MM-JJ' })
+  leisureStartDate?: string;
+
+  @ApiPropertyOptional({ example: '2027-06-30', description: 'Loisirs : fin (par défaut 30 juin)' })
+  @IsOptional()
+  @IsISO8601({ strict: true }, { message: 'leisureEndDate doit être une date AAAA-MM-JJ' })
+  leisureEndDate?: string;
 }

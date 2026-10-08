@@ -4,7 +4,7 @@ import { Prisma, Role } from '@prisma/client';
 import { IsIn, IsInt, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { dayFromIso, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { LOCKED_SEASON, assertVersion, fullName, notFound, rule } from '../common/rules';
@@ -13,7 +13,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SalariesService } from './salaries.service';
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
-export const EMPLOYEE_TYPES = ['COACH', 'ADMIN_AGENT', 'TECHNICAL_DIRECTOR'] as const;
+/** Types de salariés : un même compte peut en cumuler plusieurs (ex. directeur technique et entraîneur). */
+export const EMPLOYEE_TYPES = ['COACH', 'ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] as const;
 export type EmployeeType = (typeof EMPLOYEE_TYPES)[number];
 
 class ListQuery {
@@ -75,17 +76,20 @@ class UpdateSalaryDto {
 
 const include = {
   employee: {
-    select: { id: true, firstName: true, lastName: true, email: true, role: true, position: true, coach: { select: { id: true, color: true } } },
+    select: { id: true, firstName: true, lastName: true, email: true, roles: true, coach: { select: { id: true, color: true } } },
   },
   season: { select: { id: true, label: true, status: true } },
 } satisfies Prisma.SalaryInclude;
 
 type Row = Prisma.SalaryGetPayload<{ include: typeof include }>;
 
-export function employeeType(u: { role: Role; position: string | null }): EmployeeType | null {
-  if (u.role === Role.COACH) return 'COACH';
-  if (u.role === Role.STAFF && u.position) return u.position as EmployeeType;
-  return null;
+/** Types de salarié d'un compte, du plus « administratif » au terrain. */
+export function employeeTypes(u: { roles: Role[] }): EmployeeType[] {
+  return (['TECH_DIRECTOR', 'ADMIN_AGENT', 'SUPERVISOR', 'COACH'] as const).filter((t) => u.roles.includes(t as Role));
+}
+
+export function employeeType(u: { roles: Role[] }): EmployeeType | null {
+  return employeeTypes(u)[0] ?? null;
 }
 
 /** Salaires des employés : entraîneurs, agents administratifs, directeur technique. */
@@ -103,7 +107,7 @@ export class SalariesController {
 
   /** Employés salariés, filtrés par type (sélecteur de la page Salaires). */
   @Get('employees')
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   async employees(@Query() q: ListQuery) {
     const users = await this.prisma.user.findMany({
       where: this.typeWhere(q.type),
@@ -114,7 +118,8 @@ export class SalariesController {
       id: u.id,
       firstName: u.firstName,
       lastName: u.lastName,
-      type: employeeType(u),
+      type: q.type && employeeTypes(u).includes(q.type) ? q.type : employeeType(u),
+      types: employeeTypes(u),
       payMode: u.payMode,
       payRate: num(u.payRate),
       isActive: u.isActive,
@@ -123,7 +128,7 @@ export class SalariesController {
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   async list(@Query() q: ListQuery) {
     const rows = await this.prisma.salary.findMany({
       where: { employeeId: q.employeeId, employee: this.typeWhere(q.type) },
@@ -135,14 +140,14 @@ export class SalariesController {
 
   /** Proposition de salaire pour un mois (séances animées, absences validées, forfait). */
   @Get('estimate')
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   estimate(@Query() q: EstimateQuery) {
     return this.salaries.estimate(q.employeeId, q.month);
   }
 
   /** Coach : historique des salaires versés + salaires à venir (mois en cours et suivant). */
   @Get('mine')
-  @Roles(Role.COACH, Role.STAFF)
+  @Roles(Role.COACH, Role.ADMIN)
   async mine(@CurrentUser() user: AuthUser) {
     const rows = await this.prisma.salary.findMany({ where: { employeeId: user.id }, include, orderBy: { month: 'desc' } });
     const now = todayIso().slice(0, 7);
@@ -160,7 +165,7 @@ export class SalariesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateSalaryDto) {
     const employee = await this.prisma.user.findUnique({ where: { id: dto.employeeId } });
     if (!employee || !employeeType(employee)) throw notFound('Employé');
@@ -195,7 +200,7 @@ export class SalariesController {
 
   /** R6 : modifiable sur saison en cours ou à venir ; sur saison clôturée, motif obligatoire. */
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSalaryDto) {
     const salary = await this.find(id);
     assertVersion(salary, dto.version, 'Ce salaire');
@@ -223,7 +228,7 @@ export class SalariesController {
 
   @Post(':id/pay')
   @HttpCode(200)
-  @Roles(Role.ADMIN)
+  @Perm('salaries.manage')
   async pay(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const salary = await this.find(id);
     if (salary.paidAt) throw rule.conflict('R6', 'Ce salaire est déjà marqué versé.');
@@ -252,9 +257,8 @@ export class SalariesController {
   }
 
   private typeWhere(type?: EmployeeType): Prisma.UserWhereInput {
-    if (type === 'COACH') return { role: Role.COACH };
-    if (type) return { role: Role.STAFF, position: type };
-    return { OR: [{ role: Role.COACH }, { role: Role.STAFF }] };
+    if (type) return { roles: { has: type as Role } };
+    return { roles: { hasSome: EMPLOYEE_TYPES.map((t) => t as Role) } };
   }
 
   private async find(id: string) {

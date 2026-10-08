@@ -48,7 +48,7 @@ export class AuthController {
     const ok = user && user.isActive && (await verifyPassword(dto.password, user.passwordHash));
     if (!ok) throw new UnauthorizedException('Identifiant ou mot de passe incorrect.');
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return { accessToken: signToken(user.id, user.role), mustChangePassword: user.mustChangePassword };
+    return { accessToken: signToken(user.id, user.roles.join(',')), mustChangePassword: user.mustChangePassword };
   }
 
   @ApiBearerAuth()
@@ -98,7 +98,7 @@ export class AuthController {
     // Informations du compte : lecture seule pour l'utilisateur, modifiables par le club.
     const account = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { phone: true, cin: true, position: true, createdAt: true, lastLoginAt: true },
+      select: { phone: true, cin: true, createdAt: true, lastLoginAt: true },
     });
     return {
       ...user,

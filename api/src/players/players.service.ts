@@ -79,12 +79,15 @@ export class PlayersService {
     const categoryId = dto.categoryId ?? suggestion.category.id;
     const allowed = [suggestion.category.id, suggestion.alternative?.id].filter(Boolean);
     const derogation = dto.derogationReason?.trim() || null;
-    if (!allowed.includes(categoryId) && !derogation) {
+    // Loisirs : ouvert à tous les âges, sans dérogation.
+    const chosen = await this.prisma.category.findUnique({ where: { id: categoryId }, select: { family: true } });
+    if (!chosen) throw notFound('Catégorie');
+    if (chosen.family !== 'LEISURE' && !allowed.includes(categoryId) && !derogation) {
       throw rule.bad('R3', `Catégorie hors norme pour ${age} ans : motif de dérogation obligatoire.`);
     }
 
     const existingParent = dto.parentId ? await this.prisma.user.findUnique({ where: { id: dto.parentId } }) : null;
-    if (dto.parentId && (!existingParent || existingParent.role !== Role.PARENT || !existingParent.isActive)) throw notFound('Parent');
+    if (dto.parentId && (!existingParent || !existingParent.roles.includes(Role.PARENT) || !existingParent.isActive)) throw notFound('Parent');
     const plan = dto.paymentPlan ?? PaymentPlan.FULL;
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -140,9 +143,9 @@ export class PlayersService {
 
     // Emails après validation de la transaction.
     const credentials = [];
-    if (result.newParent) credentials.push(await this.accounts.sendCredentials(result.newParent.user, result.newParent.password));
+    if (result.newParent) credentials.push(await this.accounts.sendCredentials(result.newParent.user, result.newParent.password, Role.PARENT));
     if (result.account) {
-      credentials.push(await this.accounts.sendCredentials(result.account.user, result.account.password));
+      credentials.push(await this.accounts.sendCredentials(result.account.user, result.account.password, Role.PLAYER));
     } else if (result.parent?.email && !result.newParent) {
       await this.mail.send(
         result.parent.email,
@@ -176,7 +179,7 @@ export class PlayersService {
         orderBy: { number: 'asc' },
       }),
       this.prisma.attendance.findMany({
-        where: { playerId: id, present: false, group: { seasonId: season.id } },
+        where: { playerId: id, status: { in: ['ABSENT', 'LATE'] }, group: { seasonId: season.id } },
         include: { group: { select: { name: true } }, slot: { select: { startTime: true } } },
         orderBy: { date: 'desc' },
       }),
@@ -204,7 +207,14 @@ export class PlayersService {
           status: remaining === 0 ? 'PAID' : due < today ? 'LATE' : paid > 0 ? 'PARTIAL' : 'DUE',
         };
       }),
-      absences: absences.map((a) => ({ id: a.id, date: isoDay(a.date), group: a.group.name, startTime: a.slot.startTime, reason: a.reason ?? 'Non justifiée' })),
+      absences: absences.map((a) => ({
+        id: a.id,
+        date: isoDay(a.date),
+        status: a.status,
+        group: a.group.name,
+        startTime: a.slot.startTime,
+        reason: a.reason ?? (a.status === 'LATE' ? 'Retard' : 'Non justifiée'),
+      })),
       attendanceCount: attendance,
     };
   }
@@ -255,7 +265,9 @@ export class PlayersService {
     );
     const allowed = 'error' in suggestion ? [] : [suggestion.category.id, suggestion.alternative?.id];
     const reason = dto.derogationReason?.trim() || null;
-    if (!allowed.includes(dto.categoryId) && !reason) {
+    const target = await this.prisma.category.findUnique({ where: { id: dto.categoryId }, select: { family: true } });
+    if (!target) throw notFound('Catégorie');
+    if (target.family !== 'LEISURE' && !allowed.includes(dto.categoryId) && !reason) {
       throw rule.bad('R3', 'Catégorie hors norme : motif de dérogation obligatoire.');
     }
     const updated = await this.prisma.enrollment.update({

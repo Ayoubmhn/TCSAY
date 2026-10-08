@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { IsInt, IsNumber, Min } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { dt } from '../common/money';
 import { assertVersion, notFound } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
@@ -36,7 +36,7 @@ export class CourtRatesController {
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Perm('courts.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRateDto) {
     const rate = await this.prisma.courtRate.findUnique({ where: { id } });
     if (!rate) throw notFound('Tarif');

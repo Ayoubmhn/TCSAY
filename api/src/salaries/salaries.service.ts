@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { isoDay } from '../common/dates';
 import { num } from '../common/money';
-import { monthRange, sessionsBetween } from '../common/sessions';
+import { monthRange, periodSelect, sessionsBetween, withPeriod } from '../common/sessions';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type Estimate = {
@@ -51,19 +51,33 @@ export class SalariesService {
     }
 
     const { from, to } = monthRange(month);
-    const slots = await this.prisma.groupSlot.findMany({
-      where: { coaches: { some: { coachId: user.coach.id } }, group: { archivedAt: null, season: { status: 'ACTIVE' } } },
-    });
-    const absences = await this.prisma.coachAbsence.findMany({
-      where: {
-        coachId: user.coach.id,
-        status: 'APPROVED',
-        date: { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) },
-      },
-    });
-    const sessions = sessionsBetween(slots, from, to);
-    const absent = sessions.filter((s) =>
-      absences.some((a) => isoDay(a.date) === s.date && (!a.slotId || a.slotId === s.slot.id)),
+    const range = { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) };
+    const scope = { archivedAt: null, season: { status: 'ACTIVE' as const } };
+    const slots = (
+      await this.prisma.groupSlot.findMany({
+        where: { coaches: { some: { coachId: user.coach.id } }, group: scope },
+        include: { group: { select: periodSelect } },
+      })
+    ).map(withPeriod);
+    const [absences, replacing] = await Promise.all([
+      this.prisma.coachAbsence.findMany({ where: { coachId: user.coach.id, status: 'APPROVED', date: range } }),
+      // Séances animées en remplacement d'un collègue absent : elles comptent pour le remplaçant.
+      this.prisma.coachAbsence.findMany({
+        where: { replacementCoachId: user.coach.id, status: 'APPROVED', resolution: 'REPLACED', date: range },
+        include: { coach: { select: { slots: { select: { slotId: true } } } } },
+      }),
+    ]);
+    const replacedIds = [...new Set(replacing.flatMap((a) => (a.slotId ? [a.slotId] : a.coach.slots.map((x) => x.slotId))))];
+    const replacedSlots = replacedIds.length
+      ? (await this.prisma.groupSlot.findMany({ where: { id: { in: replacedIds }, group: scope }, include: { group: { select: periodSelect } } })).map(withPeriod)
+      : [];
+    const replacedKeys = new Set(
+      replacing.flatMap((a) => (a.slotId ? [a.slotId] : a.coach.slots.map((x) => x.slotId)).map((id) => `${id}|${isoDay(a.date)}`)),
+    );
+    const extra = sessionsBetween(replacedSlots, from, to).filter((x) => replacedKeys.has(`${x.slot.id}|${x.date}`));
+    const sessions = [...sessionsBetween(slots, from, to), ...extra];
+    const absent = sessions.filter((x) =>
+      absences.some((a) => isoDay(a.date) === x.date && (!a.slotId || a.slotId === x.slot.id) && slots.some((o) => o.id === x.slot.id)),
     );
     const plannedMinutes = sessions.reduce((t, s) => t + s.minutes, 0);
     const absentMinutes = absent.reduce((t, s) => t + s.minutes, 0);

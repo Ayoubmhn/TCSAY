@@ -11,6 +11,7 @@ import { Db, PrismaService } from '../prisma/prisma.service';
 import { PLAN_LABEL, planInstallments } from './payment-plan';
 
 export type InstallmentStatus = 'PAID' | 'PARTIAL' | 'DUE' | 'LATE';
+export type InstallmentFilters = { q?: string; parentId?: string; groupId?: string };
 
 const include = {
   payments: { orderBy: { paidAt: 'asc' as const } },
@@ -18,8 +19,17 @@ const include = {
     include: {
       enrollment: {
         include: {
-          player: { select: { id: true, firstName: true, lastName: true, email: true } },
+          player: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              parentLinks: { select: { parent: { select: { id: true, firstName: true, lastName: true } } } },
+            },
+          },
           season: { select: { id: true, label: true, status: true } },
+          groups: { select: { group: { select: { id: true, name: true } } } },
         },
       },
     },
@@ -38,11 +48,31 @@ export class PaymentsService {
   ) {}
 
   /** Tranches d'une saison (admin : toutes ; joueur/parent : les siennes). Le coach n'y a jamais accès (403 par @Roles). */
-  async installments(user: AuthUser, seasonId?: string, playerId?: string) {
+  async installments(user: AuthUser, seasonId?: string, playerId?: string, filters: InstallmentFilters = {}) {
     const season = await this.access.seasonOrActive(seasonId);
-    const pid = user.role === Role.ADMIN ? playerId : await this.access.resolvePlayer(user, playerId);
+    const isAdmin = user.role === Role.ADMIN;
+    const pid = isAdmin ? playerId : await this.access.resolvePlayer(user, playerId);
+    // Administration : recherche par nom du joueur ou du parent, filtre par parent et par groupe.
+    const q = isAdmin ? filters.q?.trim() : undefined;
+    const name = (term: string) => [
+      { firstName: { contains: term, mode: 'insensitive' as const } },
+      { lastName: { contains: term, mode: 'insensitive' as const } },
+    ];
     const rows = await this.prisma.installment.findMany({
-      where: { membership: { enrollment: { seasonId: season.id, playerId: pid, player: { archivedAt: null } } } },
+      where: {
+        membership: {
+          enrollment: {
+            seasonId: season.id,
+            playerId: pid,
+            player: {
+              archivedAt: null,
+              ...(q ? { OR: [...name(q), { parentLinks: { some: { parent: { OR: name(q) } } } }] } : {}),
+              ...(isAdmin && filters.parentId ? { parentLinks: { some: { parentId: filters.parentId } } } : {}),
+            },
+            ...(isAdmin && filters.groupId ? { groups: { some: { groupId: filters.groupId } } } : {}),
+          },
+        },
+      },
       include,
       orderBy: [{ dueDate: 'asc' }, { number: 'asc' }],
     });
@@ -116,14 +146,20 @@ export class PaymentsService {
     db: Db,
     actorId: string,
     enrollment: { id: string; categoryId: string; player: { firstName: string; lastName: string } },
-    season: { id: string; label: string; startDate: Date; endDate: Date },
+    season: { id: string; label: string; startDate: Date; endDate: Date; leisureStartDate?: Date | null; leisureEndDate?: Date | null },
     plan: PaymentPlan,
     groupIds: string[] = [],
   ) {
     const fee = await this.findFee(db, season.id, enrollment.categoryId, groupIds);
     if (!fee) return null;
     const total = num(fee.amount);
-    const schedule = planInstallments(plan, total, num(fee.depositAmount), season, todayIso());
+    // Loisirs : échéancier sur la période loisirs (octobre → juin) ; compétitif : toute la saison (jusqu'en août).
+    const category = await db.category.findUnique({ where: { id: enrollment.categoryId }, select: { family: true } });
+    const period =
+      category?.family === 'LEISURE'
+        ? { startDate: season.leisureStartDate ?? season.startDate, endDate: season.leisureEndDate ?? season.endDate }
+        : season;
+    const schedule = planInstallments(plan, total, num(fee.depositAmount), period, todayIso());
     const m = await db.membership.create({
       data: { enrollmentId: enrollment.id, feeScheduleId: fee.id, paymentPlan: plan, totalAmount: total },
     });
@@ -199,7 +235,14 @@ export class PaymentsService {
       remaining,
       status,
       version: r.version,
-      player: r.membership.enrollment.player,
+      player: {
+        id: r.membership.enrollment.player.id,
+        firstName: r.membership.enrollment.player.firstName,
+        lastName: r.membership.enrollment.player.lastName,
+        email: r.membership.enrollment.player.email,
+      },
+      parents: r.membership.enrollment.player.parentLinks.map((l) => l.parent),
+      groups: r.membership.enrollment.groups.map((g) => g.group),
       season: r.membership.enrollment.season,
       payments: r.payments.map((p) => ({ id: p.id, amount: num(p.amount), paidAt: p.paidAt, method: p.method, kind: p.kind })),
     };

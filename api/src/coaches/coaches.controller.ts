@@ -6,7 +6,7 @@ import { IsEmail, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Mat
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { isoDay, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { assertVersion, fullName, notFound } from '../common/rules';
@@ -98,6 +98,7 @@ export class CoachesController {
 
   /** Profil d'un entraîneur : infos, groupes et créneaux, salaires (historique et à venir), absences. */
   @Get(':id/profile')
+  @Perm('coaches.manage', 'salaries.manage', 'groups.manage', 'absences.manage')
   async profile(@Param('id', ParseUUIDPipe) id: string) {
     const coach = await this.prisma.coach.findUnique({ where: { id }, include: { user: true } });
     if (!coach) throw notFound('Entraîneur');
@@ -110,7 +111,7 @@ export class CoachesController {
       }),
       this.prisma.salary.findMany({
         where: { employeeId: coach.userId },
-        include: { employee: { select: { id: true, firstName: true, lastName: true, email: true, role: true, position: true, coach: { select: { id: true, color: true } } } }, season: { select: { id: true, label: true, status: true } } },
+        include: { employee: { select: { id: true, firstName: true, lastName: true, email: true, roles: true, coach: { select: { id: true, color: true } } } }, season: { select: { id: true, label: true, status: true } } },
         orderBy: { month: 'desc' },
       }),
       this.prisma.coachAbsence.findMany({
@@ -137,6 +138,7 @@ export class CoachesController {
   }
 
   @Post()
+  @Perm('coaches.manage')
   async create(@CurrentUser() actor: AuthUser, @Body() dto: CreateCoachDto) {
     const count = await this.prisma.coach.count();
     const { coach, user, password } = await this.prisma.$transaction(async (tx) => {
@@ -150,7 +152,10 @@ export class CoachesController {
         payMode: dto.payMode,
         payRate: dto.payRate,
       });
-      const coach = await tx.coach.create({ data: { userId: user.id, color: dto.color ?? COLORS[count % COLORS.length] } });
+      // Compte existant (ex. directeur technique) : sa fiche entraîneur est créée ou réutilisée.
+      const coach =
+        (await tx.coach.findUnique({ where: { userId: user.id } })) ??
+        (await tx.coach.create({ data: { userId: user.id, color: dto.color ?? COLORS[count % COLORS.length] } }));
       await this.audit.log(
         actor.id,
         {
@@ -164,12 +169,13 @@ export class CoachesController {
       );
       return { coach, user, password };
     });
-    const credentials = await this.accounts.sendCredentials(user, password);
+    const credentials = await this.accounts.sendCredentials(user, password, Role.COACH);
     return { id: coach.id, ...credentials };
   }
 
   /** Modification, y compris la condition de rémunération (à l'heure / au mois, taux) propre à chaque entraîneur. */
   @Patch(':id')
+  @Perm('coaches.manage')
   async update(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateCoachDto) {
     const coach = await this.prisma.coach.findUnique({ where: { id }, include: { user: true } });
     if (!coach) throw notFound('Entraîneur');
@@ -202,20 +208,22 @@ export class CoachesController {
   }
 
   @Post(':id/deactivate')
+  @Perm('coaches.manage')
   async deactivate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const coach = await this.prisma.coach.findUnique({ where: { id } });
     if (!coach) throw notFound('Entraîneur');
-    return this.accounts.setActive(actor.id, coach.userId, false);
+    return this.accounts.setRoleActive(actor.id, coach.userId, Role.COACH, false);
   }
 
   @Post(':id/activate')
+  @Perm('coaches.manage')
   async activate(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const coach = await this.prisma.coach.findUnique({ where: { id } });
     if (!coach) throw notFound('Entraîneur');
-    return this.accounts.setActive(actor.id, coach.userId, true);
+    return this.accounts.setRoleActive(actor.id, coach.userId, Role.COACH, true);
   }
 
-  private base(c: { id: string; color: string; version: number; user: { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; cin: string | null; isActive: boolean; payMode: PayMode | null; payRate: { toNumber(): number } | null } }) {
+  private base(c: { id: string; color: string; version: number; user: { id: string; firstName: string; lastName: string; email: string | null; phone: string | null; cin: string | null; isActive: boolean; roles: Role[]; payMode: PayMode | null; payRate: { toNumber(): number } | null } }) {
     return {
       id: c.id,
       userId: c.user.id,
@@ -224,7 +232,8 @@ export class CoachesController {
       email: c.user.email,
       phone: c.user.phone,
       cin: c.user.cin,
-      isActive: c.user.isActive,
+      isActive: c.user.isActive && c.user.roles.includes(Role.COACH),
+      otherRoles: c.user.roles.filter((r) => r !== Role.COACH),
       color: c.color,
       payMode: c.user.payMode,
       payRate: num(c.user.payRate as never),

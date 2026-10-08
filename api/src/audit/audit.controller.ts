@@ -2,9 +2,12 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { IsOptional, Matches } from 'class-validator';
-import { Roles } from '../auth/auth-user';
+import { Perm } from '../auth/auth-user';
 import { todayIso } from '../common/dates';
 import { AuditService } from './audit.service';
+
+/** Rôle affiché pour l'auteur d'une action (le plus « administratif » de ses rôles). */
+const ORDER: Role[] = [Role.PRESIDENT, Role.ADMIN_AGENT, Role.SUPERVISOR, Role.TECH_DIRECTOR, Role.COACH, Role.PARENT, Role.PLAYER];
 
 class MonthQuery {
   @IsOptional()
@@ -18,7 +21,7 @@ class MonthQuery {
  */
 @ApiTags('Journal d’audit')
 @ApiBearerAuth()
-@Roles(Role.ADMIN, Role.STAFF)
+@Perm('audit.view')
 @Controller('audit')
 export class AuditController {
   constructor(private readonly audit: AuditService) {}
@@ -29,7 +32,8 @@ export class AuditController {
     return rows.map(({ user, ...row }) => ({
       ...row,
       who: user ? `${user.firstName} ${user.lastName}`.trim() : 'Système',
-      role: user?.role ?? null,
+      role: user ? (ORDER.find((r) => user.roles.includes(r)) ?? null) : null,
+      roles: user?.roles ?? [],
     }));
   }
 }

@@ -2,10 +2,10 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
-import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { dt } from '../common/money';
 import { LOCKED_SEASON, assertVersion, notFound, rule } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
@@ -33,6 +33,11 @@ class CreateFeeDto {
   @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Acompte invalide.' })
   @Min(0)
   depositAmount: number;
+
+  /** Séance physique incluse dans le tarif. */
+  @IsOptional()
+  @IsBoolean()
+  physicalIncluded?: boolean;
 }
 
 class UpdateFeeDto {
@@ -47,6 +52,11 @@ class UpdateFeeDto {
   @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Acompte invalide.' })
   @Min(0)
   depositAmount: number;
+
+  /** Séance physique incluse dans le tarif. */
+  @IsOptional()
+  @IsBoolean()
+  physicalIncluded?: boolean;
 
   @IsOptional()
   @IsString()
@@ -98,10 +108,11 @@ export class FeesController {
     const fee =
       (await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: q.categoryId, groupId: null } })) ??
       (await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: q.categoryId } }));
-    return fee ? { id: fee.id, amount: fee.amount, depositAmount: fee.depositAmount, season: season.label } : null;
+    return fee ? { id: fee.id, amount: fee.amount, depositAmount: fee.depositAmount, physicalIncluded: fee.physicalIncluded, season: season.label } : null;
   }
 
   @Post()
+  @Perm('fees.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateFeeDto) {
     const season = await this.access.seasonOrActive(dto.seasonId);
     if (LOCKED_SEASON.includes(season.status)) {
@@ -114,6 +125,7 @@ export class FeesController {
         groupId: dto.groupId ?? null,
         amount: dto.amount,
         depositAmount: Math.min(dto.depositAmount, dto.amount),
+        physicalIncluded: dto.physicalIncluded ?? false,
       },
       include: { category: true, group: true },
     });
@@ -122,13 +134,14 @@ export class FeesController {
       entity: 'FeeSchedule',
       entityId: fee.id,
       target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${season.label}`,
-      after: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}`,
+      after: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}${fee.physicalIncluded ? ' · séance physique incluse' : ''}`,
     });
     return fee;
   }
 
   /** R6 : sur saison clôturée, motif obligatoire ; anciennes valeurs conservées dans l'audit. */
   @Patch(':id')
+  @Perm('fees.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateFeeDto) {
     const fee = await this.prisma.feeSchedule.findUnique({
       where: { id },
@@ -142,15 +155,20 @@ export class FeesController {
     }
     const updated = await this.prisma.feeSchedule.update({
       where: { id },
-      data: { amount: dto.amount, depositAmount: Math.min(dto.depositAmount, dto.amount), version: { increment: 1 } },
+      data: {
+        amount: dto.amount,
+        depositAmount: Math.min(dto.depositAmount, dto.amount),
+        physicalIncluded: dto.physicalIncluded ?? fee.physicalIncluded,
+        version: { increment: 1 },
+      },
     });
     await this.audit.log(user.id, {
       action: LOCKED_SEASON.includes(fee.season.status) ? 'Tarif modifié (saison clôturée)' : 'Tarif modifié',
       entity: 'FeeSchedule',
       entityId: id,
       target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${fee.season.label}`,
-      before: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}`,
-      after: `${dt(updated.amount)} · acompte ${dt(updated.depositAmount)}`,
+      before: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}${fee.physicalIncluded ? ' · séance physique incluse' : ''}`,
+      after: `${dt(updated.amount)} · acompte ${dt(updated.depositAmount)}${updated.physicalIncluded ? ' · séance physique incluse' : ''}`,
       reason,
     });
     return updated;
