@@ -8,5 +8,7 @@ export default defineConfig({
     port: 5173,
     // Les appels /api passent par Vite vers l'API NestJS : pas de CORS en développement.
     proxy: { '/api': 'http://localhost:3000' },
+    // Partage provisoire depuis le PC (tunnel Cloudflare) : adresse https://….trycloudflare.com.
+    allowedHosts: ['.trycloudflare.com'],
   },
 });

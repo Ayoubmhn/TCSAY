@@ -1,0 +1,51 @@
+# Démo en ligne provisoire (tests par les collègues) sur Render : une base PostgreSQL et un service
+# qui sert à la fois l'API (/api/v1) et le site web compilé, sur une seule adresse https://….onrender.com.
+# Données de DÉMONSTRATION uniquement (aucune donnée réelle de joueurs ou de mineurs).
+# Mise en route : voir docs/DEMO_EN_LIGNE.md (Render › New › Blueprint › ce dépôt).
+databases:
+  - name: tcsay-db
+    plan: free
+    region: frankfurt
+    databaseName: tcsay
+    user: tcsay
+    ipAllowList: [] # accessible seulement par le service ci-dessous
+
+services:
+  - type: web
+    name: tcsay-demo
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: claude/tcsay-platform-dev-p3t75p
+    buildCommand: >-
+      cd web && npm ci --include=dev && npm run build &&
+      cd ../api && npm ci --include=dev && npm run build
+    startCommand: cd api && npm run start:demo
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Africa/Tunis
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tcsay-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      # Le site web est servi par l'API (même adresse, pas de CORS)
+      - key: SERVE_WEB
+        value: "true"
+      # Boutons des comptes de démo sur la page de connexion
+      - key: VITE_DEMO
+        value: "1"
+      # Comptes de démo partagés : mot de passe figé, pas de changement obligatoire
+      - key: DEMO_MODE
+        value: "true"
+      # Mettre à true puis redéployer pour remettre les données de démo à zéro (puis remettre à false)
+      - key: RESET_DEMO_DATA
+        value: "false"
+      # Emails : non configurés pour les tests (ils restent « Échec » dans Emails envoyés).
+      # Pour envoyer de vrais emails, ajouter SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM dans Render › Environment.

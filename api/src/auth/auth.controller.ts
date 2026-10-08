@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Post, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
@@ -56,6 +56,10 @@ export class AuthController {
   @Post('change-password')
   @HttpCode(200)
   async changePassword(@CurrentUser() current: AuthUser, @Body() dto: ChangePasswordDto) {
+    // Démo en ligne partagée : les comptes de démonstration gardent leur mot de passe pour tous les testeurs.
+    if (process.env.DEMO_MODE === 'true' && /@(exemple|tcsay)\.tn$/i.test(current.email ?? '')) {
+      throw new ForbiddenException('Mode démonstration : le mot de passe des comptes de démo ne se change pas.');
+    }
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: current.id } });
     if (!(await verifyPassword(dto.currentPassword, user.passwordHash))) {
       throw new BadRequestException('Mot de passe actuel incorrect.');

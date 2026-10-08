@@ -11,7 +11,7 @@ import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
 import { LANGS, useI18n } from '../../lib/i18n';
 
-/** Comptes du seed de démonstration (affichés en développement seulement). */
+/** Comptes du seed de démonstration (affichés en développement et sur la démo en ligne, VITE_DEMO=1). */
 const DEMO = [
   { label: 'Joueur', hint: 'Omar Trabelsi, adulte', email: 'omar.trabelsi@exemple.tn', password: 'temporaire' },
   { label: 'Parent', hint: 'Sana Ben Ali, 2 enfants', email: 'sana.benali@exemple.tn', password: 'temporaire' },
@@ -83,7 +83,7 @@ export function LoginPage() {
           </form>
         </Card>
 
-        {import.meta.env.DEV && (
+        {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && (
           <>
             <div>
               <h2>Comptes de démonstration</h2>

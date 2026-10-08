@@ -12,6 +12,7 @@
     "start:dev": "nest start --watch",
     "db:update": "prisma migrate deploy && prisma generate && prisma db seed",
     "start:prod": "node dist/main",
+    "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

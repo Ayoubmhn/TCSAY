@@ -26,7 +26,7 @@ const LIST_SELECT = {
 export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(MailService.name);
   readonly config: SmtpConfig = smtpConfigFromEnv();
-  private readonly appUrl = (process.env.APP_URL || process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173').replace(/\/+$/, '');
+  private readonly appUrl = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173').replace(/\/+$/, '');
   private running = false;
   private dirty = false;
   private stopping = false;

@@ -415,6 +415,12 @@ async function main() {
     ],
   });
 
+  // Démo en ligne partagée : pas de changement de mot de passe obligatoire (tous les testeurs utilisent les mêmes comptes).
+  if (process.env.DEMO_MODE === 'true') {
+    await prisma.user.updateMany({ data: { mustChangePassword: false } });
+    console.log('Mode démonstration : changement de mot de passe désactivé pour les comptes de démo.');
+  }
+
   console.log('Seed chargé : programme réel du 05/10 + données de démonstration.');
   console.log('  Admin  : admin@tcsay.tn / admin1234');
   console.log('  Autres : sana.benali@, omar.trabelsi@, iheb@exemple.tn, agent@, superviseur@, dt@tcsay.tn… / temporaire');
