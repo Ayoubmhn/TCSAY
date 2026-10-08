@@ -14,7 +14,10 @@ export type InstallmentStatus = 'PAID' | 'PARTIAL' | 'DUE' | 'LATE';
 export type InstallmentFilters = { q?: string; parentId?: string; groupId?: string };
 
 const include = {
-  payments: { orderBy: { paidAt: 'asc' as const } },
+  payments: {
+    orderBy: { paidAt: 'asc' as const },
+    include: { receipts: { where: { voidedAt: null }, select: { id: true, number: true } } },
+  },
   membership: {
     include: {
       enrollment: {
@@ -79,8 +82,8 @@ export class PaymentsService {
     return rows.map((r) => this.view(r));
   }
 
-  /** Encaissement en espèces par l'admin. R7 : jamais au-delà du restant. */
-  async cash(actor: AuthUser, installmentId: string, amount: number, note?: string) {
+  /** Encaissement par l'admin (espèces ou chèque). R7 : jamais au-delà du restant. */
+  async cash(actor: AuthUser, installmentId: string, amount: number, note?: string, method: 'CASH' | 'CHEQUE' = 'CASH', chequeNumber?: string) {
     const inst = await this.find(installmentId);
     assertSeasonOpen(inst.membership.enrollment.season);
     const { paid, remaining } = this.view(inst);
@@ -89,12 +92,19 @@ export class PaymentsService {
     const player = inst.membership.enrollment.player;
     await this.prisma.$transaction(async (tx) => {
       await tx.payment.create({
-        data: { installmentId, amount, method: 'CASH', recordedById: actor.id, note: note?.trim() || null },
+        data: {
+          installmentId,
+          amount,
+          method,
+          chequeNumber: method === 'CHEQUE' ? chequeNumber?.trim() || null : null,
+          recordedById: actor.id,
+          note: note?.trim() || null,
+        },
       });
       await this.audit.log(
         actor.id,
         {
-          action: 'Paiement encaissé (espèces)',
+          action: method === 'CHEQUE' ? `Paiement encaissé (chèque${chequeNumber?.trim() ? ` n° ${chequeNumber.trim()}` : ''})` : 'Paiement encaissé (espèces)',
           entity: 'Payment',
           entityId: installmentId,
           target: `${fullName(player)} · Tranche ${inst.number}/${inst.count}`,
@@ -244,7 +254,15 @@ export class PaymentsService {
       parents: r.membership.enrollment.player.parentLinks.map((l) => l.parent),
       groups: r.membership.enrollment.groups.map((g) => g.group),
       season: r.membership.enrollment.season,
-      payments: r.payments.map((p) => ({ id: p.id, amount: num(p.amount), paidAt: p.paidAt, method: p.method, kind: p.kind })),
+      payments: r.payments.map((p) => ({
+        id: p.id,
+        amount: num(p.amount),
+        paidAt: p.paidAt,
+        method: p.method,
+        chequeNumber: p.chequeNumber,
+        kind: p.kind,
+        receipt: p.receipts[0] ? { id: p.receipts[0].id, number: String(p.receipts[0].number).padStart(7, '0') } : null,
+      })),
     };
   }
 

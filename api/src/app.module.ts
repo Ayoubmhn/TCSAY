@@ -23,6 +23,8 @@ import { ParentsController } from './parents/parents.controller';
 import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
+import { ReceiptsController } from './receipts/receipts.controller';
+import { ReceiptsService } from './receipts/receipts.service';
 import { PlayersController } from './players/players.controller';
 import { PlayersService } from './players/players.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -56,6 +58,7 @@ import { StaffController } from './staff/staff.controller';
     ReservationsController,
     SalariesController,
     PaymentsController,
+    ReceiptsController,
     AttendanceController,
     EventsController,
     EmailsController,
@@ -66,6 +69,7 @@ import { StaffController } from './staff/staff.controller';
   providers: [
     PlayersService,
     PaymentsService,
+    ReceiptsService,
     ReservationsService,
     SalariesService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions

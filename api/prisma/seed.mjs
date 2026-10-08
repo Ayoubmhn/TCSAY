@@ -34,6 +34,8 @@ function nextWeekday(wd, weeks = 0) {
 async function wipe() {
   // Le journal d'audit refuse DELETE (déclencheur) : on le vide par TRUNCATE.
   await prisma.$executeRawUnsafe('TRUNCATE "AuditLog"');
+  // Les reçus refusent DELETE (déclencheur) : TRUNCATE aussi.
+  await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
     'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',

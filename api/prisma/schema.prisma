@@ -109,6 +109,7 @@ enum PaymentKind {
 
 enum PaymentMethod {
   CASH // Espèces (saisies par l'admin)
+  CHEQUE // Chèque (saisi par l'admin)
   ONLINE // En ligne (passerelle à choisir, S6)
 }
 
@@ -166,6 +167,8 @@ model User {
   reservations     Reservation[]  @relation("ReservationBookedBy")
   cancellations    Reservation[]  @relation("ReservationCancelledBy")
   payments         Payment[]
+  receiptsIssued   Receipt[]      @relation("ReceiptIssuedBy")
+  receiptsVoided   Receipt[]      @relation("ReceiptVoidedBy")
   attendances      Attendance[]
   salaries         Salary[]
   absenceDecisions CoachAbsence[] @relation("AbsenceDecidedBy")
@@ -482,11 +485,42 @@ model Payment {
   paidAt        DateTime      @default(now())
   recordedById  String        @db.Uuid
   note          String?
+  chequeNumber  String?
   origin        Origin        @default(MANUAL)
   createdAt     DateTime      @default(now())
 
   installment Installment @relation(fields: [installmentId], references: [id])
   recordedBy  User        @relation(fields: [recordedById], references: [id])
+  receipts    Receipt[]
+}
+
+/// Reçu d'un paiement : numéro du carnet pré-imprimé (unique, jamais réutilisé) et valeurs imprimées.
+/// Jamais supprimé : un reçu raté est annulé avec motif et reste dans l'historique.
+model Receipt {
+  id            String        @id @default(uuid()) @db.Uuid
+  number        Int           @unique // n° pré-imprimé du carnet (affiché sur 7 chiffres : 0002313)
+  paymentId     String        @db.Uuid
+  payerName     String // « Reçu de M. … »
+  amount        Decimal       @db.Decimal(10, 3)
+  amountWords   String // montant en lettres (arabe)
+  label         String // « 1ère tranche »
+  method        PaymentMethod
+  chequeNumber  String?
+  seasonLabel   String
+  issuedOn      DateTime      @db.Date
+  printCount    Int           @default(0)
+  lastPrintedAt DateTime?
+  issuedById    String        @db.Uuid
+  createdAt     DateTime      @default(now())
+  voidedAt      DateTime?
+  voidReason    String?
+  voidedById    String?       @db.Uuid
+
+  payment  Payment @relation(fields: [paymentId], references: [id])
+  issuedBy User    @relation("ReceiptIssuedBy", fields: [issuedById], references: [id])
+  voidedBy User?   @relation("ReceiptVoidedBy", fields: [voidedById], references: [id])
+
+  @@index([paymentId])
 }
 
 // ───────────────────────── Coachs ─────────────────────────

@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { PaymentPlan, Role } from '@prisma/client';
-import { IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { PaymentMethod, PaymentPlan, Role } from '@prisma/client';
+import { IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AuthUser, can, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { rule } from '../common/rules';
 import { PaymentsService } from './payments.service';
@@ -39,6 +39,16 @@ class CashDto {
   @IsString()
   @MaxLength(200)
   note?: string;
+
+  /** Espèces (par défaut) ou chèque, saisis par l'admin. */
+  @IsOptional()
+  @IsIn([PaymentMethod.CASH, PaymentMethod.CHEQUE], { message: 'Mode : espèces ou chèque.' })
+  method?: 'CASH' | 'CHEQUE';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  chequeNumber?: string;
 }
 
 class MembershipDto {
@@ -53,7 +63,7 @@ class MembershipDto {
   seasonId?: string;
 }
 
-/** Cotisations : C, R, U (pas de D) ; paiements : C (espèces) et R seulement (R7). Coach : 403. */
+/** Cotisations : C, R, U (pas de D) ; paiements : C (espèces ou chèque) et R seulement (R7). Coach : 403. */
 @ApiTags('Cotisations et paiements')
 @ApiBearerAuth()
 @Controller()
@@ -72,7 +82,7 @@ export class PaymentsController {
   @Post('installments/:id/payments')
   @Perm('payments.collect')
   cash(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CashDto) {
-    return this.payments.cash(user, id, dto.amount, dto.note);
+    return this.payments.cash(user, id, dto.amount, dto.note, dto.method, dto.chequeNumber);
   }
 
   @Post('installments/:id/remind')
