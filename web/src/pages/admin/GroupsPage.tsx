@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { SlotLine } from '../../components/SlotInfo';
+import { CoachChip } from '../../components/SlotInfo';
 import { Button, IconButton } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
@@ -10,11 +10,12 @@ import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { Pill, Pills } from '../../components/ui/Pill';
+import { Pill } from '../../components/ui/Pill';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { fullName } from '../../lib/format';
-import type { Category, Coach, Court, Group, GroupKind, Player } from '../../lib/types';
+import { DAY_NAMES, fullName } from '../../lib/format';
+import type { Category, Coach, Court, Group, GroupKind } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const KEYS = [['groups'], ['players'], ['dashboard'], ['coaches'], ['planning']];
@@ -185,48 +186,6 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
   );
 }
 
-function AddMemberModal({ group, onClose }: { group?: Group; onClose: () => void }) {
-  const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.get<Player[]>('/players'), enabled: Boolean(group) });
-  const candidates = (players.data ?? []).filter((p) => !group?.members.some((m) => m.playerId === p.id));
-  const [playerId, setPlayerId] = useState('');
-  const [reason, setReason] = useState('');
-  useEffect(() => {
-    setPlayerId('');
-    setReason('');
-  }, [group]);
-  const add = useAction(() => api.post(`/groups/${group!.id}/members`, { playerId, derogationReason: reason || undefined }), {
-    invalidate: KEYS,
-    success: () => `${candidates.find((p) => p.id === playerId)?.firstName ?? 'Joueur'} ajouté à ${group?.name}.`,
-    onSuccess: onClose,
-  });
-  return (
-    <Modal
-      open={Boolean(group)}
-      title={`Ajouter à ${group?.name ?? ''}`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>Annuler</Button>
-          <Button variant="primary" onClick={() => add.mutate()} disabled={!playerId || add.isPending}>
-            Ajouter
-          </Button>
-        </>
-      }
-    >
-      <SelectField label="Joueur" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
-        <option value="">— Choisir —</option>
-        {candidates.map((p) => (
-          <option key={p.id} value={p.id}>
-            {fullName(p)} · {p.category?.name ?? '—'}
-            {p.group ? ` · déjà en ${p.group.name}` : ''}
-          </option>
-        ))}
-      </SelectField>
-      <TextField label="Motif de dérogation (si catégorie différente)" value={reason} onChange={(e) => setReason(e.target.value)} />
-    </Modal>
-  );
-}
-
 /** Groupes (vGroups) : créneaux par jour, plusieurs entraîneurs, capacité et catégorie (R4), conflits (R5). */
 export function GroupsPage() {
   const q = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
@@ -235,15 +194,9 @@ export function GroupsPage() {
   const [kindFilter, setKindFilter] = useState<GroupKind | ''>('');
   const [dayFilter, setDayFilter] = useState('');
   const [form, setForm] = useState<{ open: boolean; group?: Group }>({ open: false });
-  const [addTo, setAddTo] = useState<Group>();
-  const [remove, setRemove] = useState<{ group: Group; member: Group['members'][number] }>();
+  const [view, setView] = useViewMode('groupes');
   const [toArchive, setToArchive] = useState<Group>();
 
-  const removeMember = useAction(() => api.delete(`/groups/${remove!.group.id}/members/${remove!.member.playerId}`), {
-    invalidate: KEYS,
-    success: 'Joueur retiré du groupe.',
-    onSuccess: () => setRemove(undefined),
-  });
   const archive = useAction((id: string) => api.post(`/groups/${id}/archive`), {
     invalidate: KEYS,
     success: 'Groupe archivé.',
@@ -263,9 +216,12 @@ export function GroupsPage() {
         title="Groupes"
         subtitle="Découvrez les groupes d’entraînement de la saison en cours."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouveau groupe
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouveau groupe
+            </Button>
+          </div>
         }
       />
       <Filters>
@@ -299,7 +255,7 @@ export function GroupsPage() {
       <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {list.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {list.map((g) => {
                 const full = g.members.length >= g.capacity;
                 return (
@@ -310,46 +266,27 @@ export function GroupsPage() {
                       </Link>
                       <Pill tone={full ? 'r' : 'g'}>
                         {g.members.length}/{g.capacity}
-                        {full ? ' · complet' : ''}
                       </Pill>
                     </CardRow>
-                    <Pills>
-                      <Pill tone={g.kind === 'LEISURE' ? 'g' : 'b'}>{g.kind === 'LEISURE' ? 'Loisirs · oct. → juin' : 'Compétitif · → août'}</Pill>
-                      <Pill tone="s">{g.category?.name ?? 'Catégorie à affecter'}</Pill>
-                      <Pill tone="b">
-                        {g.slots.length} créneau{g.slots.length > 1 ? 'x' : ''} / semaine
-                      </Pill>
-                    </Pills>
+                    {/* Carte résumée : horaires et entraîneurs ; le reste dans la fiche du groupe (« Détails »). */}
                     <div className="flex flex-col gap-1.5">
                       {g.slots.map((s) => (
-                        <SlotLine key={s.id} slot={s} />
+                        <div key={s.id} className="flex flex-wrap items-center gap-1.5">
+                          <Pill tone="b">
+                            {DAY_NAMES[s.day]}{' '}
+                            <span dir="ltr">
+                              {s.startTime}–{s.endTime}
+                            </span>
+                          </Pill>
+                          {s.coaches.length ? s.coaches.map((c) => <CoachChip key={c.id} coach={c} />) : <Pill tone="s">Entraîneur à affecter</Pill>}
+                        </div>
                       ))}
+                      {g.slots.length === 0 && <CardText>Aucun créneau.</CardText>}
                     </div>
-                    {g.members.length > 0 && (
-                      <Pills>
-                        {g.members.map((m) => (
-                          <span key={m.playerId} className="inline-flex items-center gap-1 rounded-full bg-pb ps-[11px] text-[13px] font-medium text-ink">
-                            <Link to={`/admin/joueurs/${m.playerId}`} className="py-[5px] hover:underline" title={m.derogationReason ? `Dérogation : ${m.derogationReason}` : undefined}>
-                              {m.firstName}
-                            </Link>
-                            <button
-                              type="button"
-                              onClick={() => setRemove({ group: g, member: m })}
-                              aria-label={`Retirer ${fullName(m)} du groupe`}
-                              className="rounded-full px-2 py-[5px] hover:bg-black/10"
-                            >
-                              ✕
-                            </button>
-                          </span>
-                        ))}
-                      </Pills>
-                    )}
-                    {g.members.length === 0 && <CardText>Aucun joueur pour l’instant.</CardText>}
                     <CardActions>
                       <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to={`/admin/groupes/${g.id}`}>
                         Détails
                       </Link>
-                      <Button onClick={() => setAddTo(g)}>Ajouter un joueur</Button>
                       <Button onClick={() => setForm({ open: true, group: g })}>Modifier</Button>
                       <Button variant="danger" onClick={() => setToArchive(g)}>
                         Archiver
@@ -370,16 +307,6 @@ export function GroupsPage() {
       </Note>
 
       <GroupFormModal open={form.open} group={form.group} onClose={() => setForm({ open: false })} />
-      <AddMemberModal group={addTo} onClose={() => setAddTo(undefined)} />
-      <ConfirmModal
-        open={Boolean(remove)}
-        title="Retirer ce joueur du groupe ?"
-        text={remove ? `${fullName(remove.member)} quittera le groupe ${remove.group.name}.` : ''}
-        cta="Retirer"
-        pending={removeMember.isPending}
-        onConfirm={() => removeMember.mutate()}
-        onClose={() => setRemove(undefined)}
-      />
       <ConfirmModal
         open={Boolean(toArchive)}
         title="Archiver ce groupe ?"

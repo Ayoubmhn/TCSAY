@@ -281,7 +281,7 @@ export class PlayersService {
       }
     }
     // Date ajoutée à un joueur importé sans inscription : inscription à la saison active avec la catégorie proposée.
-    if (dto.birthDate && !player.birthDate) await this.enrollIfMissing(updated.id);
+    if (dto.birthDate && !player.birthDate) await this.enrollIfMissing(actor, updated.id);
     await this.audit.log(actor.id, {
       action: 'Joueur modifié',
       entity: 'Player',
@@ -320,7 +320,8 @@ export class PlayersService {
           cin: user.cin,
         },
       });
-      await tx.enrollment.create({ data: { playerId: created.id, seasonId: season.id, categoryId: suggestion.category.id } });
+      const enrollment = await tx.enrollment.create({ data: { playerId: created.id, seasonId: season.id, categoryId: suggestion.category.id } });
+      await this.payments.buildMembership(tx, actor.id, { ...enrollment, player: created }, season, PaymentPlan.FULL);
       if (!user.roles.includes(Role.PLAYER)) {
         await tx.user.update({ where: { id: userId }, data: { roles: [...user.roles, Role.PLAYER], version: { increment: 1 } } });
       }
@@ -341,7 +342,7 @@ export class PlayersService {
   }
 
   /** Inscrit à la saison active (catégorie proposée) un joueur qui n'y est pas encore inscrit, si sa date est connue. */
-  private async enrollIfMissing(playerId: string) {
+  private async enrollIfMissing(actor: AuthUser, playerId: string) {
     const season = await this.access.activeSeason().catch(() => null);
     const player = await this.prisma.player.findUnique({ where: { id: playerId } });
     if (!season || !player?.birthDate) return;
@@ -349,7 +350,11 @@ export class PlayersService {
     if (exists) return;
     const s = await this.categories.suggest(player.birthDate, player.gender, season.startDate.getUTCFullYear());
     if ('error' in s) return;
-    await this.prisma.enrollment.create({ data: { playerId, seasonId: season.id, categoryId: s.category.id } });
+    // Tout joueur inscrit paie sa cotisation : créée au comptant (mode modifiable ensuite dans la fiche).
+    await this.prisma.$transaction(async (tx) => {
+      const enrollment = await tx.enrollment.create({ data: { playerId, seasonId: season.id, categoryId: s.category.id } });
+      await this.payments.buildMembership(tx, actor.id, { ...enrollment, player }, season, PaymentPlan.FULL);
+    });
   }
 
   /** R3 : catégorie modifiable par l'admin seulement, motif si hors norme. */
@@ -523,6 +528,9 @@ export class PlayersService {
         include: {
           category: { select: { id: true, code: true, name: true } },
           groups: { include: { group: { select: { id: true, name: true, archivedAt: true } } } },
+          membership: {
+            select: { paymentPlan: true, totalAmount: true, installments: { select: { payments: { select: { amount: true } } } } },
+          },
         },
       },
       parentLinks: { include: { parent: { select: { id: true, firstName: true, lastName: true, email: true } } } },
@@ -560,6 +568,14 @@ export class PlayersService {
       origin: p.origin,
       importRef: p.importRef,
       enrolled: Boolean(enrollment),
+      // Cotisation de la saison : mode de paiement et montant déjà encaissé (null = cotisation pas encore créée).
+      membership: enrollment?.membership
+        ? {
+            paymentPlan: enrollment.membership.paymentPlan,
+            total: num(enrollment.membership.totalAmount),
+            paid: enrollment.membership.installments.reduce((t, i) => t + i.payments.reduce((u, p) => u + num(p.amount), 0), 0),
+          }
+        : null,
       category: enrollment?.category ?? null,
       derogationReason: enrollment?.derogationReason ?? null,
       group: group ? { id: group.id, name: group.name } : null,

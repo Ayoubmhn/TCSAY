@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { CoachChip, SlotLine } from '../../components/SlotInfo';
@@ -13,8 +13,9 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD, fullName, isPlaceholderEmail } from '../../lib/format';
-import type { GroupDetail } from '../../lib/types';
+import type { GroupDetail, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { PlayerFormModal } from './PlayerFormModal';
 
 type Member = GroupDetail['members'][number];
 type Candidate = GroupDetail['candidates'][number];
@@ -29,6 +30,8 @@ export function GroupDetailPage() {
   const q = useQuery({ queryKey: ['group-detail', id], queryFn: () => api.get<GroupDetail>(`/groups/${id}/detail`) });
   const [remove, setRemove] = useState<Member>();
   const [derogation, setDerogation] = useState<Candidate>();
+  const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const keys = [['group-detail', id], ['groups'], ['players'], ['planning']];
   const add = useAction(
@@ -42,6 +45,22 @@ export function GroupDetailPage() {
   });
   const g = q.data;
   const full = g ? g.members.length >= g.capacity : false;
+  // Recherche dans les joueurs inscrits sans groupe : nom, prénom, code TCSAY, catégorie.
+  const found = useMemo(() => {
+    const norm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const words = norm(search).split(/\s+/).filter(Boolean);
+    return (g?.candidates ?? [])
+      .filter((c) => words.every((w) => norm(`${c.firstName} ${c.lastName} ${c.memberCode ?? ''} ${c.category.name}`).includes(w)))
+      // Même catégorie que le groupe d'abord.
+      .sort((a, b) => Number(b.sameCategory) - Number(a.sameCategory));
+  }, [g, search]);
+  // Joueur créé depuis cette page : ajouté au groupe (si la catégorie diffère, motif de dérogation demandé).
+  const afterCreate = (p: Player) => {
+    if (!g || full) return;
+    const sameCategory = !g.category || p.category?.id === g.category.id;
+    if (sameCategory) add.mutate({ playerId: p.id });
+    else if (p.category) setDerogation({ playerId: p.id, memberCode: p.memberCode, firstName: p.firstName, lastName: p.lastName, age: p.age, category: { id: p.category.id, name: p.category.name }, sameCategory: false });
+  };
 
   return (
     <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
@@ -155,12 +174,29 @@ export function GroupDetailPage() {
           </Section>
 
           {canManage && (
-            <Section title="Ajouter un joueur sans groupe">
+            <Section title="Ajouter un joueur">
+              {!full && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <input
+                    className="fld w-[300px] max-w-full text-fg"
+                    placeholder="Chercher : nom, code TCSAY, catégorie"
+                    aria-label="Chercher un joueur sans groupe"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  <Pill tone="b">
+                    {found.length} joueur{found.length > 1 ? 's' : ''} sans groupe
+                  </Pill>
+                  <Button variant="primary" onClick={() => setCreating(true)}>
+                    + Créer un joueur
+                  </Button>
+                </div>
+              )}
               {full ? (
                 <EmptyState>Groupe complet (R4).</EmptyState>
-              ) : g.candidates.length ? (
+              ) : found.length ? (
                 <CardGrid>
-                  {g.candidates.map((c) => (
+                  {found.slice(0, 30).map((c) => (
                     <Card key={c.playerId}>
                       <CardRow>
                         <Link to={`/admin/joueurs/${c.playerId}`} className="min-w-0 hover:underline">
@@ -185,8 +221,11 @@ export function GroupDetailPage() {
                   ))}
                 </CardGrid>
               ) : (
-                <EmptyState>Tous les joueurs inscrits ont un groupe.</EmptyState>
+                <EmptyState>
+                  {search.trim() ? 'Aucun joueur sans groupe ne correspond : créez-le avec « + Créer un joueur ».' : 'Tous les joueurs inscrits ont un groupe.'}
+                </EmptyState>
               )}
+              {found.length > 30 && <CardText>30 premiers résultats : affinez la recherche.</CardText>}
             </Section>
           )}
 
@@ -195,6 +234,7 @@ export function GroupDetailPage() {
             catégorie différente demande un motif de dérogation.
           </Note>
 
+          <PlayerFormModal open={creating} onClose={() => setCreating(false)} onCreated={afterCreate} />
           <ConfirmModal
             open={Boolean(remove)}
             title="Retirer ce joueur du groupe ?"

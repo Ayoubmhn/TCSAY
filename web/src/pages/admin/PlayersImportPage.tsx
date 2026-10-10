@@ -9,7 +9,7 @@ import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { formatDate } from '../../lib/format';
-import type { ImportPreview, ImportReport, ImportRow, ImportStatus } from '../../lib/types';
+import type { ImportPreview, ImportReport, ImportRow, ImportStatus, PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const STATUS: Record<ImportStatus, { tone: PillTone; label: string }> = {
@@ -56,9 +56,10 @@ export function PlayersImportPage() {
       setFilter('all');
     },
   });
-  const commit = useAction(() => api.upload<ImportReport>('/players/import/commit', file!), {
+  const [plan, setPlan] = useState<PaymentPlan>('FULL');
+  const commit = useAction(() => api.upload<ImportReport>('/players/import/commit', file!, { plan }), {
     invalidate: [['players'], ['parents'], ['groups'], ['dashboard'], ['categories']],
-    success: (r) => `${r.imported.length} joueur(s) importé(s), ${r.parentsCreated} parent(s) créé(s).`,
+    success: (r) => `${r.imported.length} joueur(s) importé(s) avec leur cotisation, ${r.parentsCreated} parent(s) créé(s).`,
     onSuccess: (r) => {
       setReport(r);
       setPreview(undefined);
@@ -102,7 +103,7 @@ export function PlayersImportPage() {
       {!preview && !report && !analyze.isPending && (
         <Note>
           Colonnes reconnues : <b>N°, Genre (H/F), Nom et prénom, Nom en arabe, Date de naissance, Téléphone, Parent, Groupe, Ville,
-          Remarque</b>. L’aperçu n’enregistre rien. Chaque joueur reçoit un code provisoire « {String(new Date().getFullYear() % 100)}TCSAY001 ».
+          Remarque</b>. L’aperçu n’enregistre rien. Chaque joueur inscrit reçoit sa cotisation (mode de paiement choisi avant de confirmer, modifiable ensuite dans sa fiche) et un code provisoire « {String(new Date().getFullYear() % 100)}TCSAY001 ».
           Les parents sont créés avec le prénom du cahier, le nom « Exemple » et un email provisoire : aucun email n’est envoyé avant
           que vous saisissiez la vraie adresse.
         </Note>
@@ -126,6 +127,11 @@ export function PlayersImportPage() {
                 <option value="ok">Prêtes</option>
                 <option value="warning">À vérifier</option>
                 <option value="error">Ignorées</option>
+              </FilterSelect>
+              <FilterSelect label="Mode de paiement des cotisations" value={plan} onChange={(e) => setPlan(e.target.value as PaymentPlan)}>
+                <option value="FULL">Cotisation : comptant</option>
+                <option value="SEMESTER">Cotisation : par semestre</option>
+                <option value="MONTHLY">Cotisation : par mois</option>
               </FilterSelect>
               <Button variant="primary" disabled={!importable || commit.isPending} onClick={() => commit.mutate()}>
                 {commit.isPending ? 'Enregistrement…' : `Confirmer l’import (${importable})`}
@@ -199,6 +205,8 @@ export function PlayersImportPage() {
         <Section title="Import terminé">
           <Pills>
             <Pill tone="g">{report.imported.length} joueur(s) importé(s)</Pill>
+            <Pill tone="g">{report.imported.filter((r) => r.membership).length} cotisation(s) créée(s)</Pill>
+            {report.withoutFee > 0 && <Pill tone="r">{report.withoutFee} sans tarif (cotisation à créer)</Pill>}
             <Pill tone="b">{report.parentsCreated} parent(s) créé(s)</Pill>
             <Pill tone={report.skipped.length ? 'r' : 'g'}>{report.skipped.length} ignoré(s)</Pill>
           </Pills>

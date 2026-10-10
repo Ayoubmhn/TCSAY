@@ -1,4 +1,5 @@
-import { BadRequestException, Controller, HttpCode, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { PaymentPlan } from '@prisma/client';
+import { BadRequestException, Controller, HttpCode, Post, UploadedFile, UseInterceptors, Body } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { AuthUser, CurrentUser, Perm } from '../../auth/auth-user';
@@ -36,8 +37,10 @@ export class PlayersImportController {
   @HttpCode(200)
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_SIZE } }))
-  commit(@CurrentUser() user: AuthUser, @UploadedFile() file?: Upload) {
+  commit(@CurrentUser() user: AuthUser, @UploadedFile() file?: Upload, @Body('plan') plan?: string) {
     const f = check(file);
-    return this.importer.commit(user, f.buffer, f.name);
+    // Mode de paiement de la cotisation créée pour chaque joueur inscrit (modifiable ensuite dans sa fiche).
+    const paymentPlan = (Object.values(PaymentPlan) as string[]).includes(plan ?? '') ? (plan as PaymentPlan) : PaymentPlan.FULL;
+    return this.importer.commit(user, f.buffer, f.name, paymentPlan);
   }
 }

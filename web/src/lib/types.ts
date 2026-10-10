@@ -73,6 +73,8 @@ export type Player = {
   importRef: string | null;
   /** Inscrit dans la saison active. */
   enrolled: boolean;
+  /** Cotisation de la saison active (null : pas encore créée). */
+  membership: { paymentPlan: PaymentPlan; total: number; paid: number } | null;
   gender: 'M' | 'F';
   email: string | null;
   phone: string | null;
@@ -583,8 +585,10 @@ export type ImportPreview = {
 };
 
 export type ImportReport = {
-  imported: { line: number; n: number | null; name: string; memberCode: string; group: string | null; category: string | null; parents: string[]; messages: string[] }[];
+  imported: { line: number; n: number | null; name: string; memberCode: string; group: string | null; category: string | null; parents: string[]; messages: string[]; membership: boolean }[];
   parentsCreated: number;
+  /** Joueurs inscrits sans tarif pour leur catégorie : cotisation à créer plus tard. */
+  withoutFee: number;
   skipped: { line: number; n: number | null; name: string; messages: string[] }[];
 };
 

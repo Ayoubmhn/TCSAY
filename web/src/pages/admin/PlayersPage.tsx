@@ -19,6 +19,7 @@ import type { Category, Player } from '../../lib/types';
 import { byNumber, byText, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { MemberCodesModal } from './MemberCodesModal';
+import { MissingMemberships } from './MissingMemberships';
 import { PlayerFormModal } from './PlayerFormModal';
 
 const PLAYER_SORTS: SortOption<Player>[] = [
@@ -119,6 +120,7 @@ export function PlayersPage() {
         )}
       </Filters>
 
+      <MissingMemberships />
       <div className="mt-2.5">
         <QueryState isPending={list.isPending} error={list.error} refetch={list.refetch}>
           {rows.length ? (
@@ -149,6 +151,7 @@ export function PlayersPage() {
                     {p.group ? <Pill tone="g">{p.group.name}</Pill> : !p.archivedAt && <Pill tone="r">Sans groupe</Pill>}
                     {p.derogationReason && <Pill tone="s">Dérogation</Pill>}
                     {!p.archivedAt && !p.enrolled && <Pill tone="r">Non inscrit</Pill>}
+                    {!p.archivedAt && p.enrolled && !p.membership && <Pill tone="r">Sans cotisation</Pill>}
                     {!p.birthDate ? <Pill tone="r">Naissance à compléter</Pill> : p.birthYearOnly && <Pill tone="s">Année seule</Pill>}
                     {p.parents.some((x) => isPlaceholderEmail(x.email)) && <Pill tone="s">Email parent à compléter</Pill>}
                   </Pills>

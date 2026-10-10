@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Gender, Origin, Role } from '@prisma/client';
+import { Gender, Origin, PaymentPlan, Role } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { AccessService } from '../../access/access.service';
 import { AuditService } from '../../audit/audit.service';
@@ -8,6 +8,7 @@ import { hashPassword } from '../../auth/password';
 import { CategoriesService } from '../../categories/categories.service';
 import { ageAtYearEnd, dayFromIso } from '../../common/dates';
 import { PLACEHOLDER_DOMAIN } from '../../common/placeholder';
+import { PaymentsService } from '../../payments/payments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextMemberCode } from '../member-code';
 import { Cell, excelDate, readXlsx } from './xlsx-reader';
@@ -97,6 +98,7 @@ export class PlayersImportService {
     private readonly access: AccessService,
     private readonly categories: CategoriesService,
     private readonly audit: AuditService,
+    private readonly payments: PaymentsService,
   ) {}
 
   async analyze(buffer: Buffer, fileName: string) {
@@ -299,7 +301,7 @@ export class PlayersImportService {
   }
 
   /** Enregistre les lignes valides (vertes et sable) en une seule transaction ; les lignes en erreur sont ignorées. */
-  async commit(actor: AuthUser, buffer: Buffer, fileName: string) {
+  async commit(actor: AuthUser, buffer: Buffer, fileName: string, plan: PaymentPlan = PaymentPlan.FULL) {
     const preview = await this.analyze(buffer, fileName);
     const rows = preview.rows.filter((r) => r.status !== 'error');
     if (!rows.length) throw new BadRequestException('Aucune ligne importable dans ce fichier.');
@@ -310,7 +312,18 @@ export class PlayersImportService {
     const report = await this.prisma.$transaction(
       async (tx) => {
         const parentIds = new Map<string, string>();
-        const out: { line: number; n: number | null; name: string; memberCode: string; group: string | null; category: string | null; parents: string[]; messages: string[] }[] = [];
+        let withoutFee = 0;
+        const out: {
+          line: number;
+          n: number | null;
+          name: string;
+          memberCode: string;
+          group: string | null;
+          category: string | null;
+          parents: string[];
+          messages: string[];
+          membership: boolean;
+        }[] = [];
         for (const row of rows) {
           const code = await nextMemberCode(tx, year);
           const player = await tx.player.create({
@@ -350,6 +363,7 @@ export class PlayersImportService {
             await tx.parentLink.create({ data: { parentId, playerId: player.id } });
             parentNames.push(`${plan.name} Exemple`);
           }
+          let membership = false;
           if (row.category) {
             const enrollment = await tx.enrollment.create({ data: { playerId: player.id, seasonId: season.id, categoryId: row.category.id } });
             if (row.group) {
@@ -357,6 +371,10 @@ export class PlayersImportService {
                 data: { groupId: row.group.id, enrollmentId: enrollment.id, derogationReason: row.derogation ? 'Import du cahier' : null },
               });
             }
+            // Tout joueur inscrit paie sa cotisation : créée depuis le tarif de sa catégorie (ou de son groupe).
+            const created = await this.payments.buildMembership(tx, actor.id, { ...enrollment, player }, season, plan, row.group ? [row.group.id] : []);
+            membership = Boolean(created);
+            if (!created) withoutFee++;
           }
           out.push({
             line: row.line,
@@ -367,6 +385,7 @@ export class PlayersImportService {
             category: row.category?.name ?? null,
             parents: parentNames,
             messages: row.messages,
+            membership,
           });
         }
         await this.audit.log(
@@ -380,7 +399,7 @@ export class PlayersImportService {
           },
           tx,
         );
-        return { imported: out, parentsCreated: parentIds.size };
+        return { imported: out, parentsCreated: parentIds.size, withoutFee };
       },
       { timeout: 120_000 },
     );

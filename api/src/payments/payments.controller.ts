@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PaymentMethod, PaymentPlan, Role } from '@prisma/client';
 import { IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
@@ -63,6 +63,25 @@ class MembershipDto {
   seasonId?: string;
 }
 
+class PlanDto {
+  @IsUUID()
+  playerId: string;
+
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  paymentPlan: PaymentPlan;
+
+  /** Obligatoire si des paiements sont déjà encaissés (R7). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
+class MissingDto {
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  paymentPlan: PaymentPlan;
+}
+
 /** Cotisations : C, R, U (pas de D) ; paiements : C (espèces ou chèque) et R seulement (R7). Coach : 403. */
 @ApiTags('Cotisations et paiements')
 @ApiBearerAuth()
@@ -95,6 +114,24 @@ export class PaymentsController {
   @Perm('payments.collect', 'players.manage')
   createMembership(@CurrentUser() user: AuthUser, @Body() dto: MembershipDto) {
     return this.payments.createMembership(user, dto.playerId, dto.paymentPlan, dto.seasonId);
+  }
+
+  @Put('memberships/plan')
+  @Perm('payments.collect', 'players.manage')
+  changePlan(@CurrentUser() user: AuthUser, @Body() dto: PlanDto) {
+    return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason);
+  }
+
+  @Get('memberships/missing')
+  @Perm('payments.collect', 'players.manage')
+  missing() {
+    return this.payments.missingCount();
+  }
+
+  @Post('memberships/missing')
+  @Perm('payments.collect', 'players.manage')
+  createMissing(@CurrentUser() user: AuthUser, @Body() dto: MissingDto) {
+    return this.payments.createMissing(user, dto.paymentPlan);
   }
 
   @Get('payments')

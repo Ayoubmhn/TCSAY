@@ -102,9 +102,10 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {}),
   delete: <T>(path: string, query?: Query) => request<T>('DELETE', path, undefined, query),
   /** Envoi d'un fichier (multipart, champ « file »). */
-  upload: <T>(path: string, file: File) => {
+  upload: <T>(path: string, file: File, fields: Record<string, string> = {}) => {
     const form = new FormData();
     form.append('file', file);
+    for (const [k, v] of Object.entries(fields)) form.append(k, v);
     return request<T>('POST', path, form);
   },
 };

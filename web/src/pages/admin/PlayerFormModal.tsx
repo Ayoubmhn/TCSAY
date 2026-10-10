@@ -24,6 +24,7 @@ type Form = {
   parentId: string;
   np: { firstName: string; lastName: string; phone: string; email: string; cin: string };
   paymentPlan: '' | PaymentPlan;
+  planReason: string;
   categoryId: string;
   derogationReason: string;
 };
@@ -40,6 +41,7 @@ const EMPTY: Form = {
   parentId: '',
   np: NO_PARENT,
   paymentPlan: '',
+  planReason: '',
   categoryId: '',
   derogationReason: '',
 };
@@ -55,7 +57,18 @@ type Created = Player & {
 };
 
 /** Formulaire joueur (playerForm du prototype) : catégorie proposée en direct, règles R3 / R9 rappelées en pastilles. */
-export function PlayerFormModal({ open, player, onClose }: { open: boolean; player?: Player; onClose: () => void }) {
+export function PlayerFormModal({
+  open,
+  player,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  player?: Player;
+  onClose: () => void;
+  /** Appelé après la création (ex. ajout direct dans un groupe). */
+  onCreated?: (player: Player) => void;
+}) {
   const toast = useToast();
   const [f, setF] = useState<Form>(EMPTY);
   const set = (k: Exclude<keyof Form, 'np'>) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
@@ -81,7 +94,8 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
             cin: player.cin ?? '',
             parentId: '',
             np: NO_PARENT,
-            paymentPlan: '',
+            paymentPlan: player.membership?.paymentPlan ?? '',
+            planReason: '',
             categoryId: player.category?.id ?? '',
             derogationReason: player.derogationReason ?? '',
           }
@@ -110,6 +124,7 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
     onSuccess: (p) => {
       onClose();
       setCreated(p);
+      onCreated?.(p);
     },
   });
   const update = useAction(
@@ -130,10 +145,14 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
       if (f.categoryId && f.categoryId !== before.category?.id) {
         await api.post(`/players/${before.id}/category`, { categoryId: f.categoryId, derogationReason: f.derogationReason || undefined });
       }
+      // Mode de paiement : crée la cotisation si elle manque, sinon refait l'échéancier (R7 : motif après un paiement).
+      if (f.paymentPlan && f.paymentPlan !== before.membership?.paymentPlan) {
+        await api.put('/memberships/plan', { playerId: before.id, paymentPlan: f.paymentPlan, reason: f.planReason.trim() || undefined });
+      }
       return saved;
     },
     {
-      invalidate: [['players'], ['categories'], ['groups'], ['player-profile'], ['emails']],
+      invalidate: [['players'], ['categories'], ['groups'], ['player-profile'], ['emails'], ['installments'], ['memberships-missing']],
       success: (r) => savedMessage('Joueur enregistré.', r.credentials),
       onSuccess: (r) => {
         onClose();
@@ -270,6 +289,42 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
           onChange={set('derogationReason')}
           placeholder="Ex. niveau adapté à un autre groupe"
         />
+        {player && player.enrolled && (
+          <>
+            <SelectField
+              label={player.membership ? 'Mode de paiement de la cotisation' : 'Mode de paiement (cotisation à créer) *'}
+              full
+              value={f.paymentPlan}
+              onChange={set('paymentPlan')}
+            >
+              <option value="">{player.membership ? '—' : 'Choisir…'}</option>
+              <option value="FULL">Comptant (une seule tranche)</option>
+              <option value="SEMESTER">Par semestre (acompte + 2 tranches)</option>
+              <option value="MONTHLY">Par mois (acompte + une tranche par mois)</option>
+            </SelectField>
+            <div className="col-span-full">
+              {player.membership ? (
+                <Pills>
+                  <Pill tone="b">Cotisation {DT(player.membership.total)}</Pill>
+                  <Pill tone={player.membership.paid ? 'g' : 's'}>Déjà payé {DT(player.membership.paid)}</Pill>
+                </Pills>
+              ) : (
+                <Pill tone="r" className="whitespace-normal">
+                  Pas encore de cotisation : choisissez le mode de paiement pour la créer.
+                </Pill>
+              )}
+            </div>
+            {player.membership && player.membership.paid > 0 && f.paymentPlan !== player.membership.paymentPlan && (
+              <TextField
+                label="Motif du changement (paiements déjà encaissés, R7) *"
+                full
+                value={f.planReason}
+                onChange={set('planReason')}
+                placeholder="Ex. le parent préfère payer par mois"
+              />
+            )}
+          </>
+        )}
         {!player && (
           <>
             <SelectField label="Mode de paiement *" full value={f.paymentPlan} onChange={set('paymentPlan')}>
