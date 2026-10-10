@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { PaymentPlan, Prisma, Role } from '@prisma/client';
+import { isPlaceholderEmail } from '../common/placeholder';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Gender, PaymentPlan, Prisma, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
@@ -234,6 +235,14 @@ export class PlayersService {
     if (!player) throw notFound('Joueur');
     if (player.archivedAt) throw rule.conflict('R8', 'Joueur archivé : restaurez-le avant de le modifier.');
     assertVersion(player, dto.version, 'Ce joueur');
+    // Email déjà utilisé par un autre compte (souvent celui du parent) : refusé, sinon les deux comptes seraient fusionnés.
+    const wanted = dto.email === undefined ? null : dto.email.trim().toLowerCase() || null;
+    if (wanted && wanted !== player.email) {
+      const other = await this.prisma.user.findUnique({ where: { email: wanted } });
+      if (other && other.id !== player.userId) {
+        throw new ConflictException(`L’email ${wanted} est déjà celui du compte de ${fullName(other)} : choisissez une adresse propre au joueur.`);
+      }
+    }
     const updated = await this.prisma.player.update({
       where: { id },
       data: {
@@ -248,14 +257,14 @@ export class PlayersService {
         version: { increment: 1 },
       },
     });
-    // Nouvel email : le compte du joueur (s'il en a un) reçoit ses nouveaux identifiants ; un joueur majeur sans compte
-    // en reçoit un. Un mineur sans compte garde seulement l'email (contact).
+    // Nouvel email : le compte du joueur reçoit ses nouveaux identifiants ; un joueur sans compte (mineur compris) en reçoit
+    // un, avec ses identifiants envoyés à cette adresse (changement de mot de passe obligatoire à la première connexion).
     let credentials = null;
     const newEmail = dto.email === undefined ? undefined : dto.email.trim().toLowerCase() || null;
     if (newEmail !== undefined && newEmail !== player.email) {
       if (updated.userId) {
         credentials = await this.accounts.changeEmail(actor.id, updated.userId, newEmail);
-      } else if (newEmail && updated.birthDate && ageAtYearEnd(updated.birthDate, new Date().getFullYear()) >= 18) {
+      } else if (newEmail && !isPlaceholderEmail(newEmail)) {
         const created = await this.prisma.$transaction(async (tx) => {
           const account = await this.accounts.create(tx, {
             email: newEmail,
@@ -282,6 +291,53 @@ export class PlayersService {
       after: `${fullName(updated)} · ${updated.birthDate ? isoDay(updated.birthDate) : 'date inconnue'} · ${updated.gender}`,
     });
     return { ...(await this.get(id)), credentials };
+  }
+
+  /**
+   * Fiche joueur d'un compte existant (ex. entraîneur ou parent qui joue aussi) : nom, email, téléphone et CIN repris du
+   * compte, code TCSAY attribué, inscription à la saison active dans la catégorie proposée. Le rôle joueur est ajouté.
+   */
+  async createForAccount(actor: AuthUser, userId: string, data: { gender: Gender; birthDate: string }) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, include: { player: true } });
+    if (!user) throw notFound('Compte');
+    if (user.player) return user.player;
+    const season = await this.access.activeSeason();
+    const birthDate = dayFromIso(data.birthDate);
+    const suggestion = await this.categories.suggest(birthDate, data.gender, season.startDate.getUTCFullYear());
+    if ('error' in suggestion) throw new BadRequestException(suggestion.error);
+    const player = await this.prisma.$transaction(async (tx) => {
+      const code = await nextMemberCode(tx, season.startDate.getUTCFullYear());
+      const created = await tx.player.create({
+        data: {
+          ...code,
+          userId,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          birthDate,
+          gender: data.gender,
+          email: user.email,
+          phone: user.phone,
+          cin: user.cin,
+        },
+      });
+      await tx.enrollment.create({ data: { playerId: created.id, seasonId: season.id, categoryId: suggestion.category.id } });
+      if (!user.roles.includes(Role.PLAYER)) {
+        await tx.user.update({ where: { id: userId }, data: { roles: [...user.roles, Role.PLAYER], version: { increment: 1 } } });
+      }
+      await this.audit.log(
+        actor.id,
+        {
+          action: 'Fiche joueur créée pour un compte',
+          entity: 'Player',
+          entityId: created.id,
+          target: fullName(created),
+          after: `${code.memberCode} · ${suggestion.category.name}`,
+        },
+        tx,
+      );
+      return created;
+    });
+    return player;
   }
 
   /** Inscrit à la saison active (catégorie proposée) un joueur qui n'y est pas encore inscrit, si sa date est connue. */

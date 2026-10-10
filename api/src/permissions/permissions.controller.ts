@@ -1,10 +1,12 @@
 import { BadRequestException, Body, Controller, Get, Param, ParseEnumPipe, ParseUUIDPipe, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
-import { IsArray, IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { Gender, Role } from '@prisma/client';
+import { Type } from 'class-transformer';
+import { IsArray, IsIn, IsInt, IsOptional, IsString, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
 import { assertVersion, notFound, rule } from '../common/rules';
+import { PlayersService } from '../players/players.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EDITABLE_ROLES, PERMISSION_KEYS, PERMISSIONS, ROLE_LABEL } from './permissions';
 import { PermissionsService } from './permissions.service';
@@ -19,6 +21,14 @@ class SetPermissionsDto {
   permissions: string[];
 }
 
+class NewPlayerDto {
+  @IsIn([Gender.M, Gender.F], { message: 'Genre obligatoire.' })
+  gender: Gender;
+
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date de naissance obligatoire (AAAA-MM-JJ).' })
+  birthDate: string;
+}
+
 class SetRolesDto {
   @IsInt()
   @Min(1)
@@ -27,6 +37,12 @@ class SetRolesDto {
   @IsArray()
   @IsIn(ASSIGNABLE, { each: true, message: 'Rôle inconnu.' })
   roles: Role[];
+
+  /** Rôle joueur pour un compte sans fiche joueur : genre et naissance pour créer la fiche (catégorie proposée). */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NewPlayerDto)
+  player?: NewPlayerDto;
 }
 
 class UsersQuery {
@@ -48,6 +64,7 @@ export class PermissionsController {
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
     private readonly audit: AuditService,
+    private readonly players: PlayersService,
   ) {}
 
   @Get()
@@ -124,12 +141,16 @@ export class PermissionsController {
     assertVersion(user, dto.version, 'Ce compte');
     const roles = [...new Set(dto.roles)];
     if (!roles.length) throw new BadRequestException('Un compte garde au moins un rôle (sinon : désactivez-le).');
-    if (roles.includes(Role.PLAYER) && !user.player) {
-      throw new BadRequestException('Rôle joueur : inscrivez d’abord la personne dans « Joueurs » avec le même email ou la même CIN.');
+    if (roles.includes(Role.PLAYER) && !user.player && !dto.player) {
+      throw new BadRequestException('Rôle joueur : indiquez le genre et la date de naissance pour créer sa fiche joueur.');
     }
     if (user.roles.includes(Role.PRESIDENT) && !roles.includes(Role.PRESIDENT)) {
       const presidents = await this.prisma.user.count({ where: { roles: { has: Role.PRESIDENT }, isActive: true } });
       if (presidents <= 1) throw rule.conflict('R12', 'Il faut toujours au moins un président actif.');
+    }
+    // Fiche joueur créée d'abord (code TCSAY, inscription dans la catégorie proposée) : elle ajoute le rôle joueur.
+    if (roles.includes(Role.PLAYER) && !user.player && dto.player) {
+      await this.players.createForAccount(actor, id, dto.player);
     }
     const updated = await this.prisma.$transaction(async (tx) => {
       if (roles.includes(Role.COACH) && !user.coach) {

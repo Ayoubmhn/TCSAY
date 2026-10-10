@@ -167,15 +167,16 @@ model User {
   coach            Coach?
   parentLinks      ParentLink[]
   auditLogs        AuditLog[]
-  reservations     Reservation[]  @relation("ReservationBookedBy")
-  cancellations    Reservation[]  @relation("ReservationCancelledBy")
+  reservations     Reservation[]           @relation("ReservationBookedBy")
+  cancellations    Reservation[]           @relation("ReservationCancelledBy")
   payments         Payment[]
-  receiptsIssued   Receipt[]      @relation("ReceiptIssuedBy")
-  receiptsVoided   Receipt[]      @relation("ReceiptVoidedBy")
+  receiptsIssued   Receipt[]               @relation("ReceiptIssuedBy")
+  receiptsVoided   Receipt[]               @relation("ReceiptVoidedBy")
   attendances      Attendance[]
   salaries         Salary[]
-  absenceDecisions CoachAbsence[] @relation("AbsenceDecidedBy")
+  absenceDecisions CoachAbsence[]          @relation("AbsenceDecidedBy")
   notifications    Notification[]
+  broadcastsSent   NotificationBroadcast[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -698,17 +699,37 @@ model ExtractedRecord {
 
 /// Notification dans l'application (cloche) : créée avec chaque email envoyé à un compte (sauf les identifiants).
 model Notification {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @db.Uuid
-  kind      EmailKind
-  title     String
-  body      String
-  link      String?
-  readAt    DateTime?
-  createdAt DateTime  @default(now())
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  kind        EmailKind
+  title       String
+  body        String
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  broadcastId String?   @db.Uuid // message envoyé par le club (admin ou agent)
 
-  user User @relation(fields: [userId], references: [id])
+  user      User                   @relation(fields: [userId], references: [id])
+  broadcast NotificationBroadcast? @relation(fields: [broadcastId], references: [id])
 
   @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+/// Message envoyé par l'administration (président, agent) aux parents, joueurs, entraîneurs, à un groupe ou à des personnes.
+model NotificationBroadcast {
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @db.Uuid
+  title      String
+  body       String
+  link       String?
+  audience   String // description lisible des destinataires (« Tous les parents », « Groupe Lutins 1 »…)
+  recipients Int
+  byEmail    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender        User           @relation(fields: [senderId], references: [id])
+  notifications Notification[]
+
   @@index([createdAt])
 }

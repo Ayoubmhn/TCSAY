@@ -94,7 +94,7 @@ export class ParentsController {
       include: {
         parentLinks: {
           where: { player: { archivedAt: null } },
-          include: { player: { select: { id: true, firstName: true, lastName: true } } },
+          include: { player: { select: { id: true, firstName: true, lastName: true, memberCode: true } } },
         },
       },
     });
@@ -244,6 +244,75 @@ export class ParentsController {
       entity: 'ParentLink',
       entityId: `${id}|${playerId}`,
       target: `${fullName(parent)} → ${fullName(player)}`,
+    });
+    return { ok: true };
+  }
+
+  /**
+   * Suppression définitive d'un compte parent sans historique (ex. parent créé par erreur ou en double à l'import).
+   * Refusée si le compte a d'autres rôles ou un historique (paiements, réservations, reçus, actions…) : R8, on le désactive.
+   * R9 : chaque mineur lié doit garder un autre parent.
+   */
+  @Delete(':id')
+  @Perm('parents.manage', 'players.manage')
+  async remove(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
+    const parent = await this.find(id);
+    if (parent.roles.some((r) => r !== Role.PARENT)) {
+      throw rule.conflict('R8', `${fullName(parent)} a d’autres rôles : retirez le rôle parent (désactivation) au lieu de supprimer le compte.`);
+    }
+    const u = await this.prisma.user.findUniqueOrThrow({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            auditLogs: true,
+            reservations: true,
+            cancellations: true,
+            payments: true,
+            receiptsIssued: true,
+            receiptsVoided: true,
+            attendances: true,
+            salaries: true,
+            absenceDecisions: true,
+            broadcastsSent: true,
+          },
+        },
+        player: { select: { id: true } },
+        coach: { select: { id: true } },
+        parentLinks: { include: { player: { include: { parentLinks: true } } } },
+      },
+    });
+    const history = Object.values(u._count).reduce((t, n) => t + n, 0);
+    if (history || u.player || u.coach) {
+      throw rule.conflict('R8', `${fullName(parent)} a un historique dans l’application : le compte ne peut pas être supprimé, désactivez-le.`);
+    }
+    const season = await this.access.activeSeason().catch(() => null);
+    const year = season?.startDate.getUTCFullYear() ?? new Date().getFullYear();
+    const orphans = u.parentLinks
+      .map((l) => l.player)
+      .filter((p) => !p.archivedAt && (!p.birthDate || ageAtYearEnd(p.birthDate, year) < 18) && p.parentLinks.length <= 1);
+    if (orphans.length) {
+      throw rule.conflict(
+        'R9',
+        `${orphans.map((p) => fullName(p)).join(', ')} ${orphans.length > 1 ? 'sont mineurs' : 'est mineur'} : liez un autre parent avant de supprimer ${fullName(parent)}.`,
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.parentLink.deleteMany({ where: { parentId: id } });
+      await tx.notification.deleteMany({ where: { userId: id } });
+      await tx.user.delete({ where: { id } });
+      await this.audit.log(
+        actor.id,
+        {
+          action: 'Parent supprimé',
+          entity: 'User',
+          entityId: id,
+          target: fullName(parent),
+          before: `${parent.email ?? parent.cin ?? '—'} · ${u.parentLinks.map((l) => fullName(l.player)).join(', ') || 'aucun joueur'}`,
+          after: 'Supprimé',
+        },
+        tx,
+      );
     });
     return { ok: true };
   }

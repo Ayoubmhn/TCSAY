@@ -105,6 +105,7 @@ const ADMIN_MENU: MenuItem[] = [
     label: 'Suivi',
     icon: IconClipboard,
     children: [
+      { label: 'Envoyer une notification', path: '/admin/notifications', perm: ['notifications.send'] },
       { label: 'Emails envoyés', path: '/admin/emails', perm: ['emails.view'] },
       { label: 'Historique des actions', path: '/admin/audit', perm: ['audit.view'] },
       { label: 'Import historique', path: '/admin/import', soon: true, perm: ['import.manage'] },

@@ -4,12 +4,13 @@ import { ACTOR_LABEL } from '../../auth/AuthContext';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
-import { Filters } from '../../components/ui/Field';
+import { Filters, SelectField, TextField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
+import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import type { Actor } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -92,10 +93,27 @@ function UserCard({ user }: { user: UserRoles }) {
   const [roles, setRoles] = useState<Actor[]>(user.roles);
   useEffect(() => setRoles(user.roles), [user.roles]);
   const dirty = [...roles].sort().join() !== [...user.roles].sort().join();
-  const save = useAction(() => api.put(`/permissions/users/${user.id}`, { version: user.version, roles }), {
-    invalidate: [['permission-users'], ['coaches'], ['staff'], ['parents'], ['me']],
-    success: `Rôles de ${user.firstName} enregistrés.`,
-  });
+  // Rôle joueur pour un compte sans fiche joueur : genre et naissance pour créer la fiche (catégorie proposée).
+  const needsPlayer = roles.includes('PLAYER') && !user.hasPlayer;
+  const [gender, setGender] = useState<'' | 'M' | 'F'>('');
+  const [birthDate, setBirthDate] = useState('');
+  const toast = useToast();
+  const save = useAction(
+    () =>
+      api.put(`/permissions/users/${user.id}`, {
+        version: user.version,
+        roles,
+        player: needsPlayer ? { gender, birthDate } : undefined,
+      }),
+    {
+      invalidate: [['permission-users'], ['coaches'], ['staff'], ['parents'], ['players'], ['me']],
+      success: needsPlayer ? `Fiche joueur créée et rôles de ${user.firstName} enregistrés.` : `Rôles de ${user.firstName} enregistrés.`,
+    },
+  );
+  const submit = () => {
+    if (needsPlayer && (!gender || !birthDate)) return toast('Rôle joueur : indiquez le genre et la date de naissance.');
+    save.mutate();
+  };
   const toggle = (r: Actor) => setRoles((x) => (x.includes(r) ? x.filter((y) => y !== r) : [...x, r]));
   return (
     <Card>
@@ -115,14 +133,24 @@ function UserCard({ user }: { user: UserRoles }) {
             key={r}
             checked={roles.includes(r)}
             label={ACTOR_LABEL[r]}
-            disabled={r === 'PLAYER' && !user.hasPlayer}
             onChange={() => toggle(r)}
           />
         ))}
       </div>
+      {needsPlayer && (
+        <div className="grid grid-cols-1 gap-2.5 min-[520px]:grid-cols-2">
+          <SelectField label="Genre (fiche joueur) *" value={gender} onChange={(e) => setGender(e.target.value as '' | 'M' | 'F')}>
+            <option value="">—</option>
+            <option value="M">Garçon / Homme</option>
+            <option value="F">Fille / Femme</option>
+          </SelectField>
+          <TextField label="Date de naissance *" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} />
+          <CardText>Une fiche joueur est créée (code TCSAY, catégorie proposée selon l’âge et le genre).</CardText>
+        </div>
+      )}
       {dirty && (
         <CardActions>
-          <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending || roles.length === 0}>
+          <Button variant="primary" onClick={submit} disabled={save.isPending || roles.length === 0}>
             Enregistrer
           </Button>
           <Button onClick={() => setRoles(user.roles)}>Annuler</Button>
@@ -198,7 +226,7 @@ export function PermissionsPage() {
       </Section>
       <Note>
         Un compte peut cumuler plusieurs rôles (ex. directeur technique et entraîneur, entraîneur et joueur) : il choisit son
-        espace dans le menu. Rôle joueur : inscrire la personne dans « Joueurs » avec le même email ou la même CIN. Il reste
+        espace dans le menu. Rôle joueur : cocher « Joueur » crée sa fiche (genre et naissance demandés). Il reste
         toujours au moins un président actif (R12).
       </Note>
     </>

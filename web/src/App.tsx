@@ -7,6 +7,7 @@ import { SeasonsPage } from './features/seasons/SeasonsPage';
 import { AppShell } from './layouts/AppShell';
 import type { Role } from './lib/types';
 import { AuditPage } from './pages/admin/AuditPage';
+import { BroadcastsPage } from './pages/admin/BroadcastsPage';
 import { CategoriesPage } from './pages/admin/CategoriesPage';
 import { CoachesPage } from './pages/admin/CoachesPage';
 import { CourtRatesPage } from './pages/admin/CourtRatesPage';
@@ -147,6 +148,7 @@ export function App() {
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
         <Route path="admin/mes-salaires" element={admin(undefined, <CoachSalariesPage />)} />
+        <Route path="admin/notifications" element={admin(['notifications.send'], <BroadcastsPage />)} />
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />
         <Route path="admin/autorisations" element={admin(['permissions.manage'], <PermissionsPage />)} />

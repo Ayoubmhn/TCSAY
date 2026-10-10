@@ -44,8 +44,9 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   /** Met l'email en file d'attente (retour immédiat). Adresse provisoire (…@a-completer.invalid) : jamais envoyé. */
-  async send(to: string, subject: string, text: string, kind: EmailKind): Promise<void> {
-    await this.notify(to, subject, text, kind);
+  /** `notify: false` : pas de notification en plus (déjà créée par l'appelant, ex. message du club). */
+  async send(to: string, subject: string, text: string, kind: EmailKind, options: { notify?: boolean } = {}): Promise<void> {
+    if (options.notify !== false) await this.notify(to, subject, text, kind);
     if (/@a-completer\.invalid$/i.test(to)) {
       await this.prisma.emailLog.create({
         data: { to, subject, body: text, kind, status: EmailStatus.FAILED, error: 'Adresse provisoire : email non envoyé (à compléter dans la fiche).' },

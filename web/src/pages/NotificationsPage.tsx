@@ -59,14 +59,14 @@ export function NotificationsPage() {
           {rows.length ? (
             <CardGrid>
               {rows.map((n) => {
-                const kind = KIND[n.kind] ?? { tone: 's' as PillTone, label: 'Information' };
+                const kind = n.broadcastId ? { tone: 'b' as PillTone, label: 'Message du club' } : (KIND[n.kind] ?? { tone: 's' as PillTone, label: 'Information' });
                 return (
                   <Card key={n.id} className={n.readAt ? 'opacity-70' : ''}>
                     <CardRow>
                       <h3 className="min-w-0">{n.title}</h3>
                       <Pill tone={kind.tone}>{kind.label}</Pill>
                     </CardRow>
-                    <CardText>{n.body}</CardText>
+                    <p className="m-0 text-sm whitespace-pre-line text-fg">{n.body}</p>
                     <CardText>{formatDateTime(n.createdAt)}</CardText>
                     <CardActions>
                       {n.link && (

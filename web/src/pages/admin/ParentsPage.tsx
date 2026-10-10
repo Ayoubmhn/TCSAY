@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { SelectField } from '../../components/ui/Field';
+import { Filters, SelectField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
@@ -18,6 +18,23 @@ import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
 const KEYS: string[][] = [['parents'], ['players']];
+
+/** Minuscules sans accents : recherche souple. */
+const norm = (s: string | null | undefined) =>
+  (s ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+
+/** Recherche sur le parent (nom, email, téléphone, CIN) et sur ses joueurs (nom, code TCSAY). */
+function matches(p: Parent, q: string) {
+  const words = norm(q).split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = norm(
+    [fullName(p), p.email, p.phone, p.phone?.replace(/\D/g, ''), p.cin, ...p.players.flatMap((k) => [fullName(k), k.memberCode])].join(' '),
+  );
+  return words.every((w) => hay.includes(w));
+}
 
 function LinkModal({ parent, onClose }: { parent?: Parent; onClose: () => void }) {
   const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.get<Player[]>('/players'), enabled: Boolean(parent) });
@@ -62,6 +79,9 @@ export function ParentsPage() {
   const [linkFor, setLinkFor] = useState<Parent>();
   const [toToggle, setToToggle] = useState<Parent>();
   const [unlink, setUnlink] = useState<{ parent: Parent; player: Parent['players'][number] }>();
+  const [toDelete, setToDelete] = useState<Parent>();
+  const [search, setSearch] = useState('');
+  const rows = useMemo(() => (q.data ?? []).filter((p) => matches(p, search)), [q.data, search]);
 
   const create = useAction((v: PersonValues) => api.post('/parents', personPayload('parent', v)), {
     invalidate: KEYS,
@@ -90,6 +110,11 @@ export function ParentsPage() {
     success: (_r, p) => (p.isActive ? 'Compte désactivé.' : 'Compte réactivé.'),
     onSuccess: () => setToToggle(undefined),
   });
+  const remove = useAction((p: Parent) => api.delete(`/parents/${p.id}`), {
+    invalidate: KEYS,
+    success: (_r, p) => `${fullName(p)} supprimé.`,
+    onSuccess: () => setToDelete(undefined),
+  });
   const removeLink = useAction(() => api.delete(`/parents/${unlink!.parent.id}/links/${unlink!.player.id}`), {
     invalidate: KEYS,
     success: 'Lien retiré.',
@@ -107,11 +132,25 @@ export function ParentsPage() {
           </Button>
         }
       />
-      <div className="mt-5">
+      <Filters>
+        <input
+          className="fld w-[280px] max-w-full text-fg"
+          placeholder="Parent, joueur, code TCSAY ou téléphone"
+          aria-label="Rechercher un parent"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {q.data && (
+          <Pill tone="b">
+            {rows.length} parent{rows.length > 1 ? 's' : ''}
+          </Pill>
+        )}
+      </Filters>
+      <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
-          {q.data?.length ? (
+          {rows.length ? (
             <CardGrid>
-              {q.data.map((u) => (
+              {rows.map((u) => (
                 <Card key={u.id}>
                   <CardRow>
                     <Link to={`/admin/parents/${u.id}`} className="flex items-center gap-2.5 hover:underline">
@@ -137,18 +176,22 @@ export function ParentsPage() {
                     <Button variant={u.isActive ? 'danger' : 'secondary'} onClick={() => setToToggle(u)}>
                       {u.isActive ? 'Désactiver le compte' : 'Réactiver'}
                     </Button>
+                    <Button variant="danger" onClick={() => setToDelete(u)}>
+                      Supprimer
+                    </Button>
                   </CardActions>
                 </Card>
               ))}
             </CardGrid>
           ) : (
-            <EmptyState>Aucun parent.</EmptyState>
+            <EmptyState>{search.trim() ? 'Aucun parent ne correspond à cette recherche.' : 'Aucun parent.'}</EmptyState>
           )}
         </QueryState>
       </div>
       <Note>
         Un parent peut suivre plusieurs joueurs ; un joueur peut avoir plusieurs parents. Un mineur garde toujours au moins un
-        parent lié (R9). Les comptes sont désactivés, jamais supprimés.
+        parent lié (R9). Suppression possible seulement pour un compte sans historique (ex. créé en double à l’import) ;
+        sinon le compte est désactivé (R8).
       </Note>
 
       <PersonFormModal
@@ -178,6 +221,19 @@ export function ParentsPage() {
         pending={toggle.isPending}
         onConfirm={() => toToggle && toggle.mutate(toToggle)}
         onClose={() => setToToggle(undefined)}
+      />
+      <ConfirmModal
+        open={Boolean(toDelete)}
+        title="Supprimer ce parent ?"
+        text={
+          toDelete
+            ? `Le compte de ${fullName(toDelete)} sera supprimé définitivement${toDelete.players.length ? ` et ses liens avec ${toDelete.players.map((k) => fullName(k)).join(', ')} retirés` : ''}. Refusé s’il a un historique ou si un mineur se retrouve sans parent.`
+            : ''
+        }
+        cta="Supprimer"
+        pending={remove.isPending}
+        onConfirm={() => toDelete && remove.mutate(toDelete)}
+        onClose={() => setToDelete(undefined)}
       />
       <ConfirmModal
         open={Boolean(unlink)}

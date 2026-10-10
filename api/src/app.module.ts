@@ -26,6 +26,7 @@ import { PaymentsService } from './payments/payments.service';
 import { PlayersImportController } from './players/import/players-import.controller';
 import { PlayersImportService } from './players/import/players-import.service';
 import { FederationController } from './federation/federation.controller';
+import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReceiptsController } from './receipts/receipts.controller';
 import { ReceiptsService } from './receipts/receipts.service';
@@ -63,6 +64,7 @@ import { StaffController } from './staff/staff.controller';
     SalariesController,
     PaymentsController,
     ReceiptsController,
+    BroadcastsController,
     NotificationsController,
     FederationController,
     PlayersImportController,

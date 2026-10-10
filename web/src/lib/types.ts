@@ -97,7 +97,7 @@ export type Parent = {
   cin: string | null;
   isActive: boolean;
   version: number;
-  players: PersonRef[];
+  players: (PersonRef & { memberCode?: string | null })[];
 };
 
 export type CoachRef = { id: string; firstName: string; lastName: string; color: string };
@@ -629,6 +629,25 @@ export type AppNotification = {
   link: string | null;
   readAt: string | null;
   createdAt: string;
+  /** Message envoyé par le club (administration). */
+  broadcastId: string | null;
 };
+
+export type BroadcastTarget = 'PARENTS' | 'PLAYERS' | 'COACHES' | 'ALL' | 'GROUP' | 'USERS';
+
+export type Broadcast = {
+  id: string;
+  title: string;
+  body: string;
+  link: string | null;
+  audience: string;
+  recipients: number;
+  read: number;
+  byEmail: boolean;
+  createdAt: string;
+  sender: string;
+};
+
+export type Recipient = { id: string; name: string; roles: ('PARENT' | 'PLAYER' | 'COACH')[]; players: string[] };
 
 export type FederationAccount = { login: string | null; hasPassword: boolean };

@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   { key: 'payments.collect', label: 'Paiements des joueurs et parents', group: 'Finances' },
   { key: 'salaries.manage', label: 'Salaires des entraîneurs et du personnel', group: 'Finances' },
   { key: 'emails.view', label: 'Emails envoyés', group: 'Suivi' },
+  { key: 'notifications.send', label: 'Envoyer des notifications (parents, joueurs, entraîneurs)', group: 'Suivi' },
   { key: 'import.manage', label: 'Import de l’historique', group: 'Suivi' },
 ] as const;
 
@@ -56,6 +57,7 @@ export const DEFAULT_PERMISSIONS: Partial<Record<Role, string[]>> = {
     'reservations.manage',
     'planning.view',
     'emails.view',
+    'notifications.send',
   ],
   SUPERVISOR: ['stats.view'],
   TECH_DIRECTOR: ['coaches.manage', 'groups.manage', 'absences.manage', 'attendance.manage', 'planning.view'],

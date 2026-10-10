@@ -23,7 +23,7 @@ export class NotificationsController {
       where: { userId: user.id, ...(q.filter === 'unread' ? { readAt: null } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 100,
-      select: { id: true, kind: true, title: true, body: true, link: true, readAt: true, createdAt: true },
+      select: { id: true, kind: true, title: true, body: true, link: true, readAt: true, createdAt: true, broadcastId: true },
     });
   }
 

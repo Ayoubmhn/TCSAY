@@ -265,6 +265,12 @@ const DICT: Record<string, [string, string]> = {
     'مرئي لك وحدك ومشفّر من قبل النادي. الدخول المباشر إلى موقع الجامعة لاحقًا. معرف فارغ = حذف الحساب.',
   ],
   // Notifications
+  'Envoyer une notification': ['Send a notification', 'إرسال إشعار'],
+  'Message du club': ['Club message', 'رسالة النادي'],
+  'Messages envoyés': ['Sent messages', 'الرسائل المرسلة'],
+  'Nouveau message': ['New message', 'رسالة جديدة'],
+  Envoyer: ['Send', 'إرسال'],
+  Supprimer: ['Delete', 'حذف'],
   Notifications: ['Notifications', 'الإشعارات'],
   'non lue(s)': ['unread', 'غير مقروءة'],
   'Découvrez les messages du club : paiements, réservations, salaires.': ['Messages from the club: payments, bookings, salaries.', 'رسائل النادي: المدفوعات، الحجوزات، الأجور.'],
