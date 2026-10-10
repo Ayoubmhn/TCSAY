@@ -1,0 +1,47 @@
+{
+  "name": "tcsay-api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "API du Tennis Club de Sayada",
+  "scripts": {
+    "prebuild": "prisma generate",
+    "build": "nest build",
+    "prestart": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
+    "start": "nest start",
+    "prestart:dev": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
+    "start:dev": "nest start --watch",
+    "db:update": "node prisma/db-tools.mjs migrate",
+    "db:migrate": "node prisma/db-tools.mjs migrate",
+    "db:status": "node prisma/db-tools.mjs status",
+    "db:backup": "node prisma/db-tools.mjs backup",
+    "db:restore": "node prisma/db-tools.mjs restore",
+    "db:init-prod": "node prisma/init-prod.mjs",
+    "db:demo": "prisma migrate deploy && prisma generate && prisma db seed",
+    "start:prod": "node dist/main",
+    "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "@nestjs/swagger": "^11.2.0",
+    "@prisma/client": "^5.22.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "prisma": "^5.22.0",
+    "typescript": "^5.7.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.mjs"
+  }
+}

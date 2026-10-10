@@ -1,0 +1,735 @@
+// Schéma TCSAY : modèle de données complet (CLAUDE.md §7).
+// Montants en dinars tunisiens, 3 décimales (millimes). Dates sans heure en @db.Date (minuit UTC).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Énumérations ─────────────────────────
+
+/// Acteurs : un utilisateur peut en cumuler plusieurs (ex. directeur technique et entraîneur, entraîneur et joueur).
+enum Role {
+  PRESIDENT // Président du club : tous les accès, gère les autorisations
+  ADMIN_AGENT // Agent administratif : paiements, salaires, utilisateurs
+  SUPERVISOR // Agent administratif superviseur : statistiques seulement
+  TECH_DIRECTOR // Directeur technique : entraîneurs, groupes, emploi du temps
+  COACH
+  PARENT
+  PLAYER
+  ADMIN // espace administration (rôle d'action, attribué automatiquement aux rôles ci-dessus)
+  STAFF // ancien rôle « personnel », remplacé par les rôles ci-dessus
+}
+
+enum CourtSurface {
+  CLAY // Terre battue
+  HARD // Dur
+  GRASS // Gazon
+}
+
+/// Type de groupe : loisirs (octobre → juin) ou compétitif (jusqu'en août, stage d'été inclus).
+enum GroupKind {
+  LEISURE
+  COMPETITIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE // en retard
+}
+
+/// Décision de la direction sur la séance d'un entraîneur absent.
+enum AbsenceResolution {
+  REPLACED // animée par un autre entraîneur
+  PHYSICAL // transformée en séance physique
+  CANCELLED // annulée
+}
+
+/// Rémunération d'un employé (entraîneur ou personnel).
+enum PayMode {
+  HOURLY // à l'heure (heures des séances animées)
+  MONTHLY // forfait mensuel
+}
+
+/// Mode de paiement de la cotisation choisi à l'inscription.
+enum PaymentPlan {
+  FULL // comptant
+  SEMESTER // par semestre
+  MONTHLY // par mois
+}
+
+enum AbsenceStatus {
+  PENDING // déclarée par l'entraîneur
+  APPROVED // validée par l'administration
+  REJECTED
+}
+
+enum Gender {
+  M
+  F
+  MIXED // catégories uniquement
+}
+
+enum CategoryFamily {
+  YOUTH // Jeunes
+  ADULT // Adultes
+  VETERAN // Vétérans
+  CORPORATE // Entreprise
+  PADEL // Padel
+  LEISURE // Loisirs
+}
+
+enum SeasonStatus {
+  DRAFT // Brouillon
+  ACTIVE // Active (une seule à la fois, R2)
+  CLOSED // Clôturée (verrouillée, R1)
+  HISTORICAL // Historique (verrouillée, R1)
+}
+
+enum ReservationType {
+  LEISURE // Loisir (joueur, parent)
+  PRIVATE // Séance privée (coach avec un élève)
+}
+
+enum RatePeriod {
+  DAY // Jour
+  NIGHT // Nuit (dès l'heure de nuit paramétrée)
+}
+
+enum PaymentKind {
+  PAYMENT // Encaissement
+  REFUND // Remboursement (montant négatif, R7)
+  CORRECTION // Écriture corrective (R7)
+}
+
+enum PaymentMethod {
+  CASH // Espèces (saisies par l'admin)
+  CHEQUE // Chèque (saisi par l'admin)
+  ONLINE // En ligne (passerelle à choisir, S6)
+}
+
+enum Origin {
+  MANUAL
+  IMPORT // R14
+}
+
+enum EmailKind {
+  CREDENTIALS // Identifiants
+  REMINDER // Rappel
+  SALARY // Salaire
+  RESERVATION // Réservation
+  OTHER
+}
+
+enum EmailStatus {
+  PENDING // En file d'attente
+  SENT
+  FAILED
+}
+
+enum ImportStatus {
+  PENDING
+  PROCESSING
+  REVIEW
+  DONE
+  FAILED
+}
+
+// ───────────────────────── Comptes ─────────────────────────
+
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String?   @unique // identifiant (ou CIN si pas d'email)
+  cin                String?   @unique // carte d'identité nationale
+  passwordHash       String
+  roles              Role[]    @default([]) // plusieurs acteurs possibles
+  firstName          String
+  lastName           String
+  phone              String?
+  payMode            PayMode? // employés : à l'heure ou au mois
+  payRate            Decimal?  @db.Decimal(10, 3) // DT par heure ou par mois
+  mustChangePassword Boolean   @default(true)
+  /// Compte fédération (IJIN), facultatif : identifiant en clair, mot de passe chiffré (AES-256-GCM, clé dans api/.env).
+  ijinLogin          String?
+  ijinPasswordEnc    String?
+  isActive           Boolean   @default(true) // comptes désactivés, jamais supprimés
+  lastLoginAt        DateTime?
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  player           Player?
+  coach            Coach?
+  parentLinks      ParentLink[]
+  auditLogs        AuditLog[]
+  reservations     Reservation[]           @relation("ReservationBookedBy")
+  cancellations    Reservation[]           @relation("ReservationCancelledBy")
+  payments         Payment[]
+  receiptsIssued   Receipt[]               @relation("ReceiptIssuedBy")
+  receiptsVoided   Receipt[]               @relation("ReceiptVoidedBy")
+  attendances      Attendance[]
+  salaries         Salary[]
+  absenceDecisions CoachAbsence[]          @relation("AbsenceDecidedBy")
+  notifications    Notification[]
+  broadcastsSent   NotificationBroadcast[]
+}
+
+/// Autorisations par rôle, modifiables par le président (le président a toujours tout).
+model RolePermission {
+  role       Role
+  permission String // ex. « payments.collect »
+  createdAt  DateTime @default(now())
+
+  @@id([role, permission])
+}
+
+model Player {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String?   @unique @db.Uuid // compte propre (adulte) ; mineur : à confirmer
+  /// Identifiant du club « 26TCSAY052 » : année (2 chiffres) de première inscription + TCSAY + n° dans l'année.
+  /// Provisoire tant que l'historique n'est pas importé (recalculé), puis définitif.
+  memberCode            String?   @unique
+  memberYear            Int?
+  memberSeq             Int?
+  memberCodeProvisional Boolean   @default(true)
+  firstName             String
+  lastName              String
+  nameAr                String? // nom en arabe (cahier du club, reçus)
+  birthDate             DateTime? @db.Date // vide : à compléter (import du cahier)
+  birthYearOnly         Boolean   @default(false) // seule l'année était connue : 1er janvier, à compléter
+  gender                Gender // M ou F
+  city                  String?
+  notes                 String? // remarques (2e téléphone, import…)
+  importRef             String? // R14 : fichier et ligne d'origine
+  email                 String?
+  phone                 String?
+  cin                   String? // adulte
+  photoUrl              String?
+  origin                Origin    @default(MANUAL)
+  archivedAt            DateTime? // R8
+  version               Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user         User?         @relation(fields: [userId], references: [id])
+  parentLinks  ParentLink[]
+  enrollments  Enrollment[]
+  reservations Reservation[]
+  attendances  Attendance[]
+
+  @@unique([memberYear, memberSeq])
+  @@index([lastName, firstName])
+}
+
+model ParentLink {
+  parentId  String   @db.Uuid
+  playerId  String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  parent User   @relation(fields: [parentId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@id([parentId, playerId])
+}
+
+model Coach {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @db.Uuid
+  color     String   @default("#c9e9fb") // couleur dans le planning des terrains
+  version   Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id])
+  slots        SlotCoach[]
+  absences     CoachAbsence[]
+  replacements CoachAbsence[] @relation("AbsenceReplacement")
+  reservations Reservation[]
+}
+
+// ───────────────────────── Saisons et catégories ─────────────────────────
+
+model Season {
+  id               String       @id @default(uuid()) @db.Uuid
+  label            String       @unique // ex. « 2026-2027 »
+  startDate        DateTime     @db.Date // début du compétitif
+  endDate          DateTime     @db.Date // fin du compétitif (août, stage d'été inclus)
+  leisureStartDate DateTime?    @db.Date // loisirs : octobre
+  leisureEndDate   DateTime?    @db.Date // loisirs : juin
+  status           SeasonStatus @default(DRAFT)
+  archivedAt       DateTime? // R8 : suppression = archivage
+  version          Int          @default(1) // R13 : verrouillage optimiste
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  enrollments   Enrollment[]
+  groups        TrainingGroup[]
+  feeSchedules  FeeSchedule[]
+  salaries      Salary[]
+  importBatches ImportBatch[]
+
+  @@index([status])
+}
+
+model Category {
+  id         String         @id @default(uuid()) @db.Uuid
+  code       String         @unique // ex. J12M
+  name       String // ex. « Benjamins (-12) »
+  family     CategoryFamily
+  gender     Gender
+  pairCode   String // ex. J12 (paire garçon / fille)
+  maxAge     Int? // jeunes : âge strictement inférieur
+  minAge     Int? // vétérans : âge minimum
+  note       String? // point à confirmer avec le bureau
+  sortOrder  Int            @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  enrollments  Enrollment[]
+  groups       TrainingGroup[]
+  feeSchedules FeeSchedule[]
+}
+
+model Enrollment {
+  id               String   @id @default(uuid()) @db.Uuid
+  playerId         String   @db.Uuid
+  seasonId         String   @db.Uuid
+  categoryId       String   @db.Uuid
+  derogationReason String? // catégorie hors norme (R3)
+  origin           Origin   @default(MANUAL)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  player     Player        @relation(fields: [playerId], references: [id])
+  season     Season        @relation(fields: [seasonId], references: [id])
+  category   Category      @relation(fields: [categoryId], references: [id])
+  membership Membership?
+  groups     GroupMember[]
+
+  @@unique([playerId, seasonId]) // une catégorie par saison
+}
+
+// ───────────────────────── Groupes et terrains ─────────────────────────
+
+model Court {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String       @unique
+  surface     CourtSurface
+  lit         Boolean      @default(false) // éclairé : réservable la nuit
+  active      Boolean      @default(true) // R11
+  maintenance Boolean      @default(false)
+  sortOrder   Int          @default(0)
+  version     Int          @default(1)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  slots        GroupSlot[]
+  reservations Reservation[]
+}
+
+model TrainingGroup {
+  id         String    @id @default(uuid()) @db.Uuid
+  seasonId   String    @db.Uuid
+  name       String
+  categoryId String?   @db.Uuid // catégorie principale (facultative : groupes mixtes)
+  kind       GroupKind @default(COMPETITIVE)
+  capacity   Int
+  archivedAt DateTime?
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  season       Season        @relation(fields: [seasonId], references: [id])
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  slots        GroupSlot[]
+  members      GroupMember[]
+  attendances  Attendance[]
+  reservations Reservation[]
+  feeSchedules FeeSchedule[]
+
+  @@unique([seasonId, name])
+}
+
+/// Créneau hebdomadaire d'un groupe : chaque jour peut avoir son horaire, son terrain et ses entraîneurs.
+model GroupSlot {
+  id        String  @id @default(uuid()) @db.Uuid
+  groupId   String  @db.Uuid
+  day       Int // 0 = dimanche … 6 = samedi
+  startTime String // « 17:30 »
+  endTime   String // « 19:00 »
+  courtId   String? @db.Uuid
+
+  group       TrainingGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  court       Court?         @relation(fields: [courtId], references: [id])
+  coaches     SlotCoach[]
+  attendances Attendance[]
+  absences    CoachAbsence[]
+
+  @@index([day])
+}
+
+/// Une séance peut être animée par plusieurs entraîneurs.
+model SlotCoach {
+  slotId  String @db.Uuid
+  coachId String @db.Uuid
+
+  slot  GroupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  coach Coach     @relation(fields: [coachId], references: [id])
+
+  @@id([slotId, coachId])
+}
+
+model GroupMember {
+  id               String   @id @default(uuid()) @db.Uuid
+  groupId          String   @db.Uuid
+  enrollmentId     String   @db.Uuid
+  derogationReason String? // R4 : catégorie différente
+  createdAt        DateTime @default(now())
+
+  group      TrainingGroup @relation(fields: [groupId], references: [id])
+  enrollment Enrollment    @relation(fields: [enrollmentId], references: [id])
+
+  @@unique([groupId, enrollmentId])
+}
+
+// ───────────────────────── Réservations ─────────────────────────
+
+model CourtRate {
+  id           String          @id @default(uuid()) @db.Uuid
+  type         ReservationType
+  period       RatePeriod
+  pricePerHour Decimal         @db.Decimal(10, 3)
+  version      Int             @default(1)
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([type, period])
+}
+
+model Reservation {
+  id            String          @id @default(uuid()) @db.Uuid
+  courtId       String          @db.Uuid
+  playerId      String?         @db.Uuid
+  coachId       String?         @db.Uuid
+  groupId       String?         @db.Uuid
+  type          ReservationType
+  startTime     DateTime
+  endTime       DateTime
+  price         Decimal         @db.Decimal(10, 3)
+  bookedById    String          @db.Uuid
+  activeKey     String?         @unique // « courtId|startISO » ; null à l'annulation
+  cancelledAt   DateTime?
+  cancelledById String?         @db.Uuid
+  cancelReason  String?
+  createdAt     DateTime        @default(now())
+
+  court       Court          @relation(fields: [courtId], references: [id])
+  player      Player?        @relation(fields: [playerId], references: [id])
+  coach       Coach?         @relation(fields: [coachId], references: [id])
+  group       TrainingGroup? @relation(fields: [groupId], references: [id])
+  bookedBy    User           @relation("ReservationBookedBy", fields: [bookedById], references: [id])
+  cancelledBy User?          @relation("ReservationCancelledBy", fields: [cancelledById], references: [id])
+
+  @@index([startTime])
+}
+
+// ───────────────────────── Cotisations et paiements ─────────────────────────
+
+model FeeSchedule {
+  id               String   @id @default(uuid()) @db.Uuid
+  seasonId         String   @db.Uuid
+  categoryId       String   @db.Uuid
+  groupId          String?  @db.Uuid
+  amount           Decimal  @db.Decimal(10, 3) // montant de la saison
+  depositAmount    Decimal  @default(0) @db.Decimal(10, 3) // acompte à l'inscription
+  physicalIncluded Boolean  @default(false) // séance physique incluse
+  version          Int      @default(1)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  season      Season         @relation(fields: [seasonId], references: [id])
+  category    Category       @relation(fields: [categoryId], references: [id])
+  group       TrainingGroup? @relation(fields: [groupId], references: [id])
+  memberships Membership[]
+
+  @@unique([seasonId, categoryId, groupId])
+}
+
+model Membership {
+  id            String      @id @default(uuid()) @db.Uuid
+  enrollmentId  String      @unique @db.Uuid
+  feeScheduleId String?     @db.Uuid
+  paymentPlan   PaymentPlan @default(FULL)
+  totalAmount   Decimal     @db.Decimal(10, 3)
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id])
+  feeSchedule  FeeSchedule?  @relation(fields: [feeScheduleId], references: [id])
+  installments Installment[]
+}
+
+model Installment {
+  id           String   @id @default(uuid()) @db.Uuid
+  membershipId String   @db.Uuid
+  number       Int // 1
+  count        Int // sur 2
+  dueDate      DateTime @db.Date
+  amount       Decimal  @db.Decimal(10, 3)
+  version      Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  membership Membership @relation(fields: [membershipId], references: [id])
+  payments   Payment[]
+
+  @@unique([membershipId, number])
+}
+
+/// R7 : jamais modifié ni supprimé (pas de updatedAt).
+model Payment {
+  id            String        @id @default(uuid()) @db.Uuid
+  installmentId String        @db.Uuid
+  amount        Decimal       @db.Decimal(10, 3)
+  kind          PaymentKind   @default(PAYMENT)
+  method        PaymentMethod @default(CASH)
+  paidAt        DateTime      @default(now())
+  recordedById  String        @db.Uuid
+  note          String?
+  chequeNumber  String?
+  origin        Origin        @default(MANUAL)
+  createdAt     DateTime      @default(now())
+
+  installment Installment @relation(fields: [installmentId], references: [id])
+  recordedBy  User        @relation(fields: [recordedById], references: [id])
+  receipts    Receipt[]
+}
+
+/// Reçu d'un paiement : numéro du carnet pré-imprimé (unique, jamais réutilisé) et valeurs imprimées.
+/// Jamais supprimé : un reçu raté est annulé avec motif et reste dans l'historique.
+model Receipt {
+  id            String        @id @default(uuid()) @db.Uuid
+  number        Int           @unique // n° pré-imprimé du carnet (affiché sur 7 chiffres : 0002313)
+  paymentId     String        @db.Uuid
+  payerName     String // « Reçu de M. … »
+  amount        Decimal       @db.Decimal(10, 3)
+  amountWords   String // montant en lettres (arabe)
+  label         String // « 1ère tranche »
+  method        PaymentMethod
+  chequeNumber  String?
+  seasonLabel   String
+  issuedOn      DateTime      @db.Date
+  printCount    Int           @default(0)
+  lastPrintedAt DateTime?
+  issuedById    String        @db.Uuid
+  createdAt     DateTime      @default(now())
+  voidedAt      DateTime?
+  voidReason    String?
+  voidedById    String?       @db.Uuid
+
+  payment  Payment @relation(fields: [paymentId], references: [id])
+  issuedBy User    @relation("ReceiptIssuedBy", fields: [issuedById], references: [id])
+  voidedBy User?   @relation("ReceiptVoidedBy", fields: [voidedById], references: [id])
+
+  @@index([paymentId])
+}
+
+// ───────────────────────── Coachs ─────────────────────────
+
+/// Salaire d'un employé (entraîneur ou personnel) pour un mois. Versé = paidAt renseigné.
+model Salary {
+  id         String    @id @default(uuid()) @db.Uuid
+  employeeId String    @db.Uuid
+  seasonId   String?   @db.Uuid
+  month      String // « 2026-10 »
+  hours      Decimal?  @db.Decimal(6, 2) // à l'heure : heures retenues
+  absences   Int       @default(0) // séances non animées (absences validées)
+  amount     Decimal   @db.Decimal(10, 3)
+  paidAt     DateTime? @db.Date // null = À verser
+  note       String?
+  version    Int       @default(1)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  employee User    @relation(fields: [employeeId], references: [id])
+  season   Season? @relation(fields: [seasonId], references: [id])
+
+  @@unique([employeeId, month])
+}
+
+/// Absence d'un entraîneur : déclarée par lui, validée par l'administration, puis groupes prévenus.
+model CoachAbsence {
+  id                 String             @id @default(uuid()) @db.Uuid
+  coachId            String             @db.Uuid
+  date               DateTime           @db.Date
+  slotId             String?            @db.Uuid // null = toute la journée
+  reason             String
+  status             AbsenceStatus      @default(PENDING)
+  notifyGroups       Boolean            @default(true)
+  decidedById        String?            @db.Uuid
+  decidedAt          DateTime?
+  decisionNote       String?
+  resolution         AbsenceResolution? // décidée à la validation
+  replacementCoachId String?            @db.Uuid // si REPLACED
+  createdAt          DateTime           @default(now())
+
+  coach            Coach      @relation(fields: [coachId], references: [id])
+  replacementCoach Coach?     @relation("AbsenceReplacement", fields: [replacementCoachId], references: [id])
+  slot             GroupSlot? @relation(fields: [slotId], references: [id])
+  decidedBy        User?      @relation("AbsenceDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([date])
+}
+
+model Attendance {
+  id           String           @id @default(uuid()) @db.Uuid
+  groupId      String           @db.Uuid
+  slotId       String           @db.Uuid
+  playerId     String           @db.Uuid
+  date         DateTime         @db.Date
+  status       AttendanceStatus
+  reason       String? // motif d'absence ou de retard
+  recordedById String           @db.Uuid
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  group      TrainingGroup @relation(fields: [groupId], references: [id])
+  slot       GroupSlot     @relation(fields: [slotId], references: [id])
+  player     Player        @relation(fields: [playerId], references: [id])
+  recordedBy User          @relation(fields: [recordedById], references: [id])
+
+  @@unique([slotId, playerId, date])
+}
+
+// ───────────────────────── Divers ─────────────────────────
+
+model Event {
+  id        String   @id @default(uuid()) @db.Uuid
+  title     String
+  date      DateTime @db.Date
+  place     String
+  tag       String // ex. « Tournoi »
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Paramètres modifiables par l'admin (délai d'annulation, début de la nuit…).
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  action    String // ex. « Saison activée »
+  entity    String // ex. « Season »
+  entityId  String?
+  target    String // libellé lisible
+  before    String?
+  after     String?
+  reason    String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
+
+model EmailLog {
+  id        String      @id @default(uuid()) @db.Uuid
+  to        String
+  subject   String
+  body      String
+  kind      EmailKind
+  status    EmailStatus
+  error     String?
+  attempts  Int         @default(0)
+  sentAt    DateTime?
+  createdAt DateTime    @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+}
+
+// ───────────────────────── Import historique (S9) ─────────────────────────
+
+model ImportBatch {
+  id        String       @id @default(uuid()) @db.Uuid
+  seasonId  String?      @db.Uuid
+  label     String
+  status    ImportStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  season Season?       @relation(fields: [seasonId], references: [id])
+  pages  ScannedPage[]
+}
+
+model ScannedPage {
+  id         String   @id @default(uuid()) @db.Uuid
+  batchId    String   @db.Uuid
+  pageNumber Int
+  storageKey String // clé du scan dans le stockage S3 (R2)
+  createdAt  DateTime @default(now())
+
+  batch   ImportBatch       @relation(fields: [batchId], references: [id])
+  records ExtractedRecord[]
+}
+
+model ExtractedRecord {
+  id          String    @id @default(uuid()) @db.Uuid
+  pageId      String    @db.Uuid
+  kind        String // joueur, paiement…
+  data        Json
+  confidence  Float?
+  validatedAt DateTime? // R14 : validation humaine obligatoire
+  createdAt   DateTime  @default(now())
+
+  page ScannedPage @relation(fields: [pageId], references: [id])
+}
+
+/// Notification dans l'application (cloche) : créée avec chaque email envoyé à un compte (sauf les identifiants).
+model Notification {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  kind        EmailKind
+  title       String
+  body        String
+  link        String?
+  readAt      DateTime?
+  createdAt   DateTime  @default(now())
+  broadcastId String?   @db.Uuid // message envoyé par le club (admin ou agent)
+
+  user      User                   @relation(fields: [userId], references: [id])
+  broadcast NotificationBroadcast? @relation(fields: [broadcastId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([createdAt])
+}
+
+/// Message envoyé par l'administration (président, agent) aux parents, joueurs, entraîneurs, à un groupe ou à des personnes.
+model NotificationBroadcast {
+  id         String   @id @default(uuid()) @db.Uuid
+  senderId   String   @db.Uuid
+  title      String
+  body       String
+  link       String?
+  audience   String // description lisible des destinataires (« Tous les parents », « Groupe Lutins 1 »…)
+  recipients Int
+  byEmail    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender        User           @relation(fields: [senderId], references: [id])
+  notifications Notification[]
+
+  @@index([createdAt])
+}

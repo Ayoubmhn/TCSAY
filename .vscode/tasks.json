@@ -1,0 +1,96 @@
+{
+  // Menu Terminal → Exécuter la tâche… (ou Ctrl+Shift+P → « Tasks: Run Task »)
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "TCSAY : première installation",
+      "detail": "npm install (api + web), .env, migrations, saisons de démo",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Docker : démarrer la base", "API : installer", "Web : installer"],
+      "problemMatcher": []
+    },
+    {
+      "label": "TCSAY : tout lancer",
+      "detail": "Docker, API (port 3000) et web (port 5173)",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Docker : démarrer la base", "API + Web"],
+      "problemMatcher": []
+    },
+    {
+      "label": "API + Web",
+      "hide": true,
+      "dependsOn": ["API : démarrer", "Web : démarrer"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : démarrer la base",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker : arrêter la base",
+      "type": "shell",
+      "command": "docker compose stop",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "API : installer",
+      "type": "shell",
+      "options": { "cwd": "${workspaceFolder}/api" },
+      "command": "node -e \"require('fs').existsSync('.env')||require('fs').copyFileSync('.env.example','.env')\"; npm install; npx prisma migrate dev; npx prisma db seed",
+      "problemMatcher": []
+    },
+    {
+      "label": "Web : installer",
+      "type": "shell",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "command": "npm install",
+      "problemMatcher": []
+    },
+    {
+      "label": "API : démarrer",
+      "type": "shell",
+      "options": { "cwd": "${workspaceFolder}/api" },
+      "command": "npm run start:dev",
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "tcsay" },
+      "problemMatcher": {
+        "owner": "tcsay-api",
+        "pattern": { "regexp": "^__aucun__$" },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "Starting compilation",
+          "endsPattern": "Nest application successfully started|EADDRINUSE|Found [1-9]\\d* error"
+        }
+      }
+    },
+    {
+      "label": "Web : démarrer",
+      "type": "shell",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "command": "npm run dev",
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "tcsay" },
+      "problemMatcher": {
+        "owner": "tcsay-web",
+        "pattern": { "regexp": "^__aucun__$" },
+        "background": {
+          "activeBegin": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:"
+        }
+      }
+    },
+    {
+      "label": "API : Prisma Studio (voir la base)",
+      "type": "shell",
+      "options": { "cwd": "${workspaceFolder}/api" },
+      "command": "npx prisma studio",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
