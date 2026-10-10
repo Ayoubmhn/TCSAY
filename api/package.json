@@ -10,15 +10,18 @@
     "start": "nest start",
     "prestart:dev": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
     "start:dev": "nest start --watch",
-    "db:update": "prisma migrate deploy && prisma generate && prisma db seed",
+    "db:update": "node prisma/db-tools.mjs migrate",
+    "db:migrate": "node prisma/db-tools.mjs migrate",
+    "db:status": "node prisma/db-tools.mjs status",
+    "db:backup": "node prisma/db-tools.mjs backup",
+    "db:restore": "node prisma/db-tools.mjs restore",
+    "db:init-prod": "node prisma/init-prod.mjs",
+    "db:demo": "prisma migrate deploy && prisma generate && prisma db seed",
     "start:prod": "node dist/main",
     "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio",
-    "prisma:seed": "prisma db seed"
+    "prisma:studio": "prisma studio"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.0",

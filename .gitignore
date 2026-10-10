@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Sauvegardes de la base (données réelles : jamais dans Git)
+api/backups/

@@ -2,8 +2,10 @@
 // ou à chaque démarrage si RESET_DEMO_DATA=true (remise à zéro des tests). Ne jamais utiliser en production réelle.
 import { spawnSync } from 'node:child_process';
 import { PrismaClient } from '@prisma/client';
+import { assertNotProduction } from './guard.mjs';
 
 const prisma = new PrismaClient();
+await assertNotProduction(prisma, 'Chargement des données de démonstration');
 const users = await prisma.user.count();
 await prisma.$disconnect();
 

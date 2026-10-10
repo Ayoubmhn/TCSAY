@@ -41,6 +41,14 @@ async function bootstrap(): Promise<void> {
     });
     Logger.log(`Site web servi depuis ${webDist}`, 'Bootstrap');
   }
+  const dbName = (() => {
+    try {
+      return new URL(process.env.DATABASE_URL ?? '').pathname.slice(1);
+    } catch {
+      return '?';
+    }
+  })();
+  Logger.log(`Base de données : ${dbName}${process.env.TCSAY_PRODUCTION === 'true' ? ' (PRODUCTION)' : ''}`, 'Bootstrap');
   if (process.env.DEMO_MODE === 'true') Logger.warn('Mode démonstration : données fictives, mots de passe des comptes de démo figés.', 'Bootstrap');
 
   const port = Number(process.env.PORT ?? 3000);

@@ -17,6 +17,8 @@ services:
     plan: free
     region: frankfurt
     branch: claude/tcsay-platform-dev-p3t75p
+    # Pas de déploiement automatique à chaque push : déploiement manuel seulement (Render › Manual Deploy).
+    autoDeploy: false
     buildCommand: >-
       cd web && npm ci --include=dev && npm run build &&
       cd ../api && npm ci --include=dev && npm run build
