@@ -154,6 +154,9 @@ model User {
   payMode            PayMode? // employés : à l'heure ou au mois
   payRate            Decimal?  @db.Decimal(10, 3) // DT par heure ou par mois
   mustChangePassword Boolean   @default(true)
+  /// Compte fédération (IJIN), facultatif : identifiant en clair, mot de passe chiffré (AES-256-GCM, clé dans api/.env).
+  ijinLogin          String?
+  ijinPasswordEnc    String?
   isActive           Boolean   @default(true) // comptes désactivés, jamais supprimés
   lastLoginAt        DateTime?
   version            Int       @default(1)
@@ -172,6 +175,7 @@ model User {
   attendances      Attendance[]
   salaries         Salary[]
   absenceDecisions CoachAbsence[] @relation("AbsenceDecidedBy")
+  notifications    Notification[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -184,21 +188,32 @@ model RolePermission {
 }
 
 model Player {
-  id         String    @id @default(uuid()) @db.Uuid
-  userId     String?   @unique @db.Uuid // compte propre (adulte) ; mineur : à confirmer
-  firstName  String
-  lastName   String
-  birthDate  DateTime  @db.Date
-  gender     Gender // M ou F
-  email      String?
-  phone      String?
-  cin        String? // adulte
-  photoUrl   String?
-  origin     Origin    @default(MANUAL)
-  archivedAt DateTime? // R8
-  version    Int       @default(1)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String?   @unique @db.Uuid // compte propre (adulte) ; mineur : à confirmer
+  /// Identifiant du club « 26TCSAY052 » : année (2 chiffres) de première inscription + TCSAY + n° dans l'année.
+  /// Provisoire tant que l'historique n'est pas importé (recalculé), puis définitif.
+  memberCode            String?   @unique
+  memberYear            Int?
+  memberSeq             Int?
+  memberCodeProvisional Boolean   @default(true)
+  firstName             String
+  lastName              String
+  nameAr                String? // nom en arabe (cahier du club, reçus)
+  birthDate             DateTime? @db.Date // vide : à compléter (import du cahier)
+  birthYearOnly         Boolean   @default(false) // seule l'année était connue : 1er janvier, à compléter
+  gender                Gender // M ou F
+  city                  String?
+  notes                 String? // remarques (2e téléphone, import…)
+  importRef             String? // R14 : fichier et ligne d'origine
+  email                 String?
+  phone                 String?
+  cin                   String? // adulte
+  photoUrl              String?
+  origin                Origin    @default(MANUAL)
+  archivedAt            DateTime? // R8
+  version               Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user         User?         @relation(fields: [userId], references: [id])
   parentLinks  ParentLink[]
@@ -206,6 +221,7 @@ model Player {
   reservations Reservation[]
   attendances  Attendance[]
 
+  @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
 }
 
@@ -678,4 +694,21 @@ model ExtractedRecord {
   createdAt   DateTime  @default(now())
 
   page ScannedPage @relation(fields: [pageId], references: [id])
+}
+
+/// Notification dans l'application (cloche) : créée avec chaque email envoyé à un compte (sauf les identifiants).
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  kind      EmailKind
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, readAt])
+  @@index([createdAt])
 }

@@ -5,6 +5,7 @@ import { hashPassword, temporaryPassword } from '../auth/password';
 import { rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
 import { Db, PrismaService } from '../prisma/prisma.service';
+import { isPlaceholderEmail } from '../common/placeholder';
 
 export type NewAccount = {
   email?: string | null;
@@ -106,7 +107,7 @@ export class AccountsService {
     newRole?: Role,
   ): Promise<Credentials> {
     if (password === null) {
-      if (user.email) {
+      if (user.email && !isPlaceholderEmail(user.email)) {
         const what = newRole && ROLE_NAME[newRole] ? `le rôle ${ROLE_NAME[newRole]}` : 'un nouveau rôle';
         await this.mail.send(
           user.email,
@@ -117,12 +118,56 @@ export class AccountsService {
       }
       return { sentTo: user.email, login: user.email ?? user.cin ?? '', temporaryPassword: null, existing: true };
     }
-    if (user.email) {
+    if (user.email && !isPlaceholderEmail(user.email)) {
       await this.mail.credentials(user.email, user.firstName, user.email, password);
       return { sentTo: user.email, login: user.email, temporaryPassword: null };
     }
     // Pas d'email : l'admin remet le mot de passe temporaire en main propre (affiché une seule fois).
     return { sentTo: null, login: user.cin ?? '', temporaryPassword: password };
+  }
+
+  /**
+   * Changement d'email par l'admin : le nouvel email devient l'identifiant, un NOUVEAU mot de passe temporaire est créé
+   * (changement obligatoire à la connexion) et envoyé au nouvel email. Sert notamment à remplacer l'email provisoire
+   * « …@a-completer.invalid » des parents et entraîneurs importés. Aucun envoi vers un email provisoire.
+   */
+  async changeEmail(actorId: string, userId: string, newEmail: string | null | undefined): Promise<Credentials | null> {
+    const email = newEmail?.trim().toLowerCase() || null;
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Compte introuvable.');
+    if (newEmail === undefined || email === user.email) return null;
+    if (!email && !user.cin) throw new BadRequestException('Email obligatoire (ce compte n’a pas de CIN pour se connecter).');
+    if (email) {
+      const other = await this.prisma.user.findUnique({ where: { email } });
+      if (other && other.id !== userId) throw new ConflictException(`L’email ${email} est déjà utilisé par un autre compte.`);
+    }
+    const password = temporaryPassword();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: userId },
+        data: { email, passwordHash: await hashPassword(password), mustChangePassword: true, version: { increment: 1 } },
+      });
+      await tx.player.updateMany({ where: { userId }, data: { email } });
+      await this.audit.log(
+        actorId,
+        {
+          action: 'Email modifié : nouveaux identifiants',
+          entity: 'User',
+          entityId: userId,
+          target: `${u.firstName} ${u.lastName}`.trim(),
+          before: user.email ?? '—',
+          after: email ?? '—',
+        },
+        tx,
+      );
+      return u;
+    });
+    if (email && !isPlaceholderEmail(email)) {
+      await this.mail.credentials(email, updated.firstName, email, password);
+      return { sentTo: email, login: email, temporaryPassword: null };
+    }
+    // Pas d'email réel : mot de passe à remettre en main propre (connexion par CIN).
+    return { sentTo: null, login: updated.cin ?? '', temporaryPassword: updated.cin ? password : null };
   }
 
   /**

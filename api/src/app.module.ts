@@ -23,6 +23,10 @@ import { ParentsController } from './parents/parents.controller';
 import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
 import { PaymentsService } from './payments/payments.service';
+import { PlayersImportController } from './players/import/players-import.controller';
+import { PlayersImportService } from './players/import/players-import.service';
+import { FederationController } from './federation/federation.controller';
+import { NotificationsController } from './notifications/notifications.controller';
 import { ReceiptsController } from './receipts/receipts.controller';
 import { ReceiptsService } from './receipts/receipts.service';
 import { PlayersController } from './players/players.controller';
@@ -59,6 +63,9 @@ import { StaffController } from './staff/staff.controller';
     SalariesController,
     PaymentsController,
     ReceiptsController,
+    NotificationsController,
+    FederationController,
+    PlayersImportController,
     AttendanceController,
     EventsController,
     EmailsController,
@@ -70,6 +77,7 @@ import { StaffController } from './staff/staff.controller';
     PlayersService,
     PaymentsService,
     ReceiptsService,
+    PlayersImportService,
     ReservationsService,
     SalariesService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions

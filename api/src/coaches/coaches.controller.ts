@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestj
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PayMode, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { IsEmail, IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
@@ -62,6 +62,13 @@ class UpdateCoachDto extends CoachFields {
   @IsInt()
   @Min(1)
   version: number;
+
+  /** Nouvel email : devient l'identifiant, un nouveau mot de passe temporaire y est envoyé. */
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_o, v) => v !== null)
+  @IsEmail({}, { message: 'Email invalide.' })
+  email?: string | null;
 }
 
 const COLORS = ['#00b050', '#ed7d31', '#00b0f0', '#ff00ff', '#ffd966', '#7030a0', '#c00000', '#4472c4'];
@@ -196,6 +203,7 @@ export class CoachesController {
       }),
       this.prisma.coach.update({ where: { id }, data: { color: dto.color ?? coach.color, version: { increment: 1 } } }),
     ]);
+    const credentials = await this.accounts.changeEmail(actor.id, coach.userId, dto.email);
     await this.audit.log(actor.id, {
       action: 'Entraîneur modifié',
       entity: 'Coach',
@@ -204,7 +212,7 @@ export class CoachesController {
       before,
       after: `${dto.firstName} ${dto.lastName} · CIN ${dto.cin} · ${payLabel(dto.payMode, dto.payRate)}`,
     });
-    return { ok: true };
+    return { ok: true, credentials };
   }
 
   @Post(':id/deactivate')

@@ -41,7 +41,7 @@ async function wipe() {
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
     'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
-    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'user', 'courtRate', 'court',
+    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
     await prisma[model].deleteMany();
@@ -183,8 +183,14 @@ async function main() {
   for (const [id, first, last, gender, birth, code, , email, phone, cin] of players) {
     let userId = null;
     if (email) userId = (await user({ email, role: 'PLAYER', firstName: first, lastName: last, phone, cin })).id;
+    const seq = Object.keys(J_).length + 1;
     const p = await prisma.player.create({
-      data: { firstName: first, lastName: last, gender, birthDate: day(birth), email, phone, cin, userId },
+      data: {
+        memberYear: 2026,
+        memberSeq: seq,
+        memberCode: `26TCSAY${String(seq).padStart(3, '0')}`,
+        firstName: first, lastName: last, gender, birthDate: day(birth), email, phone, cin, userId,
+      },
     });
     J_[id] = p.id;
     E[id] = (await prisma.enrollment.create({ data: { playerId: p.id, seasonId: CUR, categoryId: cat[code] } })).id;

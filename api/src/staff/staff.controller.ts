@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Get, Param, ParseUUIDPipe, Patch
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PayMode, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { ArrayNotEmpty, IsArray, IsEmail, IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsEmail, IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
@@ -63,6 +63,13 @@ class UpdateStaffDto extends StaffFields {
   @IsInt()
   @Min(1)
   version: number;
+
+  /** Nouvel email : devient l'identifiant, un nouveau mot de passe temporaire y est envoyé. */
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_o, v) => v !== null)
+  @IsEmail({}, { message: 'Email invalide.' })
+  email?: string | null;
 }
 
 const functionsLabel = (roles: Role[]) =>
@@ -152,6 +159,7 @@ export class StaffController {
         version: { increment: 1 },
       },
     });
+    const credentials = await this.accounts.changeEmail(actor.id, id, dto.email);
     await this.audit.log(actor.id, {
       action: 'Personnel modifié',
       entity: 'User',
@@ -160,7 +168,7 @@ export class StaffController {
       before: `${functionsLabel(user.roles) || '—'} · ${dt(num(user.payRate))}`,
       after: `${functionsLabel(updated.roles)} · ${dt(dto.payRate)}`,
     });
-    return view(updated);
+    return { ...view(await this.find(id)), credentials };
   }
 
   @Post(':id/deactivate')

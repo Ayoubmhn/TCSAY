@@ -178,6 +178,84 @@ export class GroupsController {
     return groups.map((g) => this.view(g));
   }
 
+  /**
+   * Fiche détaillée d'un groupe : créneaux et entraîneurs, joueurs (code, âge, catégorie, parents, présences),
+   * séances récentes, et joueurs de la saison sans groupe (à affecter).
+   */
+  @Get(':id/detail')
+  @Perm('groups.manage', 'planning.view', 'players.manage')
+  async detail(@Param('id', ParseUUIDPipe) id: string) {
+    const g = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { ...groupInclude, season: true } });
+    if (!g || g.archivedAt) throw notFound('Groupe');
+    const year = g.season.startDate.getUTCFullYear();
+    const memberIds = g.members.filter((m) => !m.enrollment.player.archivedAt).map((m) => m.enrollment.player.id);
+    const [players, attendance, withoutGroup] = await Promise.all([
+      this.prisma.player.findMany({
+        where: { id: { in: memberIds } },
+        select: {
+          id: true,
+          memberCode: true,
+          firstName: true,
+          lastName: true,
+          birthDate: true,
+          gender: true,
+          phone: true,
+          parentLinks: { select: { parent: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } } } },
+        },
+      }),
+      this.prisma.attendance.findMany({ where: { groupId: id }, select: { playerId: true, date: true, status: true }, orderBy: { date: 'desc' } }),
+      this.prisma.enrollment.findMany({
+        where: { seasonId: g.seasonId, groups: { none: {} }, player: { archivedAt: null } },
+        select: {
+          category: { select: { id: true, name: true } },
+          player: { select: { id: true, memberCode: true, firstName: true, lastName: true, birthDate: true } },
+        },
+        orderBy: { player: { lastName: 'asc' } },
+      }),
+    ]);
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const sessions = [...new Set(attendance.map((a) => a.date.toISOString().slice(0, 10)))].slice(0, 8);
+    const base = this.view(g);
+    return {
+      ...base,
+      season: { id: g.season.id, label: g.season.label, status: g.season.status },
+      places: Math.max(0, g.capacity - base.members.length),
+      members: base.members.map((m) => {
+        const p = byId.get(m.playerId);
+        const marks = attendance.filter((a) => a.playerId === m.playerId);
+        const present = marks.filter((a) => a.status !== 'ABSENT').length;
+        return {
+          ...m,
+          memberCode: p?.memberCode ?? null,
+          age: p?.birthDate ? year - p.birthDate.getUTCFullYear() : null,
+          gender: p?.gender ?? null,
+          phone: p?.phone ?? null,
+          parents: p?.parentLinks.map((l) => l.parent) ?? [],
+          attendance: { sessions: marks.length, present, absent: marks.length - present, rate: marks.length ? Math.round((present / marks.length) * 100) : null },
+        };
+      }),
+      recentSessions: sessions.map((date) => {
+        const marks = attendance.filter((a) => a.date.toISOString().slice(0, 10) === date);
+        return {
+          date,
+          present: marks.filter((a) => a.status === 'PRESENT').length,
+          late: marks.filter((a) => a.status === 'LATE').length,
+          absent: marks.filter((a) => a.status === 'ABSENT').length,
+        };
+      }),
+      attendanceRate: attendance.length ? Math.round((attendance.filter((a) => a.status !== 'ABSENT').length / attendance.length) * 100) : null,
+      candidates: withoutGroup.map((e) => ({
+        playerId: e.player.id,
+        memberCode: e.player.memberCode,
+        firstName: e.player.firstName,
+        lastName: e.player.lastName,
+        age: e.player.birthDate ? year - e.player.birthDate.getUTCFullYear() : null,
+        category: e.category,
+        sameCategory: !g.categoryId || e.category.id === g.categoryId,
+      })),
+    };
+  }
+
   @Post()
   @Perm('groups.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {

@@ -18,6 +18,27 @@ export class PlayersController {
     return this.players.list(q);
   }
 
+  /** Identifiants provisoires : aperçu du recalcul (ancien code → nouveau code), sans rien modifier. */
+  @Get('member-codes/plan')
+  @Perm('permissions.manage')
+  planCodes() {
+    return this.players.planMemberCodes();
+  }
+
+  /** Recalcule les identifiants provisoires (après import de l'historique). Président seulement. */
+  @Post('member-codes/recompute')
+  @Perm('permissions.manage')
+  recomputeCodes(@CurrentUser() user: AuthUser) {
+    return this.players.recomputeMemberCodes(user);
+  }
+
+  /** Rend les identifiants définitifs (plus jamais recalculés). Président seulement. */
+  @Post('member-codes/finalize')
+  @Perm('permissions.manage')
+  finalizeCodes(@CurrentUser() user: AuthUser) {
+    return this.players.finalizeMemberCodes(user);
+  }
+
   @Get(':id')
   @Perm('players.manage', 'payments.collect', 'groups.manage')
   get(@Param('id', ParseUUIDPipe) id: string) {

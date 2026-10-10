@@ -1,7 +1,8 @@
 import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
-import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AccountsService } from '../accounts/accounts.service';
 import { AuditService } from '../audit/audit.service';
@@ -59,6 +60,13 @@ class UpdateParentDto {
   @IsOptional()
   @Matches(/^[0-9A-Za-z]{6,12}$/, { message: 'CIN invalide (6 à 12 caractères).' })
   cin?: string;
+
+  /** Nouvel email : devient l'identifiant, un nouveau mot de passe temporaire y est envoyé. */
+  @IsOptional()
+  @Transform(({ value }) => (value === '' ? null : value))
+  @ValidateIf((_o, v) => v !== null)
+  @IsEmail({}, { message: 'Email invalide.' })
+  email?: string | null;
 }
 
 class LinkDto {
@@ -134,6 +142,7 @@ export class ParentsController {
         version: { increment: 1 },
       },
     });
+    const credentials = await this.accounts.changeEmail(actor.id, id, dto.email);
     await this.audit.log(actor.id, {
       action: 'Parent modifié',
       entity: 'User',
@@ -142,7 +151,7 @@ export class ParentsController {
       before: `${fullName(parent)} · ${parent.phone ?? '—'}`,
       after: `${fullName(updated)} · ${updated.phone ?? '—'}`,
     });
-    return { ok: true };
+    return { ok: true, credentials };
   }
 
   /** Profil d'un parent : informations, enfants et leurs groupes (créneaux). */
@@ -224,7 +233,9 @@ export class ParentsController {
     if (!player.parentLinks.some((l) => l.parentId === id)) throw notFound('Lien');
     const season = await this.access.activeSeason().catch(() => null);
     const year = season?.startDate.getUTCFullYear() ?? new Date().getFullYear();
-    if (ageAtYearEnd(player.birthDate, year) < 18 && player.parentLinks.length <= 1) {
+    // Date inconnue (import) : considéré comme mineur.
+    const minor = !player.birthDate || ageAtYearEnd(player.birthDate, year) < 18;
+    if (minor && player.parentLinks.length <= 1) {
       throw rule.conflict('R9', `${player.firstName} est mineur : il doit garder au moins un parent lié.`);
     }
     await this.prisma.parentLink.delete({ where: { parentId_playerId: { parentId: id, playerId } } });

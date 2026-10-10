@@ -43,10 +43,47 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
     this.stopping = true;
   }
 
-  /** Met l'email en file d'attente (retour immédiat). */
+  /** Met l'email en file d'attente (retour immédiat). Adresse provisoire (…@a-completer.invalid) : jamais envoyé. */
   async send(to: string, subject: string, text: string, kind: EmailKind): Promise<void> {
+    await this.notify(to, subject, text, kind);
+    if (/@a-completer\.invalid$/i.test(to)) {
+      await this.prisma.emailLog.create({
+        data: { to, subject, body: text, kind, status: EmailStatus.FAILED, error: 'Adresse provisoire : email non envoyé (à compléter dans la fiche).' },
+      });
+      return;
+    }
     await this.prisma.emailLog.create({ data: { to, subject, body: text, kind, status: EmailStatus.PENDING } });
     this.kick();
+  }
+
+  /**
+   * Notification dans l'application pour le compte qui a cet email (même provisoire : elle l'attend à sa connexion).
+   * Jamais pour les identifiants (mot de passe). Un échec n'empêche pas l'email.
+   */
+  private async notify(to: string, subject: string, text: string, kind: EmailKind) {
+    if (kind === EmailKind.CREDENTIALS) return;
+    try {
+      const user = await this.prisma.user.findUnique({ where: { email: to.toLowerCase() }, select: { id: true, roles: true } });
+      if (!user) return;
+      const body = text
+        .split('\n')
+        .filter((l) => !/^bonjour\b/i.test(l.trim()) && !/^le bureau du tcsay$/i.test(l.trim()))
+        .join('\n')
+        .trim();
+      const link =
+        kind === EmailKind.REMINDER
+          ? '/paiements'
+          : kind === EmailKind.RESERVATION
+            ? '/reserver'
+            : kind === EmailKind.SALARY
+              ? user.roles.includes('COACH')
+                ? '/coach/salaires'
+                : '/admin/mes-salaires'
+              : null;
+      await this.prisma.notification.create({ data: { userId: user.id, kind, title: subject, body, link } });
+    } catch (e) {
+      this.logger.warn(`Notification non créée pour ${to} : ${e instanceof Error ? e.message : String(e)}`);
+    }
   }
 
   credentials(to: string, firstName: string, login: string, password: string) {

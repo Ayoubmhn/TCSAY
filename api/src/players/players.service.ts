@@ -12,6 +12,7 @@ import { PaymentsService } from '../payments/payments.service';
 import { assertSeasonOpen, assertVersion, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { formatMemberCode, nextMemberCode } from './member-code';
 import { ChangeCategoryDto, CreatePlayerDto, ListPlayersQuery, UpdateContactDto, UpdatePlayerDto } from './players.dto';
 
 @Injectable()
@@ -31,13 +32,20 @@ export class PlayersService {
     const search = q.q?.trim();
     const where: Prisma.PlayerWhereInput = {
       archivedAt: q.archived ? { not: null } : null,
-      ...(q.archived ? {} : { enrollments: { some: { seasonId: season.id, categoryId: q.categoryId } } }),
+      // Joueurs inscrits à la saison, et joueurs importés sans inscription (date ou catégorie à compléter).
+      ...(q.archived
+        ? {}
+        : q.categoryId
+          ? { enrollments: { some: { seasonId: season.id, categoryId: q.categoryId } } }
+          : { OR: [{ enrollments: { some: { seasonId: season.id } } }, { enrollments: { none: {} } }] }),
       ...(search
         ? {
-            OR: [
+            AND: [{ OR: [
               { firstName: { contains: search, mode: 'insensitive' } },
               { lastName: { contains: search, mode: 'insensitive' } },
-            ],
+              { memberCode: { contains: search.replace(/\s+/g, ''), mode: 'insensitive' } },
+              { nameAr: { contains: search } },
+            ] }],
           }
         : {}),
     };
@@ -117,6 +125,7 @@ export class PlayersService {
           : null;
       const player = await tx.player.create({
         data: {
+          ...(await nextMemberCode(tx, season.startDate.getUTCFullYear())),
           firstName: dto.firstName.trim(),
           lastName: dto.lastName.trim(),
           birthDate,
@@ -231,6 +240,7 @@ export class PlayersService {
         firstName: dto.firstName?.trim(),
         lastName: dto.lastName?.trim(),
         birthDate: dto.birthDate ? dayFromIso(dto.birthDate) : undefined,
+        birthYearOnly: dto.birthDate ? false : undefined,
         gender: dto.gender,
         email: dto.email === undefined ? undefined : dto.email.trim().toLowerCase() || null,
         phone: dto.phone === undefined ? undefined : dto.phone.trim() || null,
@@ -238,15 +248,52 @@ export class PlayersService {
         version: { increment: 1 },
       },
     });
+    // Nouvel email : le compte du joueur (s'il en a un) reçoit ses nouveaux identifiants ; un joueur majeur sans compte
+    // en reçoit un. Un mineur sans compte garde seulement l'email (contact).
+    let credentials = null;
+    const newEmail = dto.email === undefined ? undefined : dto.email.trim().toLowerCase() || null;
+    if (newEmail !== undefined && newEmail !== player.email) {
+      if (updated.userId) {
+        credentials = await this.accounts.changeEmail(actor.id, updated.userId, newEmail);
+      } else if (newEmail && updated.birthDate && ageAtYearEnd(updated.birthDate, new Date().getFullYear()) >= 18) {
+        const created = await this.prisma.$transaction(async (tx) => {
+          const account = await this.accounts.create(tx, {
+            email: newEmail,
+            cin: updated.cin,
+            role: Role.PLAYER,
+            firstName: updated.firstName,
+            lastName: updated.lastName,
+            phone: updated.phone,
+          });
+          await tx.player.update({ where: { id }, data: { userId: account.user.id } });
+          return account;
+        });
+        credentials = await this.accounts.sendCredentials(created.user, created.password, Role.PLAYER);
+      }
+    }
+    // Date ajoutée à un joueur importé sans inscription : inscription à la saison active avec la catégorie proposée.
+    if (dto.birthDate && !player.birthDate) await this.enrollIfMissing(updated.id);
     await this.audit.log(actor.id, {
       action: 'Joueur modifié',
       entity: 'Player',
       entityId: id,
       target: fullName(updated),
-      before: `${fullName(player)} · ${isoDay(player.birthDate)} · ${player.gender}`,
-      after: `${fullName(updated)} · ${isoDay(updated.birthDate)} · ${updated.gender}`,
+      before: `${fullName(player)} · ${player.birthDate ? isoDay(player.birthDate) : 'date inconnue'} · ${player.gender}`,
+      after: `${fullName(updated)} · ${updated.birthDate ? isoDay(updated.birthDate) : 'date inconnue'} · ${updated.gender}`,
     });
-    return this.get(id);
+    return { ...(await this.get(id)), credentials };
+  }
+
+  /** Inscrit à la saison active (catégorie proposée) un joueur qui n'y est pas encore inscrit, si sa date est connue. */
+  private async enrollIfMissing(playerId: string) {
+    const season = await this.access.activeSeason().catch(() => null);
+    const player = await this.prisma.player.findUnique({ where: { id: playerId } });
+    if (!season || !player?.birthDate) return;
+    const exists = await this.prisma.enrollment.findUnique({ where: { playerId_seasonId: { playerId, seasonId: season.id } } });
+    if (exists) return;
+    const s = await this.categories.suggest(player.birthDate, player.gender, season.startDate.getUTCFullYear());
+    if ('error' in s) return;
+    await this.prisma.enrollment.create({ data: { playerId, seasonId: season.id, categoryId: s.category.id } });
   }
 
   /** R3 : catégorie modifiable par l'admin seulement, motif si hors norme. */
@@ -258,11 +305,9 @@ export class PlayersService {
       include: { category: true, player: true },
     });
     if (!enrollment) throw notFound('Inscription de la saison active');
-    const suggestion = await this.categories.suggest(
-      enrollment.player.birthDate,
-      enrollment.player.gender,
-      season.startDate.getUTCFullYear(),
-    );
+    const suggestion = enrollment.player.birthDate
+      ? await this.categories.suggest(enrollment.player.birthDate, enrollment.player.gender, season.startDate.getUTCFullYear())
+      : { error: 'Date de naissance inconnue.' };
     const allowed = 'error' in suggestion ? [] : [suggestion.category.id, suggestion.alternative?.id];
     const reason = dto.derogationReason?.trim() || null;
     const target = await this.prisma.category.findUnique({ where: { id: dto.categoryId }, select: { family: true } });
@@ -336,6 +381,85 @@ export class PlayersService {
     return { id: player.id, email: player.email, phone: player.phone };
   }
 
+  /**
+   * Recalcul des identifiants PROVISOIRES (après import de l'historique) : année = première saison où le joueur est inscrit,
+   * n° par ordre d'arrivée dans l'année, à la suite des codes déjà définitifs. Renvoie les changements (aperçu).
+   */
+  async planMemberCodes() {
+    const players = await this.prisma.player.findMany({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        createdAt: true,
+        memberCode: true,
+        memberYear: true,
+        memberSeq: true,
+        memberCodeProvisional: true,
+        enrollments: { select: { season: { select: { startDate: true } } } },
+      },
+    });
+    const nextSeq = new Map<number, number>();
+    for (const p of players) {
+      if (!p.memberCodeProvisional && p.memberYear && p.memberSeq) {
+        nextSeq.set(p.memberYear, Math.max(nextSeq.get(p.memberYear) ?? 0, p.memberSeq));
+      }
+    }
+    const firstYear = (p: (typeof players)[number]) => {
+      const years = p.enrollments.map((e) => e.season.startDate.getUTCFullYear());
+      return years.length ? Math.min(...years) : (p.memberYear ?? p.createdAt.getUTCFullYear());
+    };
+    const provisional = players
+      .filter((p) => p.memberCodeProvisional)
+      .map((p) => ({ ...p, year: firstYear(p) }))
+      .sort(
+        (a, b) =>
+          a.year - b.year ||
+          a.createdAt.getTime() - b.createdAt.getTime() ||
+          a.lastName.localeCompare(b.lastName, 'fr') ||
+          a.firstName.localeCompare(b.firstName, 'fr'),
+      );
+    const plan = provisional.map((p) => {
+      const seq = (nextSeq.get(p.year) ?? 0) + 1;
+      nextSeq.set(p.year, seq);
+      return { id: p.id, name: fullName(p), before: p.memberCode, year: p.year, seq, after: formatMemberCode(p.year, seq) };
+    });
+    return {
+      provisional: provisional.length,
+      definitive: players.length - provisional.length,
+      changes: plan.filter((c) => c.before !== c.after),
+      plan,
+    };
+  }
+
+  async recomputeMemberCodes(actor: AuthUser) {
+    const { plan, changes } = await this.planMemberCodes();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('player-member-code'))`;
+      // Deux temps pour éviter les collisions d'unicité pendant l'échange des n°.
+      await tx.player.updateMany({ where: { id: { in: plan.map((p) => p.id) } }, data: { memberCode: null, memberYear: null, memberSeq: null } });
+      for (const p of plan) {
+        await tx.player.update({ where: { id: p.id }, data: { memberCode: p.after, memberYear: p.year, memberSeq: p.seq } });
+      }
+      await this.audit.log(
+        actor.id,
+        { action: 'Identifiants joueurs recalculés', entity: 'Player', target: `${plan.length} codes provisoires`, after: `${changes.length} modifié(s)` },
+        tx,
+      );
+    });
+    return { updated: changes.length, total: plan.length };
+  }
+
+  /** Validation définitive des codes (après vérification de l'historique) : ils ne seront plus jamais recalculés. */
+  async finalizeMemberCodes(actor: AuthUser) {
+    const { count } = await this.prisma.player.updateMany({
+      where: { memberCodeProvisional: true, memberCode: { not: null } },
+      data: { memberCodeProvisional: false },
+    });
+    await this.audit.log(actor.id, { action: 'Identifiants joueurs validés', entity: 'Player', target: `${count} code(s)`, before: 'Provisoires', after: 'Définitifs' });
+    return { finalized: count };
+  }
+
   private include(seasonId: string) {
     return {
       enrollments: {
@@ -355,9 +479,11 @@ export class PlayersService {
   ) {
     const enrollment = p.enrollments[0];
     const group = enrollment?.groups.find((g) => !g.group.archivedAt)?.group ?? null;
-    const age = ageAtYearEnd(p.birthDate, referenceYear);
+    const age = p.birthDate ? ageAtYearEnd(p.birthDate, referenceYear) : null;
     return {
       id: p.id,
+      memberCode: p.memberCode,
+      memberCodeProvisional: p.memberCodeProvisional,
       firstName: p.firstName,
       lastName: p.lastName,
       birthDate: p.birthDate,
@@ -369,7 +495,14 @@ export class PlayersService {
       archivedAt: p.archivedAt,
       version: p.version,
       age,
-      minor: age < 18,
+      // Date inconnue (import) : traité comme mineur jusqu'à vérification.
+      minor: age === null || age < 18,
+      birthYearOnly: p.birthYearOnly,
+      nameAr: p.nameAr,
+      city: p.city,
+      notes: p.notes,
+      origin: p.origin,
+      enrolled: Boolean(enrollment),
       category: enrollment?.category ?? null,
       derogationReason: enrollment?.derogationReason ?? null,
       group: group ? { id: group.id, name: group.name } : null,
