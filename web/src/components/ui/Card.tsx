@@ -41,14 +41,25 @@ export function Kpi({ children }: { children: ReactNode }) {
  * Grille de cartes (.cards) : auto-fill minmax(250px, 1fr), gap 14px, une colonne sous 560px.
  * `list` : mêmes cartes en lignes compactes (une par ligne, contenu à l'horizontale, actions à droite) ; pas de tableau HTML.
  */
-export function CardGrid({ children, className = '', list = false }: { children: ReactNode; className?: string; list?: boolean }) {
+export function CardGrid({
+  children,
+  className = '',
+  list = false,
+  listColumns = 1,
+}: {
+  children: ReactNode;
+  className?: string;
+  list?: boolean;
+  /** Mode liste : 2 lignes côte à côte sur grand écran (une seule colonne sous 1100px). */
+  listColumns?: 1 | 2;
+}) {
   const layout = list
     ? [
-        'grid-cols-1 gap-2',
+        listColumns === 2 ? 'grid-cols-1 items-start gap-2 min-[1100px]:grid-cols-2' : 'grid-cols-1 gap-2',
         // carte → ligne : contenu à l'horizontale, retour à la ligne seulement si l'écran est étroit
         '[&>*]:flex-row [&>*]:flex-wrap [&>*]:items-center [&>*]:gap-x-4 [&>*]:gap-y-2 [&>*]:rounded-[20px] [&>*]:py-3',
         // nom à gauche, largeur fixe pour aligner les colonnes
-        '[&_.card-row]:w-[300px] [&_.card-row]:max-w-full [&_.card-row]:shrink-0',
+        listColumns === 2 ? '[&_.card-row]:w-[200px] [&_.card-row]:max-w-full [&_.card-row]:shrink-0' : '[&_.card-row]:w-[300px] [&_.card-row]:max-w-full [&_.card-row]:shrink-0',
         // pastilles et texte se partagent la place restante
         '[&>*>div:not(.card-row):not(.card-actions)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions)]:flex-1',
         '[&>*>span]:min-w-[140px] [&>*>span]:flex-1',

@@ -255,7 +255,7 @@ export function GroupsPage() {
       <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {list.length ? (
-            <CardGrid list={view === 'list'}>
+            <CardGrid list={view === 'list'} listColumns={2}>
               {list.map((g) => {
                 const full = g.members.length >= g.capacity;
                 return (
