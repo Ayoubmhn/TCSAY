@@ -10,13 +10,25 @@ import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+
 import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../lib/api';
 import { fullName, isPlaceholderEmail } from '../../lib/format';
 import type { Category, Player } from '../../lib/types';
+import { byNumber, byText, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { MemberCodesModal } from './MemberCodesModal';
 import { PlayerFormModal } from './PlayerFormModal';
+
+const PLAYER_SORTS: SortOption<Player>[] = [
+  ...nameSorts<Player>(),
+  { value: 'code', label: 'Code TCSAY', compare: byText<Player>((p) => p.memberCode) },
+  { value: 'young', label: 'Âge (plus jeune d’abord)', compare: byNumber<Player>((p) => p.age) },
+  { value: 'old', label: 'Âge (plus âgé d’abord)', compare: byNumber<Player>((p) => p.age, true) },
+  { value: 'category', label: 'Catégorie', compare: (a, b) => byText<Player>((p) => p.category?.name)(a, b) || byText<Player>((p) => p.lastName)(a, b) },
+  { value: 'group', label: 'Groupe (sans groupe en premier)', compare: (a, b) => byText<Player>((p) => p.group?.name)(a, b) || byText<Player>((p) => p.lastName)(a, b) },
+];
 
 /** Joueurs (vPlayers) : recherche, filtre par catégorie ou archivés, création, modification, archivage (R8). */
 export function PlayersPage() {
@@ -25,6 +37,8 @@ export function PlayersPage() {
   const [form, setForm] = useState<{ open: boolean; player?: Player }>({ open: false });
   const [toArchive, setToArchive] = useState<Player>();
   const [codes, setCodes] = useState(false);
+  const [view, setView] = useViewMode('joueurs');
+  const [sort, setSort] = useState('name');
   const { me } = useAuth();
   const president = Boolean(me?.permissions.includes('permissions.manage'));
 
@@ -49,7 +63,7 @@ export function PlayersPage() {
     invalidate: [['players'], ['dashboard']],
     success: 'Joueur restauré.',
   });
-  const rows = list.data ?? [];
+  const rows = sortRows(list.data ?? [], PLAYER_SORTS, sort);
 
   return (
     <>
@@ -57,7 +71,8 @@ export function PlayersPage() {
         title="Joueurs"
         subtitle="Découvrez les joueurs inscrits pour la saison en cours."
         action={
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
             {president && <Button onClick={() => setCodes(true)}>Identifiants TCSAY</Button>}
             <Link
               className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg"
@@ -90,6 +105,13 @@ export function PlayersPage() {
             ))}
           <option value="arch">Archivés</option>
         </FilterSelect>
+        <FilterSelect label="Trier par" value={sort} onChange={(e) => setSort(e.target.value)}>
+          {PLAYER_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Trier : {o.label}
+            </option>
+          ))}
+        </FilterSelect>
         {list.data && (
           <Pill tone="b">
             {rows.length} joueur{rows.length > 1 ? 's' : ''}
@@ -100,7 +122,7 @@ export function PlayersPage() {
       <div className="mt-2.5">
         <QueryState isPending={list.isPending} error={list.error} refetch={list.refetch}>
           {rows.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {rows.map((p) => (
                 <Card key={p.id}>
                   <CardRow>

@@ -9,10 +9,14 @@ import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../.
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { QueryState } from '../../components/ui/Loading';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { FilterSelect, Filters } from '../../components/ui/Field';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+
 import { api } from '../../lib/api';
 import { changedEmail, DT, fullName, isPlaceholderEmail, savedMessage } from '../../lib/format';
 import type { Coach, Credentials } from '../../lib/types';
+import { byNumber, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
@@ -22,10 +26,18 @@ export const payText = (mode: 'HOURLY' | 'MONTHLY' | null, rate: number) =>
   mode === 'HOURLY' ? `${DT(rate)} / heure` : mode === 'MONTHLY' ? `${DT(rate)} / mois` : 'à définir';
 
 /** Entraîneurs (vCoaches) : couleur au planning, rémunération à l'heure ou au mois, profil au clic. */
+const COACH_SORTS: SortOption<Coach>[] = [
+  ...nameSorts<Coach>(),
+  { value: 'sessions', label: 'Séances par semaine', compare: byNumber<Coach>((c) => c.sessionsPerWeek, true) },
+  { value: 'active', label: 'Actifs d’abord', compare: byNumber<Coach>((c) => (c.isActive ? 0 : 1)) },
+];
+
 export function CoachesPage() {
   const q = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches') });
   const [form, setForm] = useState<{ open: boolean; coach?: Coach }>({ open: false });
   const [toToggle, setToToggle] = useState<Coach>();
+  const [view, setView] = useViewMode('entraineurs');
+  const [sort, setSort] = useState('name');
   const [creds, setCreds] = useState<(Credentials & { name: string })[]>([]);
 
   const create = useAction(
@@ -67,16 +79,33 @@ export function CoachesPage() {
         title="Entraîneurs"
         subtitle="Découvrez les entraîneurs, leurs groupes et leur rémunération."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouvel entraîneur
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouvel entraîneur
+            </Button>
+          </div>
         }
       />
-      <div className="mt-5">
+      <Filters>
+        <FilterSelect label="Trier par" value={sort} onChange={(e) => setSort(e.target.value)}>
+          {COACH_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Trier : {o.label}
+            </option>
+          ))}
+        </FilterSelect>
+        {q.data && (
+          <Pill tone="b">
+            {q.data.length} entraîneur{q.data.length > 1 ? 's' : ''}
+          </Pill>
+        )}
+      </Filters>
+      <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
-              {q.data.map((c) => (
+            <CardGrid list={view === 'list'}>
+              {sortRows(q.data, COACH_SORTS, sort).map((c) => (
                 <Card key={c.id}>
                   <CardRow>
                     <Link to={`/admin/entraineurs/${c.id}`} className="flex items-center gap-2.5 hover:underline">

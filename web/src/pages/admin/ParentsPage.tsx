@@ -5,15 +5,18 @@ import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { Filters, SelectField } from '../../components/ui/Field';
+import { FilterSelect, Filters, SelectField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+
 import { api } from '../../lib/api';
 import { changedEmail, fullName, isPlaceholderEmail, savedMessage } from '../../lib/format';
 import type { Parent, Player } from '../../lib/types';
+import { byNumber, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
@@ -72,6 +75,12 @@ function LinkModal({ parent, onClose }: { parent?: Parent; onClose: () => void }
   );
 }
 
+const PARENT_SORTS: SortOption<Parent>[] = [
+  ...nameSorts<Parent>(),
+  { value: 'kids', label: 'Nombre de joueurs', compare: byNumber<Parent>((p) => p.players.length, true) },
+  { value: 'todo', label: 'Email à compléter d’abord', compare: byNumber<Parent>((p) => (isPlaceholderEmail(p.email) ? 0 : 1)) },
+];
+
 /** Parents (vParents) : comptes, enfants liés (plusieurs-à-plusieurs), désactivation. */
 export function ParentsPage() {
   const q = useQuery({ queryKey: ['parents'], queryFn: () => api.get<Parent[]>('/parents') });
@@ -81,7 +90,9 @@ export function ParentsPage() {
   const [unlink, setUnlink] = useState<{ parent: Parent; player: Parent['players'][number] }>();
   const [toDelete, setToDelete] = useState<Parent>();
   const [search, setSearch] = useState('');
-  const rows = useMemo(() => (q.data ?? []).filter((p) => matches(p, search)), [q.data, search]);
+  const [sort, setSort] = useState('name');
+  const [view, setView] = useViewMode('parents');
+  const rows = useMemo(() => sortRows((q.data ?? []).filter((p) => matches(p, search)), PARENT_SORTS, sort), [q.data, search, sort]);
 
   const create = useAction((v: PersonValues) => api.post('/parents', personPayload('parent', v)), {
     invalidate: KEYS,
@@ -127,9 +138,12 @@ export function ParentsPage() {
         title="Parents"
         subtitle="Découvrez les parents et les joueurs qui leur sont liés."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouveau parent
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouveau parent
+            </Button>
+          </div>
         }
       />
       <Filters>
@@ -140,6 +154,13 @@ export function ParentsPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+        <FilterSelect label="Trier par" value={sort} onChange={(e) => setSort(e.target.value)}>
+          {PARENT_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Trier : {o.label}
+            </option>
+          ))}
+        </FilterSelect>
         {q.data && (
           <Pill tone="b">
             {rows.length} parent{rows.length > 1 ? 's' : ''}
@@ -149,7 +170,7 @@ export function ParentsPage() {
       <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {rows.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {rows.map((u) => (
                 <Card key={u.id}>
                   <CardRow>

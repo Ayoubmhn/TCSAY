@@ -9,10 +9,14 @@ import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { FilterSelect, Filters } from '../../components/ui/Field';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+
 import { api } from '../../lib/api';
 import { changedEmail, fullName, savedMessage } from '../../lib/format';
 import type { Credentials, Staff } from '../../lib/types';
+import { byNumber, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { payText } from './CoachesPage';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
@@ -20,10 +24,17 @@ import { PersonFormModal, personPayload, type PersonValues } from './PersonFormM
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
 /** Personnel administratif : agents administratifs et directeur technique (acteurs à préciser avec le bureau). */
+const STAFF_SORTS: SortOption<Staff>[] = [
+  ...nameSorts<Staff>(),
+  { value: 'active', label: 'Actifs d’abord', compare: byNumber<Staff>((s) => (s.isActive ? 0 : 1)) },
+];
+
 export function StaffPage() {
   const q = useQuery({ queryKey: ['staff'], queryFn: () => api.get<Staff[]>('/staff') });
   const [form, setForm] = useState<{ open: boolean; staff?: Staff }>({ open: false });
   const [toToggle, setToToggle] = useState<Staff>();
+  const [view, setView] = useViewMode('personnel');
+  const [sort, setSort] = useState('name');
   const [creds, setCreds] = useState<(Credentials & { name: string })[]>([]);
 
   const create = useAction(
@@ -65,16 +76,28 @@ export function StaffPage() {
         title="Personnel"
         subtitle="Découvrez les agents administratifs et la direction technique."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouveau membre
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouveau membre
+            </Button>
+          </div>
         }
       />
-      <div className="mt-5">
+      <Filters>
+        <FilterSelect label="Trier par" value={sort} onChange={(e) => setSort(e.target.value)}>
+          {STAFF_SORTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              Trier : {o.label}
+            </option>
+          ))}
+        </FilterSelect>
+      </Filters>
+      <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
-              {q.data.map((s) => (
+            <CardGrid list={view === 'list'}>
+              {sortRows(q.data, STAFF_SORTS, sort).map((s) => (
                 <Card key={s.id}>
                   <CardRow>
                     <Link to={`/admin/personnel/${s.id}`} className="flex items-center gap-2.5 hover:underline">
