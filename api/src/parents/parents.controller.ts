@@ -265,7 +265,8 @@ export class ParentsController {
       include: {
         _count: {
           select: {
-            auditLogs: true,
+            // Actions sur son propre compte (ex. « Mot de passe changé » à la 1re connexion) : pas un historique bloquant.
+            auditLogs: { where: { NOT: { entityId: id } } },
             reservations: true,
             cancellations: true,
             payments: true,
@@ -282,9 +283,26 @@ export class ParentsController {
         parentLinks: { include: { player: { include: { parentLinks: true } } } },
       },
     });
-    const history = Object.values(u._count).reduce((t, n) => t + n, 0);
-    if (history || u.player || u.coach) {
-      throw rule.conflict('R8', `${fullName(parent)} a un historique dans l’application : le compte ne peut pas être supprimé, désactivez-le.`);
+    const LABELS: Record<keyof typeof u._count, string> = {
+      auditLogs: 'action(s) dans l’administration',
+      reservations: 'réservation(s)',
+      cancellations: 'annulation(s) de réservation',
+      payments: 'paiement(s) encaissé(s)',
+      receiptsIssued: 'reçu(s) émis',
+      receiptsVoided: 'reçu(s) annulé(s)',
+      attendances: 'pointage(s) de présence',
+      salaries: 'salaire(s)',
+      absenceDecisions: 'décision(s) d’absence',
+      broadcastsSent: 'message(s) du club envoyé(s)',
+    };
+    const history = (Object.keys(LABELS) as (keyof typeof LABELS)[]).filter((k) => u._count[k] > 0).map((k) => `${u._count[k]} ${LABELS[k]}`);
+    if (u.player) history.push('une fiche joueur');
+    if (u.coach) history.push('une fiche entraîneur');
+    if (history.length) {
+      throw rule.conflict(
+        'R8',
+        `${fullName(parent)} ne peut pas être supprimé (${history.join(', ')}) : désactivez le compte, l’historique est conservé.`,
+      );
     }
     const season = await this.access.activeSeason().catch(() => null);
     const year = season?.startDate.getUTCFullYear() ?? new Date().getFullYear();
@@ -297,10 +315,20 @@ export class ParentsController {
         `${orphans.map((p) => fullName(p)).join(', ')} ${orphans.length > 1 ? 'sont mineurs' : 'est mineur'} : liez un autre parent avant de supprimer ${fullName(parent)}.`,
       );
     }
+    // Le journal d'audit est en lecture seule (protégé en base) : un compte qui y figure (ex. « Mot de passe changé »)
+    // n'est pas effacé mais retiré : liens supprimés, rôle parent retiré, connexion bloquée, email et CIN libérés.
+    const inAudit = await this.prisma.auditLog.count({ where: { userId: id } });
     await this.prisma.$transaction(async (tx) => {
       await tx.parentLink.deleteMany({ where: { parentId: id } });
       await tx.notification.deleteMany({ where: { userId: id } });
-      await tx.user.delete({ where: { id } });
+      if (inAudit) {
+        await tx.user.update({
+          where: { id },
+          data: { roles: [], isActive: false, email: null, cin: null, ijinLogin: null, ijinPasswordEnc: null, version: { increment: 1 } },
+        });
+      } else {
+        await tx.user.delete({ where: { id } });
+      }
       await this.audit.log(
         actor.id,
         {
@@ -309,7 +337,7 @@ export class ParentsController {
           entityId: id,
           target: fullName(parent),
           before: `${parent.email ?? parent.cin ?? '—'} · ${u.parentLinks.map((l) => fullName(l.player)).join(', ') || 'aucun joueur'}`,
-          after: 'Supprimé',
+          after: inAudit ? 'Compte retiré (conservé pour le journal d’audit)' : 'Supprimé',
         },
         tx,
       );

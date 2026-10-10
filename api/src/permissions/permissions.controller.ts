@@ -103,16 +103,20 @@ export class PermissionsController {
   async users(@Query() q: UsersQuery) {
     const term = q.q?.trim();
     const users = await this.prisma.user.findMany({
-      where: term
-        ? {
-            OR: [
-              { firstName: { contains: term, mode: 'insensitive' } },
-              { lastName: { contains: term, mode: 'insensitive' } },
-              { email: { contains: term, mode: 'insensitive' } },
-              { cin: { contains: term } },
-            ],
-          }
-        : {},
+      where: {
+        // Comptes retirés (parent supprimé mais conservé pour le journal d'audit) : masqués.
+        NOT: { roles: { isEmpty: true }, isActive: false },
+        ...(term
+          ? {
+              OR: [
+                { firstName: { contains: term, mode: 'insensitive' as const } },
+                { lastName: { contains: term, mode: 'insensitive' as const } },
+                { email: { contains: term, mode: 'insensitive' as const } },
+                { cin: { contains: term } },
+              ],
+            }
+          : {}),
+      },
       include: { player: { select: { id: true } }, coach: { select: { id: true } } },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
       take: 200,
