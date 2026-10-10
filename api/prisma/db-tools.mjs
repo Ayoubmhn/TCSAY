@@ -1,10 +1,12 @@
 // Outils de la base, sans dépendance : sauvegarde, restauration, état et application des migrations.
 //   npm run db:backup                 → sauvegarde complète (JSON + pg_dump s'il est installé) dans api/backups/
+//   npm run db:backup -- --keep 30    → idem, puis ne garde que les 30 sauvegardes « sauvegarde » les plus récentes
+//   BACKUP_DIR=…                      → autre dossier (ex. dossier Google Drive / OneDrive synchronisé : copie hors du PC)
 //   npm run db:restore -- <fichier>   → restaure une sauvegarde JSON dans une base VIDE
 //   npm run db:status                 → montre les modifications de structure en attente (ne change rien)
 //   npm run db:migrate                → sauvegarde, puis applique les modifications en attente (après confirmation)
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
@@ -14,7 +16,7 @@ import { databaseName } from './guard.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const apiDir = resolve(here, '..');
-const backupDir = join(apiDir, 'backups');
+const backupDir = process.env.BACKUP_DIR ? resolve(process.env.BACKUP_DIR) : join(apiDir, 'backups');
 const require = createRequire(import.meta.url);
 const prismaCli = require.resolve('prisma/build/index.js');
 
@@ -77,8 +79,19 @@ async function backup(label = 'sauvegarde') {
   } else {
     console.log('ℹ pg_dump introuvable : sauvegarde JSON seulement (restaurable avec npm run db:restore).');
   }
-  console.log('  Pensez à copier api/backups/ hors du PC (clé USB, Google Drive).');
+  console.log(process.env.BACKUP_DIR ? `  Dossier : ${backupDir}` : '  Pensez à copier api/backups/ hors du PC (clé USB, Google Drive), ou réglez BACKUP_DIR.');
   return jsonFile;
+}
+
+/** Rotation : ne garde que les `keep` dernières sauvegardes ordinaires (celles « avant-migration » sont toutes gardées). */
+function prune(keep) {
+  if (!Number.isInteger(keep) || keep < 1) return;
+  const files = readdirSync(backupDir).filter((f) => /_sauvegarde\.(json|dump)$/.test(f));
+  const bases = [...new Set(files.map((f) => f.replace(/\.(json|dump)$/, '')))].sort().reverse();
+  for (const base of bases.slice(keep)) {
+    for (const ext of ['json', 'dump']) rmSync(join(backupDir, `${base}.${ext}`), { force: true });
+    console.log(`  Ancienne sauvegarde supprimée : ${base}`);
+  }
 }
 
 /** Ordre d'insertion : une table après celles qu'elle référence. */
@@ -142,9 +155,12 @@ async function migrate() {
   console.log('\n✔ Base à jour. Redémarrez l’API.');
 }
 
-const [command, arg] = process.argv.slice(2);
+const [command, arg, value] = process.argv.slice(2);
 try {
-  if (command === 'backup') await backup();
+  if (command === 'backup') {
+    await backup();
+    if (arg === '--keep') prune(Number(value));
+  }
   else if (command === 'restore') await restore(arg);
   else if (command === 'status') {
     console.log(`Base : « ${databaseName()} »\n`);

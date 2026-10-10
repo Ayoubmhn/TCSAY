@@ -6,7 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { TextField } from '../../components/ui/Field';
 import { useToast } from '../../components/ui/Toast';
-import { api, errorMessage } from '../../lib/api';
+import { changePassword, errorMessage, passwordHint } from '../../lib/api';
 
 /** Changement obligatoire du mot de passe temporaire (mustChangePassword). */
 export function ChangePasswordPage() {
@@ -22,11 +22,12 @@ export function ChangePasswordPage() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (pw1.length < 8) return toast('Le mot de passe doit contenir au moins 8 caractères.');
+    const hint = passwordHint(pw1);
+    if (hint) return toast(hint);
     if (pw1 !== pw2) return toast('Les deux mots de passe ne correspondent pas.');
     setPending(true);
     try {
-      await api.post('/auth/change-password', { currentPassword: current, newPassword: pw1 });
+      await changePassword(current, pw1);
       await refresh();
       toast('Mot de passe enregistré. Bienvenue !');
       navigate(homeOf(me), { replace: true });
@@ -59,7 +60,7 @@ export function ChangePasswordPage() {
               onChange={(e) => setCurrent(e.target.value)}
             />
             <TextField
-              label="Nouveau mot de passe (8 caractères minimum)"
+              label="Nouveau mot de passe (10 caractères, lettres et chiffres)"
               type="password"
               autoComplete="new-password"
               value={pw1}

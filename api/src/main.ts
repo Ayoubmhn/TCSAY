@@ -8,12 +8,14 @@ import { join, resolve } from 'node:path';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
+import { applyHttpSecurity, swaggerEnabled } from './security/http-security';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api/v1');
-  app.enableCors({ origin: process.env.CORS_ORIGIN?.split(',') ?? true });
+  // En-têtes de sécurité, CORS, limite de requêtes, adresse réelle derrière l'hébergeur.
+  applyHttpSecurity(app);
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
@@ -26,9 +28,11 @@ async function bootstrap(): Promise<void> {
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
-  SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, config), {
-    swaggerOptions: { persistAuthorization: true },
-  });
+  if (swaggerEnabled()) {
+    SwaggerModule.setup('api/docs', app, () => SwaggerModule.createDocument(app, config), {
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   // Hébergement de test (une seule adresse) : l'API sert aussi le site web compilé (web/dist).
   const webDist = resolve(__dirname, '..', '..', 'web', 'dist');
@@ -54,7 +58,10 @@ async function bootstrap(): Promise<void> {
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
   Logger.log(ENV_FILE ? `Configuration lue dans ${ENV_FILE}` : 'Aucun fichier .env trouvé : valeurs par défaut.', 'Bootstrap');
-  Logger.log(`API : http://localhost:${port}/api/v1 · Swagger : http://localhost:${port}/api/docs`, 'Bootstrap');
+  Logger.log(
+    `API : http://localhost:${port}/api/v1${swaggerEnabled() ? ` · Swagger : http://localhost:${port}/api/docs` : ' · Swagger désactivé (production)'}`,
+    'Bootstrap',
+  );
 }
 
 void bootstrap();

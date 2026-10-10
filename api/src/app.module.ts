@@ -1,3 +1,4 @@
+import { LoginThrottle } from './security/login-throttle';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { CoachAbsencesController } from './absences/coach-absences.controller';
@@ -76,6 +77,7 @@ import { StaffController } from './staff/staff.controller';
     PermissionsController,
   ],
   providers: [
+    LoginThrottle,
     PlayersService,
     PaymentsService,
     ReceiptsService,

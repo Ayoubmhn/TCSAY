@@ -178,7 +178,7 @@ const DICT: Record<string, [string, string]> = {
   'Identifiant (email ou CIN)': ['Login (email or ID card no.)', 'المعرّف (البريد أو رقم البطاقة)'],
   'Mot de passe actuel': ['Current password', 'كلمة المرور الحالية'],
   'Mot de passe temporaire': ['Temporary password', 'كلمة المرور المؤقتة'],
-  'Nouveau mot de passe (8 caractères minimum)': ['New password (at least 8 characters)', 'كلمة مرور جديدة (8 أحرف على الأقل)'],
+  'Nouveau mot de passe (10 caractères, lettres et chiffres)': ['New password (10 characters, letters and digits)', 'كلمة مرور جديدة (10 أحرف، حروف وأرقام)'],
   Confirmation: ['Confirmation', 'التأكيد'],
   'Compte créé le': ['Account created on', 'تاريخ إنشاء الحساب'],
   'Dernière connexion': ['Last login', 'آخر دخول'],
@@ -246,7 +246,8 @@ const DICT: Record<string, [string, string]> = {
   // Paramètres
   'Mot de passe enregistré.': ['Password saved.', 'تم حفظ كلمة المرور.'],
   'Saisissez votre mot de passe actuel.': ['Enter your current password.', 'أدخل كلمة المرور الحالية.'],
-  'Le mot de passe doit contenir au moins 8 caractères.': ['The password must contain at least 8 characters.', 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل.'],
+  'Le mot de passe doit contenir au moins 10 caractères.': ['The password must contain at least 10 characters.', 'يجب أن تحتوي كلمة المرور على 10 أحرف على الأقل.'],
+  'Le mot de passe doit contenir au moins une lettre et un chiffre.': ['The password must contain at least one letter and one digit.', 'يجب أن تحتوي كلمة المرور على حرف ورقم على الأقل.'],
   'Les deux mots de passe ne correspondent pas.': ['The two passwords do not match.', 'كلمتا المرور غير متطابقتين.'],
   'Préférences enregistrées sur cet appareil.': ['Preferences saved on this device.', 'التفضيلات محفوظة على هذا الجهاز.'],
   'Compte fédération (IJIN)': ['Federation account (IJIN)', 'حساب الجامعة (IJIN)'],

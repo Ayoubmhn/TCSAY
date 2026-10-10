@@ -112,3 +112,16 @@ export const api = {
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Une erreur inattendue est survenue.';
 }
+
+/** Changement de mot de passe : l'API renvoie un nouveau jeton (les anciennes sessions sont déconnectées). */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const r = await api.post<{ accessToken?: string }>('/auth/change-password', { currentPassword, newPassword });
+  if (r?.accessToken) setToken(r.accessToken);
+}
+
+/** Règles du mot de passe (vérifiées aussi par l'API) : message à afficher, ou null. */
+export function passwordHint(password: string): string | null {
+  if (password.length < 10) return 'Le mot de passe doit contenir au moins 10 caractères.';
+  if (!/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password)) return 'Le mot de passe doit contenir au moins une lettre et un chiffre.';
+  return null;
+}

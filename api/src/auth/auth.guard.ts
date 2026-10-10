@@ -4,7 +4,7 @@ import { Role } from '@prisma/client';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ALLOW_PENDING_PASSWORD, AuthUser, IS_PUBLIC, PERMS, ROLES, Space, SPACE_ROLE, spacesOf } from './auth-user';
-import { verifyToken } from './jwt';
+import { passwordStamp, verifyToken } from './jwt';
 
 /**
  * Garde globale : JWT obligatoire (sauf @Public), compte actif, mot de passe changé,
@@ -33,6 +33,8 @@ export class AuthGuard implements CanActivate {
       include: { player: { select: { id: true } }, coach: { select: { id: true } } },
     });
     if (!user || !user.isActive) throw new UnauthorizedException('Compte désactivé ou introuvable.');
+    // Mot de passe changé (par l'utilisateur ou nouveaux identifiants envoyés par le club) : anciennes sessions refusées.
+    if (payload.pw !== passwordStamp(user.passwordHash)) throw new UnauthorizedException('Session expirée : reconnectez-vous.');
 
     if (user.mustChangePassword && !this.reflector.getAllAndOverride<boolean>(ALLOW_PENDING_PASSWORD, targets)) {
       throw new ForbiddenException('Changez votre mot de passe temporaire pour continuer.');

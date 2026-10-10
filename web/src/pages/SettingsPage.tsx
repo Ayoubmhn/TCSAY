@@ -10,7 +10,7 @@ import { Section } from '../components/ui/Section';
 import { Segmented } from '../components/ui/Segmented';
 import { setTheme, useTheme, type Theme } from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
-import { api } from '../lib/api';
+import { changePassword, passwordHint } from '../lib/api';
 import { formatDate, formatDateTime } from '../lib/format';
 import { LANGS, useI18n, type Lang } from '../lib/i18n';
 import { useAction } from '../lib/useAction';
@@ -30,7 +30,7 @@ export function SettingsPage() {
   const [pw1, setPw1] = useState('');
   const [pw2, setPw2] = useState('');
 
-  const change = useAction(() => api.post('/auth/change-password', { currentPassword: current, newPassword: pw1 }), {
+  const change = useAction(() => changePassword(current, pw1), {
     success: t('Mot de passe enregistré.'),
     onSuccess: () => {
       setCurrent('');
@@ -42,7 +42,8 @@ export function SettingsPage() {
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!current) return toast(t('Saisissez votre mot de passe actuel.'));
-    if (pw1.length < 8) return toast(t('Le mot de passe doit contenir au moins 8 caractères.'));
+    const hint = passwordHint(pw1);
+    if (hint) return toast(t(hint));
     if (pw1 !== pw2) return toast(t('Les deux mots de passe ne correspondent pas.'));
     change.mutate();
   };
@@ -80,7 +81,7 @@ export function SettingsPage() {
               <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
                 <TextField label="Mot de passe actuel" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
                 <TextField
-                  label="Nouveau mot de passe (8 caractères minimum)"
+                  label="Nouveau mot de passe (10 caractères, lettres et chiffres)"
                   type="password"
                   autoComplete="new-password"
                   value={pw1}
