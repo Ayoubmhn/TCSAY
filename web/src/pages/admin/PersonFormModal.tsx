@@ -3,6 +3,7 @@ import { Button } from '../../components/ui/Button';
 import { FormGrid, SelectField, TextField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { useToast } from '../../components/ui/Toast';
+import { isPlaceholderEmail } from '../../lib/format';
 import type { StaffFunction } from '../../lib/types';
 
 const STAFF_FUNCTIONS: [StaffFunction, string][] = [
@@ -32,7 +33,7 @@ const EMAIL = /^\S+@\S+\.\S+$/;
 
 /** Champs envoyés à l'API (chaînes vides retirées, taux en nombre). */
 export function personPayload(kind: PersonKind, v: PersonValues) {
-  const base = { firstName: v.firstName.trim(), lastName: v.lastName.trim(), cin: v.cin.trim(), phone: v.phone.trim() || undefined };
+  const base = { firstName: v.firstName.trim(), lastName: v.lastName.trim(), cin: v.cin.trim() || undefined, phone: v.phone.trim() || undefined };
   if (kind === 'parent') return { ...base, email: v.email.trim(), phone: v.phone.trim() };
   const pay = { payMode: v.payMode, payRate: Number(v.payRate) };
   if (kind === 'coach') return { ...base, ...pay, color: v.color };
@@ -67,8 +68,12 @@ export function PersonFormModal({
   // Valeurs initiales lues à l'ouverture seulement (sinon chaque rendu du parent effacerait la saisie).
   const initialRef = useRef(initial);
   initialRef.current = initial;
+  // Email provisoire d'un compte importé : champ vide à compléter (les identifiants partiront à la nouvelle adresse).
+  const placeholder = editing && isPlaceholderEmail(initial?.email);
   useEffect(() => {
-    if (open) setV({ ...EMPTY, ...initialRef.current });
+    if (!open) return;
+    const init = { ...EMPTY, ...initialRef.current };
+    setV(isPlaceholderEmail(init.email) ? { ...init, email: '' } : init);
   }, [open]);
   const set = (k: Exclude<keyof PersonValues, 'functions'>) => (e: { target: { value: string } }) => setV((x) => ({ ...x, [k]: e.target.value }));
   const paid = kind !== 'parent';
@@ -76,11 +81,12 @@ export function PersonFormModal({
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!v.firstName.trim() || !v.lastName.trim()) return toast('Prénom et nom sont obligatoires.');
-    if (!CIN.test(v.cin.trim())) return toast('CIN obligatoire (6 à 12 caractères).');
-    if (kind === 'parent') {
+    // Comptes importés du cahier : CIN et téléphone parfois inconnus, à compléter plus tard.
+    if ((!editing || v.cin.trim()) && !CIN.test(v.cin.trim())) return toast('CIN obligatoire (6 à 12 caractères).');
+    if (kind === 'parent' && !editing) {
       if (!v.phone.trim()) return toast('Téléphone obligatoire.');
-      if (!editing && !EMAIL.test(v.email.trim())) return toast('Email invalide.');
-    } else if (!editing && v.email.trim() && !EMAIL.test(v.email.trim())) {
+      if (!EMAIL.test(v.email.trim())) return toast('Email invalide.');
+    } else if (v.email.trim() && !EMAIL.test(v.email.trim())) {
       return toast('Email invalide.');
     }
     if (kind === 'staff' && !v.functions.length) return toast('Choisissez au moins une fonction.');
@@ -89,7 +95,11 @@ export function PersonFormModal({
     onSubmit(v);
   };
 
-  const emailLabel = kind === 'parent' ? 'Email (identifiant)' : 'Email (facultatif : sinon identifiant = CIN)';
+  const emailLabel = placeholder
+    ? 'Email à compléter (identifiants envoyés à cette adresse)'
+    : kind === 'parent'
+      ? 'Email (identifiant)'
+      : 'Email (facultatif : sinon identifiant = CIN)';
 
   return (
     <Modal
@@ -109,9 +119,14 @@ export function PersonFormModal({
       <FormGrid id="person-form" onSubmit={submit}>
         <TextField label="Prénom *" value={v.firstName} onChange={set('firstName')} />
         <TextField label="Nom *" value={v.lastName} onChange={set('lastName')} />
-        <TextField label="CIN *" value={v.cin} onChange={set('cin')} inputMode="numeric" />
-        <TextField label={kind === 'parent' ? 'Téléphone *' : 'Téléphone'} value={v.phone} onChange={set('phone')} inputMode="tel" />
-        <TextField label={kind === 'parent' ? `${emailLabel} *` : emailLabel} full type="email" value={v.email} onChange={set('email')} disabled={editing} />
+        <TextField label={editing ? 'CIN' : 'CIN *'} value={v.cin} onChange={set('cin')} inputMode="numeric" />
+        <TextField label={kind === 'parent' && !editing ? 'Téléphone *' : 'Téléphone'} value={v.phone} onChange={set('phone')} inputMode="tel" />
+        <TextField label={kind === 'parent' && !editing ? `${emailLabel} *` : emailLabel} full type="email" value={v.email} onChange={set('email')} />
+        {editing && (
+          <p className="col-span-full m-0 text-xs text-mut">
+            Changer l’email remplace l’identifiant : un nouveau mot de passe temporaire est envoyé à la nouvelle adresse (changement obligatoire à la connexion).
+          </p>
+        )}
         {kind === 'staff' && (
           <fieldset className="col-span-full m-0 flex flex-col gap-2 border-0 p-0">
             <legend className="mb-1.5 text-xs font-medium text-mut">Fonctions * (cumulables)</legend>

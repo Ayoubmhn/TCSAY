@@ -63,8 +63,10 @@ export function PlayerProfilePage() {
             last={p.lastName}
             pills={
               <>
-                <Pill tone="b">{p.age} ans</Pill>
+                {p.memberCode && <Pill tone="b">{p.memberCode}{p.memberCodeProvisional ? ' · provisoire' : ''}</Pill>}
+                <Pill tone={p.age === null ? 'r' : 'b'}>{p.age === null ? 'Âge inconnu' : `${p.age} ans`}</Pill>
                 {p.category && <Pill tone="s">{p.category.name}</Pill>}
+                {!p.enrolled && !p.archivedAt && <Pill tone="r">Non inscrit cette saison</Pill>}
                 {p.archivedAt ? <Pill tone="s">Archivé</Pill> : <Pill tone="g">Saison {p.season.label}</Pill>}
                 {p.minor && <Pill tone="s">Mineur</Pill>}
               </>
@@ -72,11 +74,25 @@ export function PlayerProfilePage() {
           />
           <Section title="Informations">
             <InfoCard>
-              <KeyValue label="Naissance">{formatDate(p.birthDate)}</KeyValue>
+              <KeyValue label="Identifiant">
+                {p.memberCode ?? '—'}
+                {p.memberCodeProvisional && p.memberCode ? ' (provisoire : recalculé après l’import des années précédentes)' : ''}
+              </KeyValue>
+              {p.nameAr && (
+                <KeyValue label="Nom en arabe">
+                  <span dir="rtl">{p.nameAr}</span>
+                </KeyValue>
+              )}
+              <KeyValue label="Naissance">
+                {p.birthDate ? (p.birthYearOnly ? `${p.birthDate.slice(0, 4)} (année seule, à préciser)` : formatDate(p.birthDate)) : 'À compléter'}
+              </KeyValue>
               <KeyValue label="Genre">{p.gender === 'M' ? 'Garçon / Homme' : 'Fille / Femme'}</KeyValue>
               <KeyValue label="CIN">{p.cin ?? '—'}</KeyValue>
               <KeyValue label="Téléphone">{p.phone ?? '—'}</KeyValue>
               <KeyValue label="Email">{p.email ?? '—'}</KeyValue>
+              {p.city && <KeyValue label="Ville">{p.city}</KeyValue>}
+              {p.notes && <KeyValue label="Remarques">{p.notes}</KeyValue>}
+              {p.origin === 'IMPORT' && <KeyValue label="Origine">Import du cahier{p.importRef ? ` · ${p.importRef}` : ''}</KeyValue>}
               <KeyValue label="Compte">{p.hasAccount ? 'Actif' : 'Sans compte (suivi par le parent)'}</KeyValue>
               {p.derogationReason && <KeyValue label="Dérogation">{p.derogationReason}</KeyValue>}
               <KeyValue label="Parents">

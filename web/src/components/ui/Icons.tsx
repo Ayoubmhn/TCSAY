@@ -136,3 +136,10 @@ export const IconUserOff = (p: IconProps) => (
     <path d="M3.5 20c.6-3.5 3.2-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9M16 15l5 5M21 15l-5 5" />
   </Svg>
 );
+
+export const IconBell = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z" />
+    <path d="M10 19a2 2 0 0 0 4 0" />
+  </Svg>
+);

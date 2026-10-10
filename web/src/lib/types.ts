@@ -56,9 +56,23 @@ export type Suggestion =
 
 export type Player = {
   id: string;
+  /** Identifiant du club « 26TCSAY052 » (provisoire tant que l'historique n'est pas importé). */
+  memberCode: string | null;
+  memberCodeProvisional: boolean;
   firstName: string;
   lastName: string;
-  birthDate: string;
+  nameAr: string | null;
+  /** Inconnue pour certains joueurs importés du cahier. */
+  birthDate: string | null;
+  /** Seule l'année de naissance est connue (date enregistrée au 1er janvier). */
+  birthYearOnly: boolean;
+  city: string | null;
+  notes: string | null;
+  origin: 'MANUAL' | 'IMPORT';
+  /** Origine d'un joueur importé : « fichier · ligne 12 (n° 10) ». */
+  importRef: string | null;
+  /** Inscrit dans la saison active. */
+  enrolled: boolean;
   gender: 'M' | 'F';
   email: string | null;
   phone: string | null;
@@ -66,7 +80,7 @@ export type Player = {
   hasAccount: boolean;
   archivedAt: string | null;
   version: number;
-  age: number;
+  age: number | null;
   minor: boolean;
   category: { id: string; code: string; name: string } | null;
   derogationReason: string | null;
@@ -527,3 +541,94 @@ export type ParentProfile = Omit<Parent, 'players'> & {
 };
 
 export type StaffProfile = Staff & { salaries: Salary[] };
+
+
+// ───── Import des joueurs (Excel) ─────
+
+export type ImportStatus = 'ok' | 'warning' | 'error';
+
+export type ImportRow = {
+  line: number;
+  n: number | null;
+  name: string;
+  nameAr: string | null;
+  gender: 'M' | 'F' | null;
+  birthDate: string | null;
+  birthYearOnly: boolean;
+  age: number | null;
+  phone: string | null;
+  notes: string | null;
+  city: string | null;
+  parents: { key: string; name: string; phone: string | null; existingId: string | null }[];
+  groupLabel: string | null;
+  group: { id: string; name: string } | null;
+  category: { id: string; code: string; name: string } | null;
+  derogation: boolean;
+  status: ImportStatus;
+  messages: string[];
+};
+
+export type ImportPreview = {
+  fileName: string;
+  season: string;
+  codeYear: number;
+  total: number;
+  ok: number;
+  warnings: number;
+  errors: number;
+  newParents: number;
+  withGroup: number;
+  groups: string[];
+  rows: ImportRow[];
+};
+
+export type ImportReport = {
+  imported: { line: number; n: number | null; name: string; memberCode: string; group: string | null; category: string | null; parents: string[]; messages: string[] }[];
+  parentsCreated: number;
+  skipped: { line: number; n: number | null; name: string; messages: string[] }[];
+};
+
+type CodeChange = { id: string; name: string; before: string | null; year: number; seq: number; after: string };
+export type MemberCodePlan = { provisional: number; definitive: number; changes: CodeChange[]; plan: CodeChange[] };
+
+// ───── Fiche d'un groupe ─────
+
+type GroupDetailMember = Group['members'][number] & {
+  memberCode: string | null;
+  age: number | null;
+  gender: 'M' | 'F' | null;
+  phone: string | null;
+  parents: { id: string; firstName: string; lastName: string; phone: string | null; email: string | null }[];
+  attendance: { sessions: number; present: number; absent: number; rate: number | null };
+};
+
+export type GroupDetail = Omit<Group, 'members'> & {
+  season: { id: string; label: string; status: string };
+  places: number;
+  attendanceRate: number | null;
+  members: GroupDetailMember[];
+  recentSessions: { date: string; present: number; late: number; absent: number }[];
+  candidates: {
+    playerId: string;
+    memberCode: string | null;
+    firstName: string;
+    lastName: string;
+    age: number | null;
+    category: { id: string; name: string };
+    sameCategory: boolean;
+  }[];
+};
+
+// ───── Notifications et compte fédération ─────
+
+export type AppNotification = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export type FederationAccount = { login: string | null; hasPassword: boolean };

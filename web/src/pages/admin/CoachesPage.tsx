@@ -11,7 +11,7 @@ import { QueryState } from '../../components/ui/Loading';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
-import { DT, fullName } from '../../lib/format';
+import { changedEmail, DT, fullName, isPlaceholderEmail, savedMessage } from '../../lib/format';
 import type { Coach, Credentials } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
@@ -40,8 +40,20 @@ export function CoachesPage() {
     },
   );
   const update = useAction(
-    (v: PersonValues) => api.patch(`/coaches/${form.coach!.id}`, { version: form.coach!.version, ...personPayload('coach', v) }),
-    { invalidate: [['coaches'], ['planning'], ['groups']], success: 'Entraîneur enregistré.', onSuccess: () => setForm({ open: false }) },
+    (v: PersonValues) =>
+      api.patch<{ credentials: Credentials | null }>(`/coaches/${form.coach!.id}`, {
+        version: form.coach!.version,
+        ...personPayload('coach', v),
+        email: changedEmail(form.coach!.email, v.email),
+      }),
+    {
+      invalidate: [['coaches'], ['planning'], ['groups'], ['emails']],
+      success: (r) => savedMessage('Entraîneur enregistré.', r.credentials),
+      onSuccess: (r, v) => {
+        setForm({ open: false });
+        if (r.credentials) setCreds([{ ...r.credentials, name: `${v.firstName} ${v.lastName}` }]);
+      },
+    },
   );
   const toggle = useAction((c: Coach) => api.post(`/coaches/${c.id}/${c.isActive ? 'deactivate' : 'activate'}`), {
     invalidate: [['coaches']],
@@ -92,7 +104,7 @@ export function CoachesPage() {
                   </Pills>
                   <CardText>
                     CIN {c.cin ?? '—'} · {c.phone ?? '—'}
-                    {c.email ? ` · ${c.email}` : ''}
+                    {c.email ? ` · ${isPlaceholderEmail(c.email) ? 'email à compléter' : c.email}` : ''}
                   </CardText>
                   <CardText>Rémunération : {payText(c.payMode, c.payRate)}</CardText>
                   <CardActions>

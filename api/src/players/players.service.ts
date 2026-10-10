@@ -502,6 +502,7 @@ export class PlayersService {
       city: p.city,
       notes: p.notes,
       origin: p.origin,
+      importRef: p.importRef,
       enrolled: Boolean(enrollment),
       category: enrollment?.category ?? null,
       derogationReason: enrollment?.derogationReason ?? null,

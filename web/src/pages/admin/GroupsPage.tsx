@@ -305,7 +305,9 @@ export function GroupsPage() {
                 return (
                   <Card key={g.id}>
                     <CardRow>
-                      <h3>{g.name}</h3>
+                      <Link to={`/admin/groupes/${g.id}`} className="min-w-0 hover:underline">
+                        <h3>{g.name}</h3>
+                      </Link>
                       <Pill tone={full ? 'r' : 'g'}>
                         {g.members.length}/{g.capacity}
                         {full ? ' · complet' : ''}
@@ -344,6 +346,9 @@ export function GroupsPage() {
                     )}
                     {g.members.length === 0 && <CardText>Aucun joueur pour l’instant.</CardText>}
                     <CardActions>
+                      <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to={`/admin/groupes/${g.id}`}>
+                        Détails
+                      </Link>
                       <Button onClick={() => setAddTo(g)}>Ajouter un joueur</Button>
                       <Button onClick={() => setForm({ open: true, group: g })}>Modifier</Button>
                       <Button variant="danger" onClick={() => setToArchive(g)}>

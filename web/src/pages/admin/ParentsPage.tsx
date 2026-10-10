@@ -12,12 +12,12 @@ import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
-import { fullName } from '../../lib/format';
+import { changedEmail, fullName, isPlaceholderEmail, savedMessage } from '../../lib/format';
 import type { Parent, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
-const KEYS = [['parents'], ['players']];
+const KEYS: string[][] = [['parents'], ['players']];
 
 function LinkModal({ parent, onClose }: { parent?: Parent; onClose: () => void }) {
   const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.get<Player[]>('/players'), enabled: Boolean(parent) });
@@ -70,15 +70,20 @@ export function ParentsPage() {
   });
   const update = useAction(
     (v: PersonValues) => {
-      return api.patch(`/parents/${form.parent!.id}`, {
+      return api.patch<{ credentials: { sentTo: string | null } | null }>(`/parents/${form.parent!.id}`, {
         version: form.parent!.version,
         firstName: v.firstName.trim(),
         lastName: v.lastName.trim(),
-        phone: v.phone.trim(),
-        cin: v.cin.trim(),
+        phone: v.phone.trim() || undefined,
+        cin: v.cin.trim() || undefined,
+        email: changedEmail(form.parent!.email, v.email),
       });
     },
-    { invalidate: KEYS, success: 'Parent enregistré.', onSuccess: () => setForm({ open: false }) },
+    {
+      invalidate: [...KEYS, ['emails']],
+      success: (r) => savedMessage('Parent enregistré.', r.credentials),
+      onSuccess: () => setForm({ open: false }),
+    },
   );
   const toggle = useAction((p: Parent) => api.post(`/parents/${p.id}/${p.isActive ? 'deactivate' : 'activate'}`), {
     invalidate: KEYS,
@@ -124,7 +129,7 @@ export function ParentsPage() {
                     {u.players.length === 0 && <Pill tone="s">Aucun joueur lié</Pill>}
                   </Pills>
                   <CardText>
-                    {u.email} · {u.phone ?? '—'} · CIN {u.cin ?? '—'}
+                    {isPlaceholderEmail(u.email) ? 'Email à compléter' : u.email} · {u.phone ?? '—'} · CIN {u.cin ?? '—'}
                   </CardText>
                   <CardActions>
                     <Button onClick={() => setLinkFor(u)}>Lier un joueur</Button>

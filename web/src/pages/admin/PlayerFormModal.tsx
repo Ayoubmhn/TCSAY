@@ -8,7 +8,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { DT, fD, toDateInput } from '../../lib/format';
+import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
 import type { Category, Credentials, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
@@ -61,6 +61,7 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
   const set = (k: Exclude<keyof Form, 'np'>) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const setNp = (k: keyof Form['np']) => (e: { target: { value: string } }) => setF((x) => ({ ...x, np: { ...x.np, [k]: e.target.value } }));
   const [created, setCreated] = useState<Created>();
+  const [changedCreds, setChangedCreds] = useState<(Credentials & { name: string })[]>([]);
 
   // Joueur lu à l'ouverture seulement : un rechargement de la liste n'efface pas la saisie.
   const playerRef = useRef(player);
@@ -73,7 +74,7 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
         ? {
             firstName: player.firstName,
             lastName: player.lastName,
-            birthDate: toDateInput(player.birthDate),
+            birthDate: player.birthDate ? toDateInput(player.birthDate) : '',
             gender: player.gender,
             email: player.email ?? '',
             phone: player.phone ?? '',
@@ -113,28 +114,40 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
   });
   const update = useAction(
     async () => {
-      await api.patch(`/players/${player!.id}`, {
-        version: player!.version,
+      const before = player!;
+      // Date envoyée seulement si elle change (une « année seule » du cahier reste signalée tant qu'elle n'est pas précisée).
+      const birthDate = f.birthDate && f.birthDate !== (before.birthDate ? toDateInput(before.birthDate) : '') ? f.birthDate : undefined;
+      const saved = await api.patch<{ credentials: Credentials | null }>(`/players/${before.id}`, {
+        version: before.version,
         firstName: f.firstName,
         lastName: f.lastName,
-        birthDate: f.birthDate,
+        birthDate,
         gender: f.gender || undefined,
-        email: f.email,
+        email: isPlaceholderEmail(before.email) && !f.email.trim() ? undefined : f.email,
         phone: f.phone,
         cin: f.cin,
       });
-      if (f.categoryId && f.categoryId !== player!.category?.id) {
-        await api.post(`/players/${player!.id}/category`, { categoryId: f.categoryId, derogationReason: f.derogationReason || undefined });
+      if (f.categoryId && f.categoryId !== before.category?.id) {
+        await api.post(`/players/${before.id}/category`, { categoryId: f.categoryId, derogationReason: f.derogationReason || undefined });
       }
+      return saved;
     },
-    { invalidate: [['players'], ['categories'], ['groups']], success: 'Joueur enregistré.', onSuccess: onClose },
+    {
+      invalidate: [['players'], ['categories'], ['groups'], ['player-profile'], ['emails']],
+      success: (r) => savedMessage('Joueur enregistré.', r.credentials),
+      onSuccess: (r) => {
+        onClose();
+        if (r.credentials?.temporaryPassword) setChangedCreds([{ ...r.credentials, name: `${f.firstName} ${f.lastName}` }]);
+      },
+    },
   );
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!f.firstName.trim() || !f.lastName.trim()) return toast('Prénom et nom sont obligatoires.');
     if (!f.gender) return toast('Le genre est obligatoire.');
-    if (!f.birthDate) return toast('La date de naissance est obligatoire.');
+    // Joueur importé sans date : modifiable sans la saisir (à compléter plus tard).
+    if (!f.birthDate && (!player || player.birthDate)) return toast('La date de naissance est obligatoire.');
     if (s && 'error' in s) return toast(s.error);
     if (f.cin.trim() && !CIN.test(f.cin.trim())) return toast('CIN invalide (6 à 12 caractères).');
     if (!player && s && 'minor' in s) {
@@ -179,7 +192,12 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
       <FormGrid id="player-form" onSubmit={submit}>
         <TextField label="Prénom" value={f.firstName} onChange={set('firstName')} />
         <TextField label="Nom" value={f.lastName} onChange={set('lastName')} />
-        <TextField label="Date de naissance" type="date" value={f.birthDate} onChange={set('birthDate')} />
+        <TextField
+          label={player?.birthYearOnly ? 'Date de naissance (année seule connue : à préciser)' : player && !player.birthDate ? 'Date de naissance (à compléter)' : 'Date de naissance'}
+          type="date"
+          value={f.birthDate}
+          onChange={set('birthDate')}
+        />
         <SelectField label="Genre (obligatoire)" value={f.gender} onChange={set('gender')}>
           <option value="">—</option>
           <option value="M">Garçon / Homme</option>
@@ -293,6 +311,7 @@ export function PlayerFormModal({ open, player, onClose }: { open: boolean; play
       items={(created?.temporaryPasswords ?? []).map((c) => ({ ...c, name: c.login }))}
       onClose={() => setCreated((c) => (c ? { ...c, temporaryPasswords: [] } : c))}
     />
+    <CredentialsModal items={changedCreds} onClose={() => setChangedCreds([])} />
     </>
   );
 }

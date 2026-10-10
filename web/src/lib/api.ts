@@ -71,7 +71,8 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   }
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const isForm = body instanceof FormData;
+  if (body !== undefined && !isForm) headers['Content-Type'] = 'application/json';
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
   const space = getSpace();
@@ -79,7 +80,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
 
   let res: Response;
   try {
-    res = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    res = await fetch(url, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
   } catch {
     throw new ApiError(0, 'Serveur injoignable : vérifiez que l’API est démarrée.');
   }
@@ -100,6 +101,12 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body ?? {}),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {}),
   delete: <T>(path: string, query?: Query) => request<T>('DELETE', path, undefined, query),
+  /** Envoi d'un fichier (multipart, champ « file »). */
+  upload: <T>(path: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return request<T>('POST', path, form);
+  },
 };
 
 export function errorMessage(error: unknown): string {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { SPACE_LABEL, useAuth, useMe } from '../auth/AuthContext';
+import { NotificationBell } from '../components/NotificationBell';
 import { Avatar } from '../components/ui/Avatar';
 import { Brand } from '../components/ui/Brand';
 import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
@@ -262,6 +263,7 @@ export function AppShell() {
         <div className="no-print mb-[22px] flex items-center gap-3">
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
           <span className="flex-1" />
+          <NotificationBell />
           <ThemeToggle />
         </div>
         <Outlet />

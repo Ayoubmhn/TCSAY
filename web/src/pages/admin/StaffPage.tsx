@@ -11,7 +11,7 @@ import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
-import { fullName } from '../../lib/format';
+import { changedEmail, fullName, savedMessage } from '../../lib/format';
 import type { Credentials, Staff } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { payText } from './CoachesPage';
@@ -37,11 +37,22 @@ export function StaffPage() {
       },
     },
   );
-  const update = useAction((v: PersonValues) => api.patch(`/staff/${form.staff!.id}`, { version: form.staff!.version, ...personPayload('staff', v) }), {
-    invalidate: [['staff'], ['salaries']],
-    success: 'Compte enregistré.',
-    onSuccess: () => setForm({ open: false }),
-  });
+  const update = useAction(
+    (v: PersonValues) =>
+      api.patch<{ credentials: Credentials | null }>(`/staff/${form.staff!.id}`, {
+        version: form.staff!.version,
+        ...personPayload('staff', v),
+        email: changedEmail(form.staff!.email, v.email),
+      }),
+    {
+      invalidate: [['staff'], ['salaries'], ['emails']],
+      success: (r) => savedMessage('Compte enregistré.', r.credentials),
+      onSuccess: (r, v) => {
+        setForm({ open: false });
+        if (r.credentials) setCreds([{ ...r.credentials, name: `${v.firstName} ${v.lastName}` }]);
+      },
+    },
+  );
   const toggle = useAction((s: Staff) => api.post(`/staff/${s.id}/${s.isActive ? 'deactivate' : 'activate'}`), {
     invalidate: [['staff']],
     success: (_r, s) => (s.isActive ? 'Compte désactivé.' : 'Compte réactivé.'),

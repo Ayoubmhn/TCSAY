@@ -14,10 +14,12 @@ import { CourtsPage } from './pages/admin/CourtsPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { EmailsPage } from './pages/admin/EmailsPage';
 import { FeesPage } from './pages/admin/FeesPage';
+import { GroupDetailPage } from './pages/admin/GroupDetailPage';
 import { GroupsPage } from './pages/admin/GroupsPage';
 import { ParentsPage } from './pages/admin/ParentsPage';
 import { PaymentsAdminPage } from './pages/admin/PaymentsAdminPage';
 import { PermissionsPage } from './pages/admin/PermissionsPage';
+import { PlayersImportPage } from './pages/admin/PlayersImportPage';
 import { PlayersPage } from './pages/admin/PlayersPage';
 import { CoachProfilePage, ParentProfilePage, PlayerProfilePage, StaffProfilePage } from './pages/admin/ProfilePages';
 import { RegistrationFormPage } from './pages/admin/RegistrationFormPage';
@@ -35,6 +37,7 @@ import { AbsencesPage } from './pages/player/AbsencesPage';
 import { HomePage } from './pages/player/HomePage';
 import { PaymentsPage } from './pages/player/PaymentsPage';
 import { SessionsPage } from './pages/player/SessionsPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
@@ -93,6 +96,7 @@ export function App() {
       >
         {/* Tous les rôles */}
         <Route path="parametres" element={<SettingsPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
 
         {/* Joueur / parent */}
         <Route index element={<Protected roles={PLAYER}><HomePage /></Protected>} />
@@ -120,6 +124,7 @@ export function App() {
         <Route path="admin" element={admin(['stats.view'], <DashboardPage />)} />
         <Route path="admin/planning" element={admin(['planning.view', 'groups.manage'], <PlanningPage />)} />
         <Route path="admin/joueurs" element={admin(['players.manage'], <PlayersPage />)} />
+        <Route path="admin/joueurs/import" element={admin(['players.manage'], <PlayersImportPage />)} />
         <Route path="admin/joueurs/:id" element={admin(['players.manage', 'payments.collect', 'groups.manage', 'parents.manage'], <PlayerProfilePage />)} />
         <Route path="admin/parents" element={admin(['parents.manage'], <ParentsPage />)} />
         <Route path="admin/parents/:id" element={admin(['parents.manage', 'players.manage', 'payments.collect'], <ParentProfilePage />)} />
@@ -129,6 +134,7 @@ export function App() {
         <Route path="admin/personnel/:id" element={admin(['staff.manage'], <StaffProfilePage />)} />
         <Route path="admin/fiche-inscription" element={admin(['players.manage'], <RegistrationFormPage />)} />
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />
+        <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />

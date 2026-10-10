@@ -69,3 +69,18 @@ export const fullName = (p: { firstName: string; lastName: string }): string => 
 export function ageAt(birthIso: string, year: number): number {
   return year - Number(birthIso.slice(0, 4));
 }
+
+/** Email provisoire des comptes importés (« …@a-completer.invalid ») : jamais utilisé pour un envoi. */
+export const isPlaceholderEmail = (email: string | null | undefined): boolean => Boolean(email?.toLowerCase().endsWith('@a-completer.invalid'));
+
+/** Email à envoyer lors d'une modification : seulement s'il a changé (un email provisoire laissé vide n'est pas envoyé). */
+export function changedEmail(before: string | null | undefined, value: string): string | undefined {
+  const next = value.trim().toLowerCase();
+  if (!next) return undefined;
+  return next === (before ?? '').toLowerCase() ? undefined : next;
+}
+
+/** Message après enregistrement d'un compte dont l'email a pu changer (nouveaux identifiants envoyés). */
+export function savedMessage(base: string, credentials?: { sentTo: string | null } | null): string {
+  return credentials?.sentTo ? `${base} Nouveaux identifiants envoyés à ${credentials.sentTo}.` : base;
+}

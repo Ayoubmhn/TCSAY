@@ -10,10 +10,12 @@ import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useAuth } from '../../auth/AuthContext';
 import { api } from '../../lib/api';
-import { fullName } from '../../lib/format';
+import { fullName, isPlaceholderEmail } from '../../lib/format';
 import type { Category, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { MemberCodesModal } from './MemberCodesModal';
 import { PlayerFormModal } from './PlayerFormModal';
 
 /** Joueurs (vPlayers) : recherche, filtre par catégorie ou archivés, création, modification, archivage (R8). */
@@ -22,6 +24,9 @@ export function PlayersPage() {
   const [filter, setFilter] = useState('all');
   const [form, setForm] = useState<{ open: boolean; player?: Player }>({ open: false });
   const [toArchive, setToArchive] = useState<Player>();
+  const [codes, setCodes] = useState(false);
+  const { me } = useAuth();
+  const president = Boolean(me?.permissions.includes('permissions.manage'));
 
   const archived = filter === 'arch';
   const list = useQuery({
@@ -52,15 +57,24 @@ export function PlayersPage() {
         title="Joueurs"
         subtitle="Découvrez les joueurs inscrits pour la saison en cours."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouveau joueur
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {president && <Button onClick={() => setCodes(true)}>Identifiants TCSAY</Button>}
+            <Link
+              className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg"
+              to="/admin/joueurs/import"
+            >
+              Importer (Excel)
+            </Link>
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouveau joueur
+            </Button>
+          </div>
         }
       />
       <Filters>
         <input
           className="fld w-[220px] text-fg"
-          placeholder="Rechercher un joueur"
+          placeholder="Nom, code TCSAY ou nom arabe"
           aria-label="Rechercher"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -97,7 +111,13 @@ export function PlayersPage() {
                           <h3>{fullName(p)}</h3>
                         </Link>
                         <CardText>
-                          {p.age} ans · {p.gender === 'M' ? 'Garçon / Homme' : 'Fille / Femme'}
+                          {p.memberCode && (
+                            <>
+                              <span className="font-semibold tabular-nums text-fg">{p.memberCode}</span>
+                              {p.memberCodeProvisional && <span title="Code provisoire"> *</span>} ·{' '}
+                            </>
+                          )}
+                          {p.age === null ? 'âge inconnu' : `${p.age} ans`} · {p.gender === 'M' ? 'Garçon / Homme' : 'Fille / Femme'}
                         </CardText>
                       </div>
                     </div>
@@ -106,6 +126,9 @@ export function PlayersPage() {
                     {p.category && <Pill tone="s">{p.category.name}</Pill>}
                     {p.group ? <Pill tone="g">{p.group.name}</Pill> : !p.archivedAt && <Pill tone="r">Sans groupe</Pill>}
                     {p.derogationReason && <Pill tone="s">Dérogation</Pill>}
+                    {!p.archivedAt && !p.enrolled && <Pill tone="r">Non inscrit</Pill>}
+                    {!p.birthDate ? <Pill tone="r">Naissance à compléter</Pill> : p.birthYearOnly && <Pill tone="s">Année seule</Pill>}
+                    {p.parents.some((x) => isPlaceholderEmail(x.email)) && <Pill tone="s">Email parent à compléter</Pill>}
                   </Pills>
                   <CardText>
                     {p.minor
@@ -140,10 +163,12 @@ export function PlayersPage() {
       </div>
 
       <Note>
+        Code « 26TCSAY001 » = année d’inscription + n° ; <b>*</b> = provisoire, recalculé après l’import des années précédentes.
         Suppression = <b>archivage</b> (R8). Nom, naissance, genre et catégorie : modifiables par l’admin seulement (R9). Un
         mineur a toujours au moins un parent lié.
       </Note>
 
+      {president && <MemberCodesModal open={codes} onClose={() => setCodes(false)} />}
       <PlayerFormModal open={form.open} player={form.player} onClose={() => setForm({ open: false })} />
       <ConfirmModal
         open={Boolean(toArchive)}

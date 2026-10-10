@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
+import { FederationCard } from '../components/FederationCard';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
@@ -50,23 +51,28 @@ export function SettingsPage() {
     <>
       <PageHeader title="Paramètres" subtitle="Gérez votre compte, votre mot de passe et vos préférences." />
       <div className="grid grid-cols-1 items-start gap-x-6 min-[1001px]:grid-cols-2">
-        <Section title="Mon compte">
-          <Card>
-            <div>
-              <KeyValue label="Nom">
-                {me.firstName} {me.lastName}
-              </KeyValue>
-              <KeyValue label="Rôles">{me.roles.map((r) => t(ACTOR_LABEL[r])).join(', ')}</KeyValue>
-              <KeyValue label="Identifiant">{me.email ?? me.cin ?? '—'}</KeyValue>
-              <KeyValue label="Email">{me.email ?? '—'}</KeyValue>
-              <KeyValue label="Téléphone">{me.phone ?? '—'}</KeyValue>
-              <KeyValue label="CIN">{me.cin ?? '—'}</KeyValue>
-              <KeyValue label="Compte créé le">{formatDate(me.createdAt)}</KeyValue>
-              <KeyValue label="Dernière connexion">{me.lastLoginAt ? formatDateTime(me.lastLoginAt) : '—'}</KeyValue>
-            </div>
-            <CardText>{t('Informations personnelles modifiables par le club seulement.')}</CardText>
-          </Card>
-        </Section>
+        <div>
+          <Section title="Mon compte">
+            <Card>
+              <div>
+                <KeyValue label="Nom">
+                  {me.firstName} {me.lastName}
+                </KeyValue>
+                <KeyValue label="Rôles">{me.roles.map((r) => t(ACTOR_LABEL[r])).join(', ')}</KeyValue>
+                <KeyValue label="Identifiant">{me.email ?? me.cin ?? '—'}</KeyValue>
+                <KeyValue label="Email">{me.email ?? '—'}</KeyValue>
+                <KeyValue label="Téléphone">{me.phone ?? '—'}</KeyValue>
+                <KeyValue label="CIN">{me.cin ?? '—'}</KeyValue>
+                <KeyValue label="Compte créé le">{formatDate(me.createdAt)}</KeyValue>
+                <KeyValue label="Dernière connexion">{me.lastLoginAt ? formatDateTime(me.lastLoginAt) : '—'}</KeyValue>
+              </div>
+              <CardText>{t('Informations personnelles modifiables par le club seulement.')}</CardText>
+            </Card>
+          </Section>
+          <Section title="Compte fédération (IJIN)">
+            <FederationCard />
+          </Section>
+        </div>
 
         <div>
           <Section title="Mot de passe">
