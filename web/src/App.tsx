@@ -27,6 +27,7 @@ import { RegistrationFormPage } from './pages/admin/RegistrationFormPage';
 import { ReservationsAdminPage } from './pages/admin/ReservationsAdminPage';
 import { SalariesPage } from './pages/admin/SalariesPage';
 import { StaffPage } from './pages/admin/StaffPage';
+import { UpdatesPage } from './pages/admin/UpdatesPage';
 import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { BookPage } from './pages/BookPage';
@@ -148,6 +149,7 @@ export function App() {
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
         <Route path="admin/mes-salaires" element={admin(undefined, <CoachSalariesPage />)} />
+        <Route path="admin/mises-a-jour" element={admin(['groups.manage', 'payments.collect'], <UpdatesPage />)} />
         <Route path="admin/notifications" element={admin(['notifications.send'], <BroadcastsPage />)} />
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />

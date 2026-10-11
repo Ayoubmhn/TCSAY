@@ -1,3 +1,5 @@
+import { UpdatesController } from './imports/updates.controller';
+import { UpdatesService } from './imports/updates.service';
 import { LoginThrottle } from './security/login-throttle';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
@@ -45,6 +47,7 @@ import { StaffController } from './staff/staff.controller';
 @Module({
   imports: [PrismaModule, CoreModule, SeasonsModule],
   controllers: [
+    UpdatesController,
     HealthController,
     AuthController,
     MeController,
@@ -77,6 +80,7 @@ import { StaffController } from './staff/staff.controller';
     PermissionsController,
   ],
   providers: [
+    UpdatesService,
     LoginThrottle,
     PlayersService,
     PaymentsService,

@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PaymentPlan, Prisma, Role } from '@prisma/client';
+import { DiscountKind, PaymentPlan, Prisma, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth-user';
@@ -8,7 +8,7 @@ import { dt, num } from '../common/money';
 import { assertSeasonOpen, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
 import { Db, PrismaService } from '../prisma/prisma.service';
-import { PLAN_LABEL, planInstallments } from './payment-plan';
+import { DISCOUNT_LABEL, PLAN_LABEL, planInstallments } from './payment-plan';
 
 export type InstallmentStatus = 'PAID' | 'PARTIAL' | 'DUE' | 'LATE';
 export type InstallmentFilters = { q?: string; parentId?: string; groupId?: string };
@@ -209,16 +209,10 @@ export class PaymentsService {
     return result.membership;
   }
 
-  /**
-   * Change le mode de paiement (comptant, semestre, mois) d'un joueur pour la saison. Pas encore de cotisation : elle est
-   * créée. R7 : avant tout paiement, l'échéancier est simplement refait ; après un paiement, motif obligatoire, les
-   * tranches déjà réglées sont gardées (une tranche partielle est ramenée au montant payé) et le reste est rééchelonné.
-   */
-  async changePlan(actor: AuthUser, playerId: string, plan: PaymentPlan, reason?: string, seasonId?: string) {
-    const season = await this.access.seasonOrActive(seasonId);
-    assertSeasonOpen(season);
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { playerId_seasonId: { playerId, seasonId: season.id } },
+  /** Inscription de la saison avec sa cotisation, ses tranches et leurs paiements (pour les changements d'échéancier). */
+  private async loadEnrollment(playerId: string, seasonId: string) {
+    return this.prisma.enrollment.findUnique({
+      where: { playerId_seasonId: { playerId, seasonId } },
       include: {
         player: true,
         groups: true,
@@ -226,6 +220,64 @@ export class PaymentsService {
         membership: { include: { installments: { include: { payments: true }, orderBy: { number: 'asc' } } } },
       },
     });
+  }
+
+  /**
+   * Refait l'échéancier d'une cotisation pour un nouveau montant dû et / ou un nouveau mode : les tranches déjà réglées
+   * sont gardées (une tranche partielle est ramenée au montant payé), le reste est réparti selon le mode.
+   */
+  private async reschedule(
+    tx: Db,
+    m: { id: string; feeScheduleId: string | null; installments: { id: string; amount: Prisma.Decimal; payments: { amount: Prisma.Decimal }[] }[] },
+    plan: PaymentPlan,
+    total: number,
+    period: { startDate: Date; endDate: Date },
+  ) {
+    const paidOf = (i: (typeof m.installments)[number]) => i.payments.reduce((t, p) => t + num(p.amount), 0);
+    const paidTotal = m.installments.reduce((t, i) => t + paidOf(i), 0);
+    const rest = Math.round((total - paidTotal) * 1000) / 1000;
+    const fee = m.feeScheduleId ? await tx.feeSchedule.findUnique({ where: { id: m.feeScheduleId } }) : null;
+    // Acompte du tarif seulement si rien n'a encore été payé (et jamais au-delà du montant dû).
+    const deposit = paidTotal > 0 ? 0 : Math.min(num(fee?.depositAmount ?? 0), total);
+    const schedule = rest > 0 ? planInstallments(plan, rest, deposit, period, todayIso()) : [];
+    const kept: string[] = [];
+    for (const i of m.installments) {
+      const paid = paidOf(i);
+      if (paid <= 0) {
+        await tx.installment.delete({ where: { id: i.id } });
+      } else {
+        if (paid < num(i.amount)) await tx.installment.update({ where: { id: i.id }, data: { amount: paid } });
+        kept.push(i.id);
+      }
+    }
+    const count = kept.length + schedule.length;
+    for (const [k, id] of kept.entries()) await tx.installment.update({ where: { id }, data: { number: k + 1, count } });
+    for (const [k, inst] of schedule.entries()) {
+      await tx.installment.create({
+        data: { membershipId: m.id, number: kept.length + k + 1, count, dueDate: dayFromIso(inst.dueDate), amount: inst.amount },
+      });
+    }
+    return { rest, count: schedule.length, paidTotal };
+  }
+
+  private periodOf(
+    family: string,
+    season: { startDate: Date; endDate: Date; leisureStartDate?: Date | null; leisureEndDate?: Date | null },
+  ) {
+    return family === 'LEISURE'
+      ? { startDate: season.leisureStartDate ?? season.startDate, endDate: season.leisureEndDate ?? season.endDate }
+      : season;
+  }
+
+  /**
+   * Change le mode de paiement (comptant, semestre, mois) d'un joueur pour la saison. Pas encore de cotisation : elle est
+   * créée. R7 : avant tout paiement, l'échéancier est simplement refait ; après un paiement, motif obligatoire, les
+   * tranches déjà réglées sont gardées et le reste est rééchelonné.
+   */
+  async changePlan(actor: AuthUser, playerId: string, plan: PaymentPlan, reason?: string, seasonId?: string) {
+    const season = await this.access.seasonOrActive(seasonId);
+    assertSeasonOpen(season);
+    const enrollment = await this.loadEnrollment(playerId, season.id);
     if (!enrollment) throw rule.bad('R7', 'Joueur non inscrit sur la saison : complétez sa date de naissance (catégorie) d’abord.');
     if (!enrollment.membership) {
       const m = await this.createMembership(actor, playerId, plan, season.id);
@@ -233,40 +285,12 @@ export class PaymentsService {
     }
     const m = enrollment.membership;
     if (m.paymentPlan === plan) return { created: false, membershipId: m.id };
-    const paidOf = (i: (typeof m.installments)[number]) => i.payments.reduce((t, p) => t + num(p.amount), 0);
-    const paidTotal = m.installments.reduce((t, i) => t + paidOf(i), 0);
+    const paid = m.installments.some((i) => i.payments.length > 0);
     const motif = reason?.trim() || null;
-    if (paidTotal > 0 && !motif) {
-      throw rule.bad('R7', 'Des paiements sont déjà encaissés : motif obligatoire pour changer le mode de paiement.');
-    }
-    const fee = m.feeScheduleId ? await this.prisma.feeSchedule.findUnique({ where: { id: m.feeScheduleId } }) : null;
-    const total = num(m.totalAmount);
-    const rest = Math.round((total - paidTotal) * 1000) / 1000;
-    const period =
-      enrollment.category.family === 'LEISURE'
-        ? { startDate: season.leisureStartDate ?? season.startDate, endDate: season.leisureEndDate ?? season.endDate }
-        : season;
-    // Acompte du tarif seulement si rien n'a encore été payé.
-    const schedule = rest > 0 ? planInstallments(plan, rest, paidTotal > 0 ? 0 : num(fee?.depositAmount ?? 0), period, todayIso()) : [];
+    if (paid && !motif) throw rule.bad('R7', 'Des paiements sont déjà encaissés : motif obligatoire pour changer le mode de paiement.');
     await this.prisma.$transaction(async (tx) => {
-      const kept: { id: string }[] = [];
-      for (const i of m.installments) {
-        const paid = paidOf(i);
-        if (paid <= 0) {
-          await tx.installment.delete({ where: { id: i.id } });
-        } else {
-          if (paid < num(i.amount)) await tx.installment.update({ where: { id: i.id }, data: { amount: paid } });
-          kept.push({ id: i.id });
-        }
-      }
-      const count = kept.length + schedule.length;
-      for (const [k, i] of kept.entries()) await tx.installment.update({ where: { id: i.id }, data: { number: k + 1, count } });
-      for (const [k, inst] of schedule.entries()) {
-        await tx.installment.create({
-          data: { membershipId: m.id, number: kept.length + k + 1, count, dueDate: dayFromIso(inst.dueDate), amount: inst.amount },
-        });
-      }
-      await tx.membership.update({ where: { id: m.id }, data: { paymentPlan: plan } });
+      const r = await this.reschedule(tx, m, plan, num(m.totalAmount), this.periodOf(enrollment.category.family, season));
+      await tx.membership.update({ where: { id: m.id }, data: { paymentPlan: plan, version: { increment: 1 } } });
       await this.audit.log(
         actor.id,
         {
@@ -275,13 +299,116 @@ export class PaymentsService {
           entityId: m.id,
           target: `${fullName(enrollment.player)} · ${season.label}`,
           before: PLAN_LABEL[m.paymentPlan],
-          after: `${PLAN_LABEL[plan]} · ${dt(rest)} restant en ${schedule.length} tranche(s)`,
+          after: `${PLAN_LABEL[plan]} · ${dt(r.rest)} restant en ${r.count} tranche(s)`,
           reason: motif,
         },
         tx,
       );
     });
     return { created: false, membershipId: m.id };
+  }
+
+  /**
+   * Réduction sur la cotisation : fratrie (pourcentage saisi pour le 2e enfant…), réduction spéciale (pourcentage ou
+   * montant) ou exonération totale ; `kind` null retire la réduction. Le montant dû est recalculé depuis le tarif
+   * (montant avant réduction) et l'échéancier refait. R7 : motif obligatoire, et jamais en dessous de ce qui est déjà payé.
+   */
+  async setDiscount(
+    actor: AuthUser,
+    playerId: string,
+    d: { kind: DiscountKind | null; percent?: number; amount?: number; reason?: string },
+    seasonId?: string,
+  ) {
+    const season = await this.access.seasonOrActive(seasonId);
+    assertSeasonOpen(season);
+    const enrollment = await this.loadEnrollment(playerId, season.id);
+    if (!enrollment?.membership) throw rule.bad('R7', 'Pas encore de cotisation : choisissez d’abord le mode de paiement.');
+    const m = enrollment.membership;
+    const base = num(m.baseAmount ?? m.totalAmount);
+    let discount = 0;
+    if (d.kind === DiscountKind.EXEMPT) discount = base;
+    else if (d.kind) {
+      if (d.percent !== undefined && d.percent !== null) {
+        if (d.percent <= 0 || d.percent > 100) throw new BadRequestException('Pourcentage entre 1 et 100.');
+        discount = Math.round(base * d.percent * 10) / 1000;
+      } else if (d.amount !== undefined && d.amount !== null) {
+        if (d.amount <= 0 || d.amount > base) throw new BadRequestException(`Montant de réduction entre 0 et ${dt(base)}.`);
+        discount = Math.round(d.amount * 1000) / 1000;
+      } else throw new BadRequestException('Indiquez un pourcentage ou un montant de réduction.');
+    }
+    const total = Math.round((base - discount) * 1000) / 1000;
+    const motif = d.reason?.trim() || null;
+    if (d.kind && !motif) throw rule.bad('R7', 'Motif de la réduction obligatoire (ex. 2e enfant de la famille).');
+    const paidTotal = m.installments.reduce((t, i) => t + i.payments.reduce((u, p) => u + num(p.amount), 0), 0);
+    if (paidTotal > total + 0.0005) {
+      throw rule.conflict('R7', `Déjà payé ${dt(paidTotal)} : plus que le nouveau montant (${dt(total)}). Un remboursement est nécessaire, pas une réduction.`);
+    }
+    const label = (k: DiscountKind | null, pct: number | null, amt: number) =>
+      !k ? 'Aucune réduction' : k === DiscountKind.EXEMPT ? 'Exonération totale' : `${DISCOUNT_LABEL[k]} ${pct ? `${pct} %` : dt(amt)}`;
+    await this.prisma.$transaction(async (tx) => {
+      await this.reschedule(tx, m, m.paymentPlan, total, this.periodOf(enrollment.category.family, season));
+      await tx.membership.update({
+        where: { id: m.id },
+        data: {
+          baseAmount: base,
+          totalAmount: total,
+          discountKind: d.kind,
+          discountPercent: d.kind && d.kind !== DiscountKind.EXEMPT && d.percent ? d.percent : null,
+          discountAmount: d.kind ? discount : null,
+          discountReason: d.kind ? motif : null,
+          version: { increment: 1 },
+        },
+      });
+      await this.audit.log(
+        actor.id,
+        {
+          action: 'Réduction de cotisation',
+          entity: 'Membership',
+          entityId: m.id,
+          target: `${fullName(enrollment.player)} · ${season.label}`,
+          before: `${label(m.discountKind, m.discountPercent ? num(m.discountPercent) : null, num(m.discountAmount ?? 0))} · dû ${dt(num(m.totalAmount))}`,
+          after: `${label(d.kind, d.percent ?? null, discount)} · dû ${dt(total)}`,
+          reason: motif,
+        },
+        tx,
+      );
+    });
+    return { total, discount, base };
+  }
+
+  /** Cotisation d'un joueur pour la fiche « Modifier » : montants, réduction, frères et sœurs inscrits (même parent). */
+  async membershipInfo(playerId: string, seasonId?: string) {
+    const season = await this.access.seasonOrActive(seasonId);
+    const enrollment = await this.loadEnrollment(playerId, season.id);
+    const parents = await this.prisma.parentLink.findMany({ where: { playerId }, select: { parentId: true } });
+    const siblings = parents.length
+      ? await this.prisma.player.findMany({
+          where: {
+            id: { not: playerId },
+            archivedAt: null,
+            parentLinks: { some: { parentId: { in: parents.map((p) => p.parentId) } } },
+            enrollments: { some: { seasonId: season.id } },
+          },
+          select: { id: true, firstName: true, lastName: true, birthDate: true },
+          orderBy: { birthDate: 'asc' },
+        })
+      : [];
+    const m = enrollment?.membership;
+    return {
+      siblings: siblings.map((p) => ({ id: p.id, name: fullName(p) })),
+      membership: m
+        ? {
+            paymentPlan: m.paymentPlan,
+            base: num(m.baseAmount ?? m.totalAmount),
+            total: num(m.totalAmount),
+            paid: m.installments.reduce((t, i) => t + i.payments.reduce((u, p) => u + num(p.amount), 0), 0),
+            discountKind: m.discountKind,
+            discountPercent: m.discountPercent ? num(m.discountPercent) : null,
+            discountAmount: m.discountAmount ? num(m.discountAmount) : null,
+            discountReason: m.discountReason,
+          }
+        : null,
+    };
   }
 
   /**

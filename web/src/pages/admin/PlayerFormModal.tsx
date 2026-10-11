@@ -9,7 +9,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
-import type { Category, Credentials, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
+import type { Category, Credentials, DiscountKind, MembershipInfo, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 type Form = {
@@ -75,6 +75,40 @@ export function PlayerFormModal({
   const setNp = (k: keyof Form['np']) => (e: { target: { value: string } }) => setF((x) => ({ ...x, np: { ...x.np, [k]: e.target.value } }));
   const [created, setCreated] = useState<Created>();
   const [changedCreds, setChangedCreds] = useState<(Credentials & { name: string })[]>([]);
+  // Réduction sur la cotisation (fiche existante) : fratrie, spéciale ou exonération, en % ou en DT, avec motif.
+  const info = useQuery({
+    queryKey: ['membership-info', player?.id],
+    queryFn: () => api.get<MembershipInfo>(`/memberships/player/${player!.id}`),
+    enabled: open && Boolean(player?.enrolled),
+  });
+  const [disc, setDisc] = useState<{ kind: DiscountKind | ''; mode: 'percent' | 'amount'; value: string; reason: string }>({
+    kind: '',
+    mode: 'percent',
+    value: '',
+    reason: '',
+  });
+  const infoM = info.data?.membership;
+  useEffect(() => {
+    if (!open) return;
+    setDisc(
+      infoM?.discountKind
+        ? {
+            kind: infoM.discountKind,
+            mode: infoM.discountPercent ? 'percent' : 'amount',
+            value: String(infoM.discountPercent ?? infoM.discountAmount ?? ''),
+            reason: infoM.discountReason ?? '',
+          }
+        : { kind: '', mode: 'percent', value: '', reason: '' },
+    );
+  }, [open, infoM]);
+  const discValue = Number(disc.value.replace(',', '.'));
+  const discBase = infoM?.base ?? player?.membership?.total ?? 0;
+  const discPreview =
+    disc.kind === 'EXEMPT' ? 0 : disc.kind && discValue > 0 ? Math.max(0, disc.mode === 'percent' ? discBase * (1 - discValue / 100) : discBase - discValue) : discBase;
+  const discChanged =
+    (disc.kind || null) !== (infoM?.discountKind ?? null) ||
+    (disc.kind && disc.kind !== 'EXEMPT' && (disc.mode === 'percent' ? discValue !== (infoM?.discountPercent ?? 0) : discValue !== (infoM?.discountAmount ?? 0))) ||
+    (disc.kind && disc.reason.trim() !== (infoM?.discountReason ?? ''));
 
   // Joueur lu à l'ouverture seulement : un rechargement de la liste n'efface pas la saisie.
   const playerRef = useRef(player);
@@ -149,10 +183,19 @@ export function PlayerFormModal({
       if (f.paymentPlan && f.paymentPlan !== before.membership?.paymentPlan) {
         await api.put('/memberships/plan', { playerId: before.id, paymentPlan: f.paymentPlan, reason: f.planReason.trim() || undefined });
       }
+      if (discChanged) {
+        await api.put('/memberships/discount', {
+          playerId: before.id,
+          kind: disc.kind || null,
+          percent: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'percent' ? discValue : undefined,
+          amount: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'amount' ? discValue : undefined,
+          reason: disc.reason.trim() || undefined,
+        });
+      }
       return saved;
     },
     {
-      invalidate: [['players'], ['categories'], ['groups'], ['player-profile'], ['emails'], ['installments'], ['memberships-missing']],
+      invalidate: [['players'], ['categories'], ['groups'], ['player-profile'], ['emails'], ['installments'], ['memberships-missing'], ['membership-info']],
       success: (r) => savedMessage('Joueur enregistré.', r.credentials),
       onSuccess: (r) => {
         onClose();
@@ -322,6 +365,57 @@ export function PlayerFormModal({
                 onChange={set('planReason')}
                 placeholder="Ex. le parent préfère payer par mois"
               />
+            )}
+            {(player.membership || f.paymentPlan) && (
+              <fieldset className="col-span-full m-0 grid grid-cols-1 gap-3 rounded-[20px] border-[1.5px] border-line p-3.5 min-[520px]:grid-cols-2">
+                <legend className="px-1.5 text-[13px] font-semibold text-mut">Réduction sur la cotisation</legend>
+                {info.data?.siblings.length ? (
+                  <div className="col-span-full">
+                    <Pill tone="b" className="whitespace-normal">
+                      Frère / sœur inscrit(e) : {info.data.siblings.map((x) => x.name).join(', ')}
+                    </Pill>
+                  </div>
+                ) : null}
+                <SelectField label="Type" value={disc.kind} onChange={(e) => setDisc((x) => ({ ...x, kind: e.target.value as DiscountKind | '' }))}>
+                  <option value="">Aucune réduction</option>
+                  <option value="SIBLING">Fratrie (2e enfant…)</option>
+                  <option value="SPECIAL">Réduction spéciale</option>
+                  <option value="EXEMPT">Exonération totale</option>
+                </SelectField>
+                {disc.kind && disc.kind !== 'EXEMPT' ? (
+                  <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+                    <TextField
+                      label={disc.mode === 'percent' ? 'Pourcentage (%)' : 'Montant (DT)'}
+                      inputMode="decimal"
+                      value={disc.value}
+                      onChange={(e) => setDisc((x) => ({ ...x, value: e.target.value }))}
+                    />
+                    <SelectField label="En" value={disc.mode} onChange={(e) => setDisc((x) => ({ ...x, mode: e.target.value as 'percent' | 'amount' }))}>
+                      <option value="percent">%</option>
+                      <option value="amount">DT</option>
+                    </SelectField>
+                  </div>
+                ) : (
+                  <span />
+                )}
+                {disc.kind && (
+                  <TextField
+                    label="Motif *"
+                    full
+                    value={disc.reason}
+                    onChange={(e) => setDisc((x) => ({ ...x, reason: e.target.value }))}
+                    placeholder={disc.kind === 'SIBLING' ? 'Ex. 2e enfant de la famille' : 'Ex. décision du bureau du 10/10'}
+                  />
+                )}
+                {discBase > 0 && (
+                  <div className="col-span-full">
+                    <Pills>
+                      <Pill tone="s">Tarif {DT(discBase)}</Pill>
+                      <Pill tone={disc.kind ? 'g' : 'b'}>À payer {DT(Math.round(discPreview * 1000) / 1000)}</Pill>
+                    </Pills>
+                  </div>
+                )}
+              </fieldset>
             )}
           </>
         )}

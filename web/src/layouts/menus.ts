@@ -106,6 +106,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconClipboard,
     children: [
       { label: 'Envoyer une notification', path: '/admin/notifications', perm: ['notifications.send'] },
+      { label: 'Mises à jour (Excel)', path: '/admin/mises-a-jour', perm: ['groups.manage', 'payments.collect'] },
       { label: 'Emails envoyés', path: '/admin/emails', perm: ['emails.view'] },
       { label: 'Historique des actions', path: '/admin/audit', perm: ['audit.view'] },
       { label: 'Import historique', path: '/admin/import', soon: true, perm: ['import.manage'] },

@@ -460,15 +460,28 @@ model FeeSchedule {
   @@unique([seasonId, categoryId, groupId])
 }
 
+/// Réduction sur la cotisation : fratrie (2e enfant…), réduction spéciale, exonération totale.
+enum DiscountKind {
+  SIBLING
+  SPECIAL
+  EXEMPT
+}
+
 model Membership {
-  id            String      @id @default(uuid()) @db.Uuid
-  enrollmentId  String      @unique @db.Uuid
-  feeScheduleId String?     @db.Uuid
-  paymentPlan   PaymentPlan @default(FULL)
-  totalAmount   Decimal     @db.Decimal(10, 3)
-  version       Int         @default(1)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id              String        @id @default(uuid()) @db.Uuid
+  enrollmentId    String        @unique @db.Uuid
+  feeScheduleId   String?       @db.Uuid
+  paymentPlan     PaymentPlan   @default(FULL)
+  totalAmount     Decimal       @db.Decimal(10, 3) // montant dû, réduction déduite
+  /// Réduction : montant du tarif avant réduction, type, pourcentage ou montant, motif (null = pas de réduction).
+  baseAmount      Decimal?      @db.Decimal(10, 3)
+  discountKind    DiscountKind?
+  discountPercent Decimal?      @db.Decimal(5, 2)
+  discountAmount  Decimal?      @db.Decimal(10, 3)
+  discountReason  String?
+  version         Int           @default(1)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id])
   feeSchedule  FeeSchedule?  @relation(fields: [feeScheduleId], references: [id])

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { PaymentMethod, PaymentPlan, Role } from '@prisma/client';
+import { DiscountKind, PaymentMethod, PaymentPlan, Role } from '@prisma/client';
 import { IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AuthUser, can, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { rule } from '../common/rules';
@@ -77,6 +77,31 @@ class PlanDto {
   reason?: string;
 }
 
+class DiscountDto {
+  @IsUUID()
+  playerId: string;
+
+  /** null : retire la réduction. */
+  @IsOptional()
+  @IsEnum(DiscountKind)
+  kind: DiscountKind | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  percent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  amount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
 class MissingDto {
   @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
   paymentPlan: PaymentPlan;
@@ -120,6 +145,18 @@ export class PaymentsController {
   @Perm('payments.collect', 'players.manage')
   changePlan(@CurrentUser() user: AuthUser, @Body() dto: PlanDto) {
     return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason);
+  }
+
+  @Put('memberships/discount')
+  @Perm('payments.collect', 'players.manage')
+  setDiscount(@CurrentUser() user: AuthUser, @Body() dto: DiscountDto) {
+    return this.payments.setDiscount(user, dto.playerId, { kind: dto.kind ?? null, percent: dto.percent, amount: dto.amount, reason: dto.reason });
+  }
+
+  @Get('memberships/player/:playerId')
+  @Perm('payments.collect', 'players.manage')
+  membershipInfo(@Param('playerId', ParseUUIDPipe) playerId: string) {
+    return this.payments.membershipInfo(playerId);
   }
 
   @Get('memberships/missing')

@@ -1,10 +1,16 @@
-import { PaymentPlan } from '@prisma/client';
+import { DiscountKind, PaymentPlan } from '@prisma/client';
 import { isoDay } from '../common/dates';
 
 export const PLAN_LABEL: Record<PaymentPlan, string> = {
   FULL: 'Comptant',
   SEMESTER: 'Par semestre',
   MONTHLY: 'Par mois',
+};
+
+export const DISCOUNT_LABEL: Record<DiscountKind, string> = {
+  SIBLING: 'Réduction fratrie',
+  SPECIAL: 'Réduction spéciale',
+  EXEMPT: 'Exonération',
 };
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;

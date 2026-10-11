@@ -9,6 +9,22 @@ export type Space = 'admin' | 'coach' | 'parent' | 'player';
 export type PayMode = 'HOURLY' | 'MONTHLY';
 export type StaffFunction = 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
 export type PaymentPlan = 'FULL' | 'SEMESTER' | 'MONTHLY';
+export type DiscountKind = 'SIBLING' | 'SPECIAL' | 'EXEMPT';
+
+/** Cotisation d'un joueur (fiche « Modifier ») : montants, réduction, frères et sœurs inscrits. */
+export type MembershipInfo = {
+  siblings: { id: string; name: string }[];
+  membership: {
+    paymentPlan: PaymentPlan;
+    base: number;
+    total: number;
+    paid: number;
+    discountKind: DiscountKind | null;
+    discountPercent: number | null;
+    discountAmount: number | null;
+    discountReason: string | null;
+  } | null;
+};
 export type EmployeeType = 'COACH' | 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
 
 export type PersonRef = { id: string; firstName: string; lastName: string };
@@ -655,3 +671,57 @@ export type Broadcast = {
 export type Recipient = { id: string; name: string; roles: ('PARENT' | 'PLAYER' | 'COACH')[]; players: string[] };
 
 export type FederationAccount = { login: string | null; hasPassword: boolean };
+
+// ───── Mises à jour par fichier (groupes, paiements du cahier) ─────
+
+type UpdateStatus = 'ok' | 'warning' | 'error';
+type UpdatePlayer = { id: string; name: string; memberCode: string | null } | null;
+
+export type GroupUpdatePreview = {
+  fileName: string;
+  season: string;
+  total: number;
+  ok: number;
+  warnings: number;
+  errors: number;
+  corrections: number;
+  moves: number;
+  groups: string[];
+  rows: {
+    line: number;
+    groupLabel: string | null;
+    name: string;
+    group: { id: string; name: string } | null;
+    player: UpdatePlayer;
+    correction: { from: string; to: string } | null;
+    action: 'add' | 'move' | 'none';
+    from: string | null;
+    status: UpdateStatus;
+    messages: string[];
+  }[];
+};
+
+export type PaymentUpdatePreview = {
+  fileName: string;
+  season: string;
+  total: number;
+  ok: number;
+  warnings: number;
+  errors: number;
+  amount: number;
+  rows: {
+    line: number;
+    name: string;
+    nameAr: string | null;
+    player: UpdatePlayer;
+    base: number | null;
+    due: number | null;
+    alreadyPaid: number;
+    paid: number | null;
+    method: 'CASH' | 'CHEQUE';
+    receipt: number | null;
+    date: string;
+    status: UpdateStatus;
+    messages: string[];
+  }[];
+};
