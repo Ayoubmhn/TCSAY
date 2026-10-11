@@ -15,6 +15,7 @@ import { CourtRatesController } from './court-rates/court-rates.controller';
 import { CourtsController } from './courts/courts.controller';
 import { DashboardController } from './dashboard/dashboard.controller';
 import { PlanningController } from './dashboard/planning.controller';
+import { FinanceStatsController } from './dashboard/finance-stats.controller';
 import { SeasonStatsController } from './dashboard/season-stats.controller';
 import { EventsController } from './events/events.controller';
 import { FeesController } from './fees/fees.controller';
@@ -54,6 +55,7 @@ import { StaffController } from './staff/staff.controller';
     DashboardController,
     PlanningController,
     SeasonStatsController,
+    FinanceStatsController,
     PlayersController,
     ParentsController,
     CoachesController,

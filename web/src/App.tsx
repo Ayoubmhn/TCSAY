@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { homeOf, useAuth } from './auth/AuthContext';
 import { EmptyState } from './components/ui/Card';
 import { SeasonDetailPage } from './features/seasons/SeasonDetailPage';
+import { FinanceStatsPage } from './features/stats/FinanceStatsPage';
 import { SeasonsPage } from './features/seasons/SeasonsPage';
 import { AppShell } from './layouts/AppShell';
 import type { Role } from './lib/types';
@@ -124,6 +125,7 @@ export function App() {
 
         {/* Administration : président, agents, superviseur, directeur technique (selon les autorisations) */}
         <Route path="admin" element={admin(['stats.view'], <DashboardPage />)} />
+        <Route path="admin/statistiques" element={admin(['stats.view'], <FinanceStatsPage />)} />
         <Route path="admin/planning" element={admin(['planning.view', 'groups.manage'], <PlanningPage />)} />
         <Route path="admin/joueurs" element={admin(['players.manage'], <PlayersPage />)} />
         <Route path="admin/joueurs/import" element={admin(['players.manage'], <PlayersImportPage />)} />

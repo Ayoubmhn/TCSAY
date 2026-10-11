@@ -76,6 +76,9 @@ export function SeasonDetailPage() {
                   sur {DT(d.finances.due)} dus{d.finances.rate !== null ? ` · ${d.finances.rate} %` : ''}
                 </CardText>
                 {d.finances.due > 0 && <ProgressBar value={d.finances.cashed} max={d.finances.due} />}
+                <Link to={`/admin/statistiques?saison=${d.season.id}`} className="mt-2 text-sm font-medium text-pri hover:underline">
+                  Statistiques financières ›
+                </Link>
               </Card>
               <Card>
                 <CardSubtitle>Présence aux séances</CardSubtitle>

@@ -50,6 +50,11 @@ export function DashboardPage() {
                   <CardSubtitle>Encaissé cette saison</CardSubtitle>
                   <Kpi>{DT(d.cashed)}</Kpi>
                   <CardText>{d.paymentsCount} paiements enregistrés</CardText>
+                  <CardActions>
+                    <Link className={LINK_BTN} to="/admin/statistiques">
+                      Statistiques financières
+                    </Link>
+                  </CardActions>
                 </Card>
                 <Card>
                   <CardSubtitle>Tranches en retard</CardSubtitle>

@@ -94,6 +94,7 @@ const ADMIN_MENU: MenuItem[] = [
     label: 'Finances',
     icon: IconWallet,
     children: [
+      { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
       { label: 'Paiements', path: '/admin/paiements', perm: ['payments.collect'] },
       { label: 'Reçus', path: '/admin/recus', perm: ['payments.collect'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
