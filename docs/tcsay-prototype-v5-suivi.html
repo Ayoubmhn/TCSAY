@@ -82,6 +82,9 @@ textarea,input[type=text]{width:100%;background:var(--fld);border:0;border-radiu
 .lock .veil{position:absolute;inset:0;backdrop-filter:blur(6px);background:color-mix(in srgb,var(--bg) 60%,transparent);border-radius:24px;display:flex;justify-content:center;align-items:flex-start;text-align:center;padding:40px 20px;z-index:2}
 .lock .veil>div{position:sticky;top:40px;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:22px;max-width:420px}
 .seg button svg{width:18px;height:18px;display:block}
+.modal-veil{position:fixed;inset:0;background:var(--veil);z-index:5}
+.modal{position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border-radius:28px;padding:22px}
+.btn2[disabled]{opacity:.45;cursor:default}
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:99px;padding:11px 20px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
 .toast.on{opacity:1}
 .crit{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:8px 12px;align-items:center;margin-top:12px}
@@ -104,6 +107,7 @@ svg text{font-family:var(--font)}
   <nav id="nav" aria-label="Menu"></nav>
   <main id="main"></main>
 </div>
+<div id="modal"></div>
 <div class="toast" id="toast" role="status"></div>
 
 <script>
@@ -147,7 +151,7 @@ const PLAYERS = [
 ];
 
 // ───────── État ─────────
-const S = { role: 'parent', screen: 'suivi', kid: 'y', view: 'list', obj: 'Coup droit croisé', att: {}, notes: {}, moods: {}, unpaidDemo: false };
+const S = { evalOpen: null, role: 'parent', screen: 'suivi', kid: 'y', view: 'list', obj: 'Coup droit croisé', att: {}, notes: {}, moods: {}, unpaidDemo: false };
 PLAYERS.forEach((p, i) => { S.att[i] = i === 3 ? 'A' : 'P'; S.notes[i] = {}; S.moods[i] = '🙂'; });
 
 const MENUS = {
@@ -245,18 +249,40 @@ V.paiements = () => `${header('Mes paiements', 'Découvrez vos tranches et vos r
   <div class="pills"><label class="pill s" style="cursor:pointer"><input type="checkbox" id="unpaid" ${S.unpaidDemo ? 'checked' : ''}> Simuler une tranche impayée</label></div>`;
 
 // ───────── Écrans entraîneur ─────────
-V.seance = () => `${header('Séance en cours', 'Benjamins 1 · jeudi 12 mars · 17h00 – 18h30 · Court 2', pill('En cours', 'g'))}
+const initials = (n) => n.split(' ').map((w) => w[0]).slice(0, 2).join('');
+const present = () => PLAYERS.map((_, i) => i).filter((i) => S.att[i] !== 'A');
+const avgOf = (i) => { const v = Object.values(S.notes[i]); return v.length === CRITERIA.length ? (v.reduce((t, n) => t + n, 0) / v.length).toFixed(1).replace('.', ',') : null; };
+
+V.seance = () => {
+  const evaluated = present().filter((i) => avgOf(i)).length;
+  return `${header('Séance en cours', 'Benjamins 1 · jeudi 12 mars · 17h00 – 18h30 · Court 2', pill('En cours', 'g'))}
   <h2>1. Objectif de la séance</h2><div class="card"><div class="chips">${OBJECTIVES.map((o) => `<button class="chip ${o === S.obj ? 'on' : ''}" data-obj="${esc(o)}">${o}</button>`).join('')}</div>
     <textarea rows="2" style="margin-top:12px" aria-label="Contenu de la séance">Échauffement 10 min · panier coup droit croisé · jeu en 7 points croisés · étirements</textarea>
     <div class="pills">${pill('Prévu dans le plan de cycle : semaine 3/6', 's')}</div></div>
-  <h2>2. Présences, forme et notes</h2>
-  <div class="list">${PLAYERS.map((p, i) => `<div class="li" style="grid-template-columns:1fr"><div class="row"><div class="who"><span class="av">${p.n.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span><b>${p.n}</b></div>
+  <h2>2. Présences</h2>
+  <div class="list">${PLAYERS.map((p, i) => `<div class="li"><div class="who"><span class="av">${initials(p.n)}</span><b>${p.n}</b></div>
     <div class="row"><div class="att" role="group" aria-label="Présence de ${p.n}">${[['P', 'Présent'], ['R', 'Retard'], ['A', 'Absent']].map(([k, l]) => `<button class="${k} ${S.att[i] === k ? 'on' : ''}" data-att="${i}|${k}">${l}</button>`).join('')}</div>
-    ${S.att[i] !== 'A' ? `<div class="att" role="group" aria-label="Forme">${['🙂', '😐', '🙁'].map((m) => `<button class="${S.moods[i] === m ? 'P on' : ''}" data-mood="${i}|${m}" aria-label="Forme ${m}">${m}</button>`).join('')}</div>` : ''}</div></div>
-    ${S.att[i] !== 'A' ? `<div class="crit">${CRITERIA.map((c, ci) => `<span class="mut">${c === 'Objectif du jour' ? 'Objectif : ' + S.obj : c}</span><div class="dots" role="group" aria-label="${c}">${[1, 2, 3, 4, 5].map((n) => `<button class="${S.notes[i][ci] === n ? 'on' : ''}" data-note="${i}|${ci}|${n}">${n}</button>`).join('')}</div>`).join('')}</div>
-    <input type="text" placeholder="Commentaire pour le parent (facultatif) : un point fort, un point à travailler" style="margin-top:10px">` : `<p class="mut" style="margin:6px 0 0">Absent : motif facultatif, le parent est prévenu.</p>`}</div>`).join('')}</div>
-  <div class="pills" style="margin-top:16px"><button class="btn" data-act="save-session">Enregistrer la séance</button><button class="btn2" data-act="fill">Remplir 4/5 pour tous</button></div>
-  <div class="note"><span>ⓘ</span><div>2 à 3 minutes par groupe : un clic par note. Une douleur (🙁) est signalée au parent et au directeur technique.</div></div>`;
+    ${S.att[i] !== 'A' ? `<div class="att" role="group" aria-label="Forme">${['🙂', '😐', '🙁'].map((m) => `<button class="${S.moods[i] === m ? 'P on' : ''}" data-mood="${i}|${m}" aria-label="Forme ${m}">${m}</button>`).join('')}</div>` : ''}</div></div>`).join('')}</div>
+  <div class="pills" style="margin-top:16px"><button class="btn" data-act="save-session">Enregistrer les présences</button></div>
+  <h2>3. Évaluation de la séance</h2>
+  <div class="card"><div class="row"><div><h3>Notes des joueurs présents</h3><p class="mut" style="margin:4px 0 0">Dans une fenêtre à part, un joueur à la fois : 5 notes et un commentaire.</p></div>${pill(evaluated + '/' + present().length + ' évalués', evaluated === present().length ? 'g' : 's')}</div>
+    <div style="margin-top:12px">${bar(evaluated, Math.max(1, present().length))}</div>
+    <div class="pills">${present().map((i) => `<button class="pill ${avgOf(i) ? 'g' : ''}" style="border:0;cursor:pointer" data-eval="${i}">${PLAYERS[i].n.split(' ')[0]} ${avgOf(i) ? '· ' + avgOf(i) : '· à évaluer'}</button>`).join('')}</div>
+    <div class="pills" style="margin-top:14px"><button class="btn" data-eval="${present().find((i) => !avgOf(i)) ?? present()[0]}">Évaluer la séance</button></div></div>
+  <div class="note"><span>ⓘ</span><div>Même module « Séance », mais l’évaluation s’ouvre dans sa propre fenêtre : les présences restent rapides à pointer en début de séance, les notes se font à la fin.</div></div>`;
+};
+
+/** Fenêtre d'évaluation d'un joueur (séparée de la page des présences). */
+function evalModal() {
+  if (S.evalOpen === null || S.evalOpen === undefined) return '';
+  const list = present(), pos = list.indexOf(S.evalOpen), i = S.evalOpen, p = PLAYERS[i];
+  return `<div class="modal-veil" data-act="close-eval"></div><div class="modal" role="dialog" aria-modal="true" aria-label="Évaluation de ${p.n}">
+    <div class="row"><div class="who"><span class="av">${initials(p.n)}</span><div><h3>${p.n}</h3><div class="mut">Joueur ${pos + 1}/${list.length} · ${S.moods[i]} forme du jour</div></div></div><button class="ico" data-act="close-eval" aria-label="Fermer">✕</button></div>
+    <div class="crit">${CRITERIA.map((c, ci) => `<span class="mut">${c === 'Objectif du jour' ? 'Objectif : ' + S.obj : c}</span><div class="dots" role="group" aria-label="${c}">${[1, 2, 3, 4, 5].map((n) => `<button class="${S.notes[i][ci] === n ? 'on' : ''}" data-note="${i}|${ci}|${n}">${n}</button>`).join('')}</div>`).join('')}</div>
+    <textarea rows="2" style="margin-top:14px" placeholder="Commentaire pour le parent (facultatif) : un point fort, un point à travailler"></textarea>
+    <div class="row" style="margin-top:16px"><button class="btn2" data-act="prev-eval" ${pos === 0 ? 'disabled' : ''}>‹ Précédent</button><span class="mut">${avgOf(i) ? 'Moyenne ' + avgOf(i) + '/5' : 'Toutes les notes sont nécessaires'}</span><button class="btn" data-act="next-eval">${pos === list.length - 1 ? 'Terminer' : 'Suivant ›'}</button></div>
+  </div>`;
+}
 
 V.bilan = () => `${header('Bilan de période', 'Évaluation complète du trimestre, partagée avec le parent.')}
   <div class="kidsel"><select class="sel" aria-label="Joueur">${PLAYERS.map((p) => `<option>${p.n}</option>`).join('')}</select><select class="sel" aria-label="Période"><option>Trimestre 2 (janv. → mars)</option><option>Trimestre 1 (oct. → déc.)</option></select></div>
@@ -306,9 +332,10 @@ function render() {
   $('#roles').innerHTML = ROLES.map(([k, l]) => `<button aria-pressed="${S.role === k}" data-role="${k}">${l}</button>`).join('');
   $('#nav').innerHTML = MENUS[S.role].map(([k, l, isNew]) => k === 't' ? `<div class="t">${l}</div>` : `<button class="${S.screen === k ? 'on' : ''}" data-go="${k}">${l}${isNew ? '<span class="new">Nouveau</span>' : ''}</button>`).join('');
   $('#main').innerHTML = (V[S.screen] || V.accueil)();
+  $('#modal').innerHTML = S.role === 'coach' && S.screen === 'seance' ? evalModal() : '';
 }
 document.addEventListener('click', (e) => {
-  const b = e.target.closest('button,[data-go]');
+  const b = e.target.closest('button,[data-go],[data-act]');
   if (!b) return;
   const d = b.dataset;
   if (d.role) { S.role = d.role; S.screen = MENUS[d.role][1][0]; }
@@ -320,8 +347,14 @@ document.addEventListener('click', (e) => {
   else if (d.dot !== undefined) { b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); return; }
   else if (d.ex) { const x = EXERCISES.find((x) => x.id === Number(d.ex)); x.done = !x.done; toast(x.done ? 'Exercice marqué fait 👏' : 'Exercice marqué non fait.'); }
   else if (d.view) S.view = d.view;
-  else if (d.act === 'fill') PLAYERS.forEach((_, i) => CRITERIA.forEach((_, c) => (S.notes[i][c] = 4)));
-  else if (d.act === 'save-session') { toast('Séance enregistrée : présences, objectif et notes envoyés aux parents.'); return; }
+  else if (d.eval !== undefined) S.evalOpen = Number(d.eval);
+  else if (d.act === 'close-eval') S.evalOpen = null;
+  else if (d.act === 'prev-eval' || d.act === 'next-eval') {
+    const list = present(), pos = list.indexOf(S.evalOpen);
+    if (d.act === 'next-eval' && pos === list.length - 1) { S.evalOpen = null; toast('Évaluation enregistrée : les parents voient la moyenne et le commentaire.'); }
+    else S.evalOpen = list[pos + (d.act === 'next-eval' ? 1 : -1)];
+  }
+  else if (d.act === 'save-session') { toast('Présences enregistrées. Pensez à évaluer la séance à la fin.'); return; }
   else if (d.act === 'save-bilan') { toast('Bilan enregistré et partagé avec le parent.'); return; }
   else if (d.act === 'del') { if (confirm('Archiver ce joueur ? (R8 : archivage, rien n’est supprimé)')) toast('Joueur archivé (démo).'); return; }
   else if (d.act) { toast({ view: 'Ouverture de la fiche (démo).', pay: 'Encaissement (démo).', edit: 'Modification (démo).', give: 'Exercice donné au groupe : notification envoyée.', add: 'Ajout (démo).' }[d.act] || 'Démo.'); return; }
@@ -333,6 +366,7 @@ document.addEventListener('change', (e) => {
   if (e.target.id === 'kid') { S.kid = e.target.value; render(); }
   if (e.target.id === 'unpaid') { S.unpaidDemo = e.target.checked; render(); toast(S.unpaidDemo ? 'Tranche impayée simulée : ouvrez Suivi, Séances ou Exercices.' : 'Paiement à jour.'); }
 });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.evalOpen !== null) { S.evalOpen = null; render(); } });
 render();
 </script>
 </body>
