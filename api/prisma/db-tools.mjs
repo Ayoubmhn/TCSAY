@@ -54,8 +54,14 @@ async function backup(label = 'sauvegarde') {
     console.log('ℹ Base neuve (aucune table) : rien à sauvegarder.');
     return null;
   }
+  // Lecture brute (SELECT *) : la sauvegarde marche même si la base a un temps de retard sur le schéma
+  // (cas de db:migrate, qui sauvegarde AVANT d'ajouter les nouvelles colonnes et tables).
   for (const m of models) {
-    tables[m.name] = await db[delegate(m.name)].findMany();
+    try {
+      tables[m.name] = await db.$queryRawUnsafe(`SELECT * FROM "${m.name}"`);
+    } catch {
+      tables[m.name] = []; // table pas encore créée
+    }
     rows += tables[m.name].length;
   }
   const migrations = await db.$queryRawUnsafe('SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NOT NULL ORDER BY migration_name');
