@@ -387,6 +387,11 @@ async function main() {
   }
   await prisma.exerciseCompletion.create({ data: { assignmentId: assigned['warmPoussines F'], playerId: J_.J2 } });
 
+  // Accès après paiement (DÉMO) : activé, délai de grâce 7 jours (désactivé par défaut sur une vraie base)
+  await prisma.setting.create({
+    data: { key: 'access.payment', value: JSON.stringify({ enabled: true, graceDays: 7, modules: { sessions: true, progress: true, exercises: true, reservation: false } }) },
+  });
+
   // Alerte de démonstration : Rayen (Lutins 1) absent 3 séances de suite après le 5 octobre
   {
     let left = 3;

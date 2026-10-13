@@ -37,6 +37,8 @@ import { EvaluationsPage } from './pages/coach/EvaluationsPage';
 import { TechOverviewPage } from './pages/admin/TechOverviewPage';
 import { ExercisesCoachPage } from './features/exercises/ExercisesCoachPage';
 import { ExercisesPage } from './features/exercises/ExercisesPage';
+import { PaymentGate } from './components/PaymentGate';
+import { PaymentAccessPage } from './pages/admin/PaymentAccessPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
@@ -109,11 +111,11 @@ export function App() {
         {/* Joueur / parent */}
         <Route index element={<Protected roles={PLAYER}><HomePage /></Protected>} />
         <Route path="paiements" element={<Protected roles={PLAYER}><PaymentsPage /></Protected>} />
-        <Route path="seances" element={<Protected roles={PLAYER}><SessionsPage /></Protected>} />
-        <Route path="absences" element={<Protected roles={PLAYER}><AbsencesPage /></Protected>} />
-        <Route path="suivi" element={<Protected roles={PLAYER}><ProgressPage /></Protected>} />
-        <Route path="exercices" element={<Protected roles={PLAYER}><ExercisesPage /></Protected>} />
-        <Route path="reserver" element={<Protected roles={PLAYER}><BookPage /></Protected>} />
+        <Route path="seances" element={<Protected roles={PLAYER}><PaymentGate module="sessions" title="Mes séances"><SessionsPage /></PaymentGate></Protected>} />
+        <Route path="absences" element={<Protected roles={PLAYER}><PaymentGate module="sessions" title="Mes absences"><AbsencesPage /></PaymentGate></Protected>} />
+        <Route path="suivi" element={<Protected roles={PLAYER}><PaymentGate module="progress" title="Suivi et progression"><ProgressPage /></PaymentGate></Protected>} />
+        <Route path="exercices" element={<Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>} />
+        <Route path="reserver" element={<Protected roles={PLAYER}><PaymentGate module="reservation" title="Réserver un terrain"><BookPage /></PaymentGate></Protected>} />
         <Route
           path="tournois"
           element={
@@ -160,6 +162,7 @@ export function App() {
         <Route path="admin/tarifs-terrains" element={admin(['courts.manage'], <CourtRatesPage />)} />
         <Route path="admin/paiements" element={admin(['payments.collect'], <PaymentsAdminPage />)} />
         <Route path="admin/recus" element={admin(['payments.collect'], <ReceiptsPage />)} />
+        <Route path="admin/acces-paiement" element={admin(['permissions.manage', 'payments.collect'], <PaymentAccessPage />)} />
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
         <Route path="admin/mes-salaires" element={admin(undefined, <CoachSalariesPage />)} />

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AttendanceStatus, EmailKind, Mood, Prisma, Role } from '@prisma/client';
 import { IsBoolean, IsIn, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, isoDay, todayIso } from '../common/dates';
@@ -101,6 +102,7 @@ export class EvaluationsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
     private readonly audit: AuditService,
   ) {}
 
@@ -302,6 +304,7 @@ export class EvaluationsController {
       playerId = q.playerId;
     } else {
       playerId = await this.access.resolvePlayer(user, q.playerId);
+      await this.gate.assert(playerId, 'progress');
     }
     const family = user.role === Role.PARENT || user.role === Role.PLAYER;
     const [player, rows] = await Promise.all([

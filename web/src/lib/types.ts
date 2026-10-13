@@ -525,6 +525,8 @@ export type Overview = {
     coaches: CoachRef[];
   } | null;
   hasGroup: boolean;
+  /** Accès après paiement : planning fermé tant que la tranche en retard n'est pas payée. */
+  sessionsLocked?: boolean;
   dueCount: number;
   dueAmount: number;
   upcomingReservations: number;

@@ -234,6 +234,9 @@ model Player {
   /// Niveau validé par la direction technique (ex. « Orange 2 ») ; proposé dans les bilans.
   level                 String?
   levelUpdatedAt        DateTime?
+  /// Accès après paiement : exception accordée (motif), le joueur garde l'accès malgré une tranche en retard.
+  accessExemptReason    String?
+  accessExemptAt        DateTime?
   origin                Origin    @default(MANUAL)
   archivedAt            DateTime? // R8
   version               Int       @default(1)

@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AttendanceStatus, Role } from '@prisma/client';
 import { IsOptional, IsUUID } from 'class-validator';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { isoDay } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
@@ -28,12 +29,14 @@ export class ProgressController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
   ) {}
 
   @Get()
   @Roles(Role.PLAYER, Role.PARENT, Role.ADMIN)
   async progress(@CurrentUser() user: AuthUser, @Query() q: ProgressQuery) {
     const playerId = await this.access.resolvePlayer(user, q.playerId);
+    if (user.role !== Role.ADMIN) await this.gate.assert(playerId, 'progress');
     const season = await this.access.activeSeason();
     const inSeason = { group: { seasonId: season.id } };
     const [player, marks, ratings, plans] = await Promise.all([

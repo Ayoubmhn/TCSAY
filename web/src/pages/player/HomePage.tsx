@@ -76,9 +76,11 @@ export function HomePage() {
                   </>
                 ) : (
                   <>
-                    <h2 className="text-2xl font-semibold">Aucune séance prévue</h2>
+                    <h2 className="text-2xl font-semibold">{o.sessionsLocked ? '🔒 Planning disponible après le paiement' : 'Aucune séance prévue'}</h2>
                     <div className="opacity-90">
-                      {o.hasGroup
+                      {o.sessionsLocked
+                        ? 'La tranche en retard est à régler au club (voir Mes paiements).'
+                        : o.hasGroup
                         ? 'Aucune séance dans les 14 prochains jours.'
                         : `${o.player.firstName} n’est inscrit dans aucun groupe.`}
                     </div>

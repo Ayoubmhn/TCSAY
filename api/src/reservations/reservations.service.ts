@@ -2,6 +2,7 @@ import { NIL_UUID } from '../common/rules';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, ReservationType, Role } from '@prisma/client';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser } from '../auth/auth-user';
 import { addDaysIso, localDayOf, localInstant, pad, todayIso, weekday } from '../common/dates';
@@ -44,6 +45,7 @@ export class ReservationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
@@ -195,6 +197,7 @@ export class ReservationsService {
       playerId = dto.playerId ?? null;
     } else {
       playerId = await this.access.resolvePlayer(user, dto.playerId);
+      await this.gate.assert(playerId, 'reservation');
     }
     if (playerId) {
       const player = await this.prisma.player.findUnique({ where: { id: playerId } });

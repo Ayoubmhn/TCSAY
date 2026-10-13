@@ -4,6 +4,7 @@ import { EmailKind, ExerciseKind, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUrl, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, isoDay, todayIso } from '../common/dates';
@@ -84,6 +85,7 @@ export class ExercisesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
     private readonly audit: AuditService,
   ) {}
 
@@ -263,6 +265,7 @@ export class ExercisesController {
   @Roles(Role.PLAYER, Role.PARENT)
   async mine(@CurrentUser() user: AuthUser, @Query() q: PlayerQuery) {
     const playerId = await this.access.resolvePlayer(user, q.playerId);
+    await this.gate.assert(playerId, 'exercises');
     const season = await this.access.activeSeason();
     const groups = await this.prisma.groupMember.findMany({
       where: { enrollment: { playerId, seasonId: season.id }, group: { archivedAt: null } },
@@ -303,6 +306,7 @@ export class ExercisesController {
   @Roles(Role.PLAYER, Role.PARENT)
   async done(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DoneDto) {
     const playerId = await this.access.resolvePlayer(user, dto.playerId);
+    await this.gate.assert(playerId, 'exercises');
     const a = await this.prisma.exerciseAssignment.findUnique({ where: { id } });
     if (!a) throw new NotFoundException('Exercice introuvable.');
     const season = await this.access.activeSeason();

@@ -4,6 +4,7 @@ import { AttendanceStatus, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { IsArray, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, isoDay, localInstant, todayIso } from '../common/dates';
@@ -116,6 +117,7 @@ export class AttendanceController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
     private readonly audit: AuditService,
   ) {}
 
@@ -210,6 +212,7 @@ export class AttendanceController {
   @Roles(Role.PLAYER, Role.PARENT)
   async playerSessions(@CurrentUser() user: AuthUser, @Query() q: RangeQuery) {
     const playerId = await this.access.resolvePlayer(user, q.playerId);
+    await this.gate.assert(playerId, 'sessions');
     const season = await this.access.activeSeason();
     const groups = await this.prisma.trainingGroup.findMany({
       where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId } } } },
@@ -256,6 +259,7 @@ export class AttendanceController {
   @Roles(Role.PLAYER, Role.PARENT, Role.ADMIN)
   async absences(@CurrentUser() user: AuthUser, @Query() q: RangeQuery) {
     const playerId = await this.access.resolvePlayer(user, q.playerId);
+    if (user.role !== Role.ADMIN) await this.gate.assert(playerId, 'sessions');
     const season = await this.access.activeSeason();
     const rows = await this.prisma.attendance.findMany({
       where: { playerId, status: { in: [AttendanceStatus.ABSENT, AttendanceStatus.LATE] }, group: { seasonId: season.id } },

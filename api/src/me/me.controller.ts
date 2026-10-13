@@ -3,6 +3,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { IsOptional, IsUUID } from 'class-validator';
 import { AccessService } from '../access/access.service';
+import { PaymentAccessService } from '../access/payment-access.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, todayIso } from '../common/dates';
 import { num } from '../common/money';
@@ -25,6 +26,7 @@ export class MeController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
+    private readonly gate: PaymentAccessService,
   ) {}
 
   @Get('overview')
@@ -46,7 +48,9 @@ export class MeController {
     });
     const slots = groups.flatMap((g) => g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season } })));
     const now = new Date();
-    const next = sessionsBetween(slots, todayIso(), addDaysIso(todayIso(), 14)).find((s) => s.start > now);
+    // Accès après paiement : le planning n'est pas montré tant que la tranche en retard n'est pas payée.
+    const sessionsLocked = (await this.gate.status(playerId)).locked.sessions;
+    const next = sessionsLocked ? undefined : sessionsBetween(slots, todayIso(), addDaysIso(todayIso(), 14)).find((s) => s.start > now);
 
     const installments = await this.prisma.installment.findMany({
       where: { membership: { enrollment: { playerId, seasonId: season.id } } },
@@ -76,6 +80,7 @@ export class MeController {
           }
         : null,
       hasGroup: groups.length > 0,
+      sessionsLocked,
       dueCount: due.length,
       dueAmount: Math.round(due.reduce((s, x) => s + x, 0) * 1000) / 1000,
       upcomingReservations: reservations,

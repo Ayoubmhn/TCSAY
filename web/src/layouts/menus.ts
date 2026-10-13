@@ -104,6 +104,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
       { label: 'Paiements', path: '/admin/paiements', perm: ['payments.collect'] },
       { label: 'Reçus', path: '/admin/recus', perm: ['payments.collect'] },
+      { label: 'Accès après paiement', path: '/admin/acces-paiement', perm: ['permissions.manage', 'payments.collect'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
       { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
       { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
