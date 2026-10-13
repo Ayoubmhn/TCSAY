@@ -148,16 +148,27 @@ async function assertReachable() {
   } catch (e) {
     if (e instanceof Prisma.PrismaClientInitializationError) {
       let where = 'le serveur';
+      let user = '?';
       try {
         const u = new URL(process.env.DATABASE_URL ?? '');
         where = `${u.hostname}:${u.port || 5432}`;
+        user = decodeURIComponent(u.username);
       } catch {
         /* adresse illisible : message générique */
       }
-      throw new Error(
-        `Serveur PostgreSQL injoignable (${where}) : rien n’a été lu ni modifié.\n` +
-          '   Démarrez PostgreSQL (Windows : services.msc → « postgresql-x64-… » → Démarrer ; Docker : docker compose up -d), puis relancez.',
-      );
+      const msg = e.message;
+      const kind = /Authentication failed/i.test(msg) ? 'auth' : /does not exist/i.test(msg) ? 'nodb' : /Can't reach/i.test(msg) ? 'down' : 'other';
+      const why = {
+        auth: `connexion refusée pour l’utilisateur « ${user} » sur ${where} (mot de passe faux ou utilisateur inconnu sur ce serveur).`,
+        nodb: `la base « ${databaseName()} » n’existe pas sur ${where}.`,
+        down: `serveur PostgreSQL injoignable (${where}).`,
+        other: msg.split('\n').filter(Boolean).slice(-2).join(' '),
+      }[kind];
+      const help =
+        kind === 'down'
+          ? 'Démarrez PostgreSQL (Windows : services.msc → « postgresql-x64-… » → Démarrer ; Docker : docker compose up -d), puis relancez.'
+          : 'Vérifiez DATABASE_URL dans api/.env : est-ce le bon serveur (port), la bonne base et le bon utilisateur ?';
+      throw new Error(`${why}\n   Rien n’a été lu ni modifié. ${help}`);
     }
     throw e;
   } finally {
