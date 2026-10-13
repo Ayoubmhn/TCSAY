@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router';
 import { useAuth } from '../../auth/AuthContext';
 import { KidSelect } from '../../components/KidSelect';
 import { CRITERIA } from '../../components/SessionReview';
@@ -97,6 +98,18 @@ export function ProgressPage() {
   const criteria = useQuery({
     queryKey: ['evaluation-criteria'],
     queryFn: () => api.get<{ criteria: { key: string; label: string; family: string }[] }>('/evaluations/criteria'),
+  });
+  const matches = useQuery({
+    queryKey: ['progress', 'matches', playerId],
+    queryFn: () =>
+      api.get<{
+        played: number;
+        wins: number;
+        losses: number;
+        totals: { aces: number; doubleFaults: number; firstIn: [number, number]; firstWon: [number, number]; bpWon: [number, number] };
+        recent: { id: string; date: string; opponent: string; won: boolean; score: string | null; kind: string }[];
+      }>('/matches/player/summary', { playerId }),
+    enabled: Boolean(playerId),
   });
   const labelOf = (k: string) => criteria.data?.criteria.find((c) => c.key === k)?.label ?? k;
   const d = q.data;
@@ -217,6 +230,44 @@ export function ProgressPage() {
                       {e.goals && <CardText>📌 Objectifs : {e.goals}</CardText>}
                     </Card>
                   ))}
+                </CardGrid>
+              </Section>
+            )}
+
+            {matches.data && matches.data.played > 0 && (
+              <Section title="Matchs de la saison">
+                <CardGrid>
+                  <Card>
+                    <CardSubtitle>Bilan</CardSubtitle>
+                    <Kpi>
+                      {matches.data.wins} V · {matches.data.losses} D
+                    </Kpi>
+                    <Pills>
+                      <Pill tone="b">{matches.data.played} match(s)</Pill>
+                      <Pill tone="g">{matches.data.totals.aces} aces</Pill>
+                    </Pills>
+                  </Card>
+                  <Card>
+                    <CardSubtitle>% de 1re balle</CardSubtitle>
+                    <Kpi>{matches.data.totals.firstIn[1] ? Math.round((matches.data.totals.firstIn[0] / matches.data.totals.firstIn[1]) * 100) : 0} %</Kpi>
+                    <CardText>
+                      Points gagnés sur 1re balle :{' '}
+                      {matches.data.totals.firstWon[1] ? Math.round((matches.data.totals.firstWon[0] / matches.data.totals.firstWon[1]) * 100) : 0} %
+                    </CardText>
+                  </Card>
+                  <Card>
+                    <CardSubtitle>Derniers matchs</CardSubtitle>
+                    <div className="flex flex-col gap-1.5 text-sm">
+                      {matches.data.recent.map((r) => (
+                        <Link key={r.id} to={`/matchs/${r.id}`} className="flex items-center justify-between gap-2 hover:underline">
+                          <span className="truncate">{r.opponent}</span>
+                          <Pill tone={r.won ? 'g' : 'r'}>
+                            {r.won ? 'V' : 'D'} {r.score}
+                          </Pill>
+                        </Link>
+                      ))}
+                    </div>
+                  </Card>
                 </CardGrid>
               </Section>
             )}

@@ -43,6 +43,23 @@ enum AttendanceStatus {
   LATE // en retard
 }
 
+enum MatchStatus {
+  SCHEDULED // à venir
+  LIVE // en cours
+  FINISHED // terminé
+  ABANDONED // abandon ou annulé (motif)
+}
+
+/// Manière dont le point a été gagné (mode détaillé ; NONE en saisie simple).
+enum PointKind {
+  NONE
+  ACE
+  DF // double faute
+  WINNER // coup gagnant
+  UNFORCED // faute directe de l'adversaire
+  FORCED // faute provoquée
+}
+
 /// Type d'exercice à faire à la maison ou avant la séance.
 enum ExerciseKind {
   WARMUP // échauffement
@@ -194,6 +211,8 @@ model User {
   levelsValidated    Evaluation[]            @relation("EvaluationLevelValidator")
   exercisesCreated   Exercise[]
   exercisesAssigned  ExerciseAssignment[]
+  matchesCreated     Match[]
+  matchPoints        MatchPoint[]
   salaries           Salary[]
   absenceDecisions   CoachAbsence[]          @relation("AbsenceDecidedBy")
   notifications      Notification[]
@@ -252,6 +271,8 @@ model Player {
   evaluations         Evaluation[]
   exerciseAssignments ExerciseAssignment[]
   exerciseCompletions ExerciseCompletion[]
+  matchesAsA          Match[]              @relation("MatchPlayerA")
+  matchesAsB          Match[]              @relation("MatchPlayerB")
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -780,6 +801,62 @@ model ExerciseCompletion {
   player     Player             @relation(fields: [playerId], references: [id])
 
   @@unique([assignmentId, playerId])
+}
+
+/// Match suivi point par point (interne, amical ou tournoi). Le score et les statistiques se recalculent depuis les points.
+model Match {
+  id          String      @id @default(uuid()) @db.Uuid
+  kind        String // INTERNAL (match interne), FRIENDLY (amical, adversaire extérieur), TOURNAMENT
+  title       String? // nom du tournoi, tour…
+  date        DateTime    @db.Date
+  court       String?
+  playerAId   String?     @db.Uuid // joueur du club (ou null : adversaire extérieur)
+  playerAName String
+  playerBId   String?     @db.Uuid
+  playerBName String
+  setsToWin   Int         @default(2)
+  games       Int         @default(6)
+  tiebreak    Boolean     @default(true)
+  superTB     Boolean     @default(false) // dernier set = super tie-break à 10
+  noAd        Boolean     @default(false) // point décisif à 40-40
+  firstServer Int? // 0 = joueur A, 1 = joueur B
+  status      MatchStatus @default(SCHEDULED)
+  winner      Int?
+  score       String? // « 6-3 7-6(4) »
+  stats       Json? // statistiques figées à la fin du match
+  endReason   String? // abandon : motif
+  createdById String      @db.Uuid
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  version     Int         @default(1)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  playerA   Player?      @relation("MatchPlayerA", fields: [playerAId], references: [id])
+  playerB   Player?      @relation("MatchPlayerB", fields: [playerBId], references: [id])
+  createdBy User         @relation(fields: [createdById], references: [id])
+  points    MatchPoint[]
+
+  @@index([date])
+  @@index([status])
+}
+
+/// Point d'un match, dans l'ordre (seq) : l'annulation retire le dernier.
+model MatchPoint {
+  id          String    @id @default(uuid()) @db.Uuid
+  matchId     String    @db.Uuid
+  seq         Int
+  winner      Int // 0 = joueur A, 1 = joueur B
+  firstIn     Boolean // 1re balle bonne
+  kind        PointKind @default(NONE)
+  shot        String?
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  createdBy User  @relation(fields: [createdById], references: [id])
+
+  @@unique([matchId, seq])
 }
 
 // ───────────────────────── Divers ─────────────────────────

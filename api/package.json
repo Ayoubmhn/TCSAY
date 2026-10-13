@@ -20,6 +20,7 @@
     "start:prod": "node dist/main",
     "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:score": "node test/score-engine.check.cjs",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio"
   },

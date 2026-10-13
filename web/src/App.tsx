@@ -38,6 +38,8 @@ import { TechOverviewPage } from './pages/admin/TechOverviewPage';
 import { ExercisesCoachPage } from './features/exercises/ExercisesCoachPage';
 import { ExercisesPage } from './features/exercises/ExercisesPage';
 import { PaymentGate } from './components/PaymentGate';
+import { MatchesPage } from './features/matches/MatchesPage';
+import { MatchPage } from './features/matches/MatchPage';
 import { PaymentAccessPage } from './pages/admin/PaymentAccessPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
@@ -107,6 +109,8 @@ export function App() {
         {/* Tous les rôles */}
         <Route path="parametres" element={<SettingsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="matchs" element={<MatchesPage />} />
+        <Route path="matchs/:id" element={<MatchPage />} />
 
         {/* Joueur / parent */}
         <Route index element={<Protected roles={PLAYER}><HomePage /></Protected>} />

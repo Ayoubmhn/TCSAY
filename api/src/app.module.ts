@@ -10,6 +10,7 @@ import { ProgressController } from './attendance/progress.controller';
 import { EvaluationsController } from './evaluations/evaluations.controller';
 import { ExercisesController } from './exercises/exercises.controller';
 import { PaymentAccessController } from './access/payment-access.controller';
+import { MatchesController } from './matches/matches.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
@@ -85,6 +86,7 @@ import { StaffController } from './staff/staff.controller';
     EvaluationsController,
     ExercisesController,
     PaymentAccessController,
+    MatchesController,
     EventsController,
     EmailsController,
     AuditController,

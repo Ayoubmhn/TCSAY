@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   { key: 'absences.manage', label: 'Absences des entraîneurs (validation)', group: 'Entraînement' },
   { key: 'attendance.manage', label: 'Présences des joueurs (correction)', group: 'Entraînement' },
   { key: 'evaluations.manage', label: 'Suivi technique (bilans, niveaux, alertes)', group: 'Entraînement' },
+  { key: 'matches.manage', label: 'Matchs (création, saisie des points, correction)', group: 'Entraînement' },
   { key: 'seasons.manage', label: 'Saisons et catégories', group: 'Entraînement' },
   { key: 'courts.manage', label: 'Terrains et tarifs terrains', group: 'Terrains' },
   { key: 'reservations.manage', label: 'Réservations', group: 'Terrains' },
@@ -61,5 +62,5 @@ export const DEFAULT_PERMISSIONS: Partial<Record<Role, string[]>> = {
     'notifications.send',
   ],
   SUPERVISOR: ['stats.view'],
-  TECH_DIRECTOR: ['coaches.manage', 'groups.manage', 'absences.manage', 'attendance.manage', 'evaluations.manage', 'planning.view'],
+  TECH_DIRECTOR: ['coaches.manage', 'groups.manage', 'absences.manage', 'attendance.manage', 'evaluations.manage', 'matches.manage', 'planning.view'],
 };

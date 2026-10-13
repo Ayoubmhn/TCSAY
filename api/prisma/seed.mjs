@@ -3,6 +3,8 @@
 // - Joueurs, parents, montants, salaires, réservations : valeurs de DÉMONSTRATION, jamais des tarifs réels.
 // Mots de passe démo : admin@tcsay.tn / admin1234 ; tous les autres comptes / temporaire (changement obligatoire).
 import { randomBytes, scryptSync } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { PrismaClient } from '@prisma/client';
 import { assertNotProduction } from './guard.mjs';
 import { categories, PROGRAMME, L, MA, ME, J, V, S, D, LUTINS } from './reference-data.mjs';
@@ -40,7 +42,7 @@ async function wipe() {
   await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
-    'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
+    'matchPoint', 'match', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
     'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
@@ -391,6 +393,61 @@ async function main() {
   await prisma.setting.create({
     data: { key: 'access.payment', value: JSON.stringify({ enabled: true, graceDays: 7, modules: { sessions: true, progress: true, exercises: true, reservation: false } }) },
   });
+
+  // Matchs (DÉMO) : un terminé, un en cours, un à venir. Le moteur de score (TypeScript) est chargé à la volée.
+  {
+    const ts = createRequire(import.meta.url)('typescript');
+    const src = readFileSync(new URL('../src/matches/score-engine.ts', import.meta.url), 'utf8');
+    const js = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+    const mod = { exports: {} };
+    new Function('module', 'exports', js)(mod, mod.exports);
+    const { computeMatch, scoreLine, matchStats } = mod.exports;
+    let seed = 11;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const play = (format, firstServer, max, favour) => {
+      const pts = [];
+      for (let i = 0; i < max; i++) {
+        const st = computeMatch(format, firstServer, pts);
+        if (st.winner !== null) break;
+        const s = st.server;
+        const firstIn = rnd() < (s === favour ? 0.68 : 0.6);
+        if (firstIn && rnd() < (s === favour ? 0.08 : 0.04)) { pts.push({ winner: s, firstIn, kind: 'ACE' }); continue; }
+        if (!firstIn && rnd() < 0.08) { pts.push({ winner: 1 - s, firstIn, kind: 'DF' }); continue; }
+        const pServer = firstIn ? (s === favour ? 0.72 : 0.6) : (s === favour ? 0.52 : 0.46);
+        const w = rnd() < pServer ? s : 1 - s;
+        pts.push({ winner: w, firstIn, kind: ['WINNER', 'UNFORCED', 'FORCED', 'NONE'][Math.floor(rnd() * 4)], shot: ['Coup droit', 'Revers', 'Volée', null][Math.floor(rnd() * 4)] });
+      }
+      return pts;
+    };
+    const F = { setsToWin: 2, games: 6, tiebreak: true, superTB: false, noAd: false };
+    const name = (id) => { const p = players.find((x) => x[0] === id); return `${p[1]} ${p[2]}`; };
+    for (const [a, bId, bName, kind, title, date, court, format, status, max, favour] of [
+      ['J1', 'J5', null, 'INTERNAL', null, '2026-10-10', 'Court 2', F, 'FINISHED', 9999, 0],
+      ['J8', null, 'Lina Haddad (CT Monastir)', 'TOURNAMENT', 'Open de Sayada U16 · demi-finale', '2026-10-13', 'Court 1', { ...F, superTB: true, noAd: true }, 'LIVE', 85, 0],
+      ['J6', 'J2', null, 'INTERNAL', null, '2026-10-16', 'Court 3', { ...F, games: 4 }, 'SCHEDULED', 0, 0],
+    ]) {
+      const pts = status === 'SCHEDULED' ? [] : play(format, 0, max, favour);
+      const st = computeMatch(format, 0, pts);
+      const match = await prisma.match.create({
+        data: {
+          kind, title, date: day(date), court, ...format,
+          playerAId: J_[a], playerAName: name(a), playerBId: bId ? J_[bId] : null, playerBName: bId ? name(bId) : bName,
+          firstServer: status === 'SCHEDULED' ? null : 0, status,
+          winner: status === 'FINISHED' ? st.winner : null,
+          score: status === 'FINISHED' ? scoreLine(st) : null,
+          stats: status === 'FINISHED' ? matchStats(st.points) : undefined,
+          startedAt: status === 'SCHEDULED' ? null : new Date(`${date}T15:00:00`),
+          finishedAt: status === 'FINISHED' ? new Date(`${date}T16:40:00`) : null,
+          createdById: coachUser.Iheb,
+        },
+      });
+      if (pts.length) {
+        await prisma.matchPoint.createMany({
+          data: pts.map((p, seq) => ({ matchId: match.id, seq, winner: p.winner, firstIn: p.firstIn, kind: p.kind, shot: p.shot ?? null, createdById: coachUser.Iheb })),
+        });
+      }
+    }
+  }
 
   // Alerte de démonstration : Rayen (Lutins 1) absent 3 séances de suite après le 5 octobre
   {

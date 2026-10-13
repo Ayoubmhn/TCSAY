@@ -5,8 +5,8 @@ import { errorMessage } from './api';
 type Options<TResult, TVars> = {
   /** Requêtes à recharger après succès comme après erreur (R13 : on relit la version). */
   invalidate?: QueryKey[];
-  /** Toast de succès (texte fixe ou calculé). */
-  success?: string | ((result: TResult, vars: TVars) => string);
+  /** Toast de succès (texte fixe ou calculé ; texte vide = pas de toast). */
+  success?: string | ((result: TResult, vars: TVars) => string | undefined);
   onSuccess?: (result: TResult, vars: TVars) => void;
 };
 
@@ -17,7 +17,8 @@ export function useAction<TVars = void, TResult = unknown>(fn: (vars: TVars) => 
   return useMutation({
     mutationFn: fn,
     onSuccess: (result, vars) => {
-      if (options.success) toast(typeof options.success === 'function' ? options.success(result, vars) : options.success);
+      const message = typeof options.success === 'function' ? options.success(result, vars) : options.success;
+      if (message) toast(message);
       options.onSuccess?.(result, vars);
     },
     onError: (error) => toast(errorMessage(error)),
