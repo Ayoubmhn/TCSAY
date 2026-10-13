@@ -469,6 +469,25 @@ export type SessionReview = {
   }[];
 };
 
+export type EvaluationCriterion = { key: string; label: string; family: string };
+
+export type Evaluation = {
+  id: string;
+  period: string;
+  periodLabel: string;
+  scores: Record<string, number>;
+  average: number | null;
+  strengths: string | null;
+  toWork: string | null;
+  goals: string | null;
+  proposedLevel: string | null;
+  levelValidated: boolean;
+  levelValidatedBy: string | null;
+  shared: boolean;
+  author: string;
+  updatedAt: string;
+};
+
 export type Absence = {
   id: string;
   date: string;

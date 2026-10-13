@@ -33,6 +33,7 @@ import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { BookPage } from './pages/BookPage';
 import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
+import { EvaluationsPage } from './pages/coach/EvaluationsPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
@@ -123,6 +124,7 @@ export function App() {
         <Route path="coach/presences" element={<Protected roles={['COACH']}><CoachAttendancePage /></Protected>} />
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
         <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
+        <Route path="coach/bilans" element={<Protected roles={['COACH']}><EvaluationsPage /></Protected>} />
         <Route path="coach/reserver" element={<Protected roles={['COACH']}><BookPage /></Protected>} />
 
         {/* Administration : président, agents, superviseur, directeur technique (selon les autorisations) */}
@@ -142,6 +144,7 @@ export function App() {
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />
         <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
+        <Route path="admin/bilans" element={admin(['evaluations.manage'], <EvaluationsPage admin />)} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />
         <Route path="admin/saisons/:id" element={admin(['seasons.manage', 'stats.view'], <SeasonDetailPage />)} />

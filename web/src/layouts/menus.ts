@@ -52,6 +52,7 @@ const PLAYER_MENU: MenuItem[] = [
 const COACH_MENU: MenuItem[] = [
   { label: 'Mes séances', path: '/coach/seances', icon: IconCalendar },
   { label: 'Présences', path: '/coach/presences', icon: IconClipboard },
+  { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart },
   { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
@@ -78,6 +79,7 @@ const ADMIN_MENU: MenuItem[] = [
     children: [
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
+      { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
     ],

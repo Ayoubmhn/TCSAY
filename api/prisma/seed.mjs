@@ -40,7 +40,7 @@ async function wipe() {
   await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
-    'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
+    'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
     'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {

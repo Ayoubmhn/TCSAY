@@ -12,7 +12,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD } from '../../lib/format';
-import type { Mood, SessionRatingNotes } from '../../lib/types';
+import type { Evaluation, Mood, SessionRatingNotes } from '../../lib/types';
 
 type Progress = {
   player: { id: string; firstName: string; lastName: string; category: string | null; groups: { id: string; name: string }[] };
@@ -88,6 +88,17 @@ export function ProgressPage() {
     queryFn: () => api.get<Progress>('/progress', { playerId }),
     enabled: Boolean(playerId),
   });
+  const bilans = useQuery({
+    queryKey: ['progress', 'evaluations', playerId],
+    queryFn: () =>
+      api.get<{ level: string | null; levelUpdatedAt: string | null; evaluations: Evaluation[] }>('/evaluations/player', { playerId }),
+    enabled: Boolean(playerId),
+  });
+  const criteria = useQuery({
+    queryKey: ['evaluation-criteria'],
+    queryFn: () => api.get<{ criteria: { key: string; label: string; family: string }[] }>('/evaluations/criteria'),
+  });
+  const labelOf = (k: string) => criteria.data?.criteria.find((c) => c.key === k)?.label ?? k;
   const d = q.data;
   const last = d?.months.at(-1);
   const prev = d?.months.at(-2);
@@ -134,6 +145,15 @@ export function ProgressPage() {
                 </Pills>
               </Card>
               <Card>
+                <CardSubtitle>Niveau</CardSubtitle>
+                <Kpi>{bilans.data?.level ?? '—'}</Kpi>
+                <CardText>
+                  {bilans.data?.levelUpdatedAt
+                    ? `Validé par la direction technique le ${fD(bilans.data.levelUpdatedAt.slice(0, 10), { day: 'numeric', month: 'long' })}`
+                    : 'Fixé au bilan de période.'}
+                </CardText>
+              </Card>
+              <Card>
                 <CardSubtitle>Forme signalée</CardSubtitle>
                 <Kpi>{d.lastMood ? MOOD[d.lastMood].split(' ')[0] : '—'}</Kpi>
                 <CardText>{d.lastMood ? `${MOOD[d.lastMood].slice(3)} à la dernière séance évaluée` : 'Pas encore d’évaluation.'}</CardText>
@@ -167,6 +187,37 @@ export function ProgressPage() {
                     })}
                   </div>
                 </Card>
+              </Section>
+            )}
+
+            {bilans.data && bilans.data.evaluations.length > 0 && (
+              <Section title="Bilans de période">
+                <CardGrid>
+                  {bilans.data.evaluations.map((e) => (
+                    <Card key={e.id}>
+                      <CardRow>
+                        <h3>{e.periodLabel}</h3>
+                        {e.average !== null && <Pill tone="g">{nb(e.average)}/5</Pill>}
+                      </CardRow>
+                      <Pills>
+                        <Pill tone="s">Par {e.author}</Pill>
+                        {e.proposedLevel && e.levelValidated && <Pill tone="g">Niveau {e.proposedLevel}</Pill>}
+                      </Pills>
+                      <div className="flex flex-col gap-1.5">
+                        {Object.entries(e.scores).map(([k, v]) => (
+                          <div key={k} className="grid grid-cols-[minmax(110px,170px)_1fr_auto] items-center gap-3 text-sm">
+                            <span className="truncate">{labelOf(k)}</span>
+                            <ProgressBar value={v} max={5} />
+                            <b className="font-semibold tabular-nums">{v}/5</b>
+                          </div>
+                        ))}
+                      </div>
+                      {e.strengths && <CardText>✅ Point fort : {e.strengths}</CardText>}
+                      {e.toWork && <CardText>🎯 À travailler : {e.toWork}</CardText>}
+                      {e.goals && <CardText>📌 Objectifs : {e.goals}</CardText>}
+                    </Card>
+                  ))}
+                </CardGrid>
               </Section>
             )}
 

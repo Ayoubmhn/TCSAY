@@ -170,22 +170,24 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  player           Player?
-  coach            Coach?
-  parentLinks      ParentLink[]
-  auditLogs        AuditLog[]
-  reservations     Reservation[]           @relation("ReservationBookedBy")
-  cancellations    Reservation[]           @relation("ReservationCancelledBy")
-  payments         Payment[]
-  receiptsIssued   Receipt[]               @relation("ReceiptIssuedBy")
-  receiptsVoided   Receipt[]               @relation("ReceiptVoidedBy")
-  attendances      Attendance[]
-  sessionPlans     SessionPlan[]
-  sessionRatings   SessionRating[]
-  salaries         Salary[]
-  absenceDecisions CoachAbsence[]          @relation("AbsenceDecidedBy")
-  notifications    Notification[]
-  broadcastsSent   NotificationBroadcast[]
+  player             Player?
+  coach              Coach?
+  parentLinks        ParentLink[]
+  auditLogs          AuditLog[]
+  reservations       Reservation[]           @relation("ReservationBookedBy")
+  cancellations      Reservation[]           @relation("ReservationCancelledBy")
+  payments           Payment[]
+  receiptsIssued     Receipt[]               @relation("ReceiptIssuedBy")
+  receiptsVoided     Receipt[]               @relation("ReceiptVoidedBy")
+  attendances        Attendance[]
+  sessionPlans       SessionPlan[]
+  sessionRatings     SessionRating[]
+  evaluationsWritten Evaluation[]            @relation("EvaluationAuthor")
+  levelsValidated    Evaluation[]            @relation("EvaluationLevelValidator")
+  salaries           Salary[]
+  absenceDecisions   CoachAbsence[]          @relation("AbsenceDecidedBy")
+  notifications      Notification[]
+  broadcastsSent     NotificationBroadcast[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -219,6 +221,9 @@ model Player {
   phone                 String?
   cin                   String? // adulte
   photoUrl              String?
+  /// Niveau validé par la direction technique (ex. « Orange 2 ») ; proposé dans les bilans.
+  level                 String?
+  levelUpdatedAt        DateTime?
   origin                Origin    @default(MANUAL)
   archivedAt            DateTime? // R8
   version               Int       @default(1)
@@ -231,6 +236,7 @@ model Player {
   reservations   Reservation[]
   attendances    Attendance[]
   sessionRatings SessionRating[]
+  evaluations    Evaluation[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -282,6 +288,7 @@ model Season {
   feeSchedules  FeeSchedule[]
   salaries      Salary[]
   importBatches ImportBatch[]
+  evaluations   Evaluation[]
 
   @@index([status])
 }
@@ -678,6 +685,34 @@ model SessionRating {
 
   @@unique([slotId, playerId, date])
   @@index([playerId, date])
+}
+
+/// Bilan de période d'un joueur (trimestre) : notes de 1 à 5 par critère, points forts, à travailler,
+/// objectifs de la période suivante, niveau proposé (validé par la direction technique), partage avec le parent.
+model Evaluation {
+  id                 String    @id @default(uuid()) @db.Uuid
+  playerId           String    @db.Uuid
+  seasonId           String    @db.Uuid
+  period             String // T1 (sept.–déc.), T2 (janv.–mars), T3 (avr.–juin), ETE (juil.–août)
+  scores             Json // { forehand: 4, backhand: 3, … } : critères notés de 1 à 5, absents = non évalués
+  strengths          String?
+  toWork             String?
+  goals              String? // objectifs de la période suivante
+  proposedLevel      String?
+  levelValidatedAt   DateTime?
+  levelValidatedById String?   @db.Uuid
+  shared             Boolean   @default(false) // visible par le parent et le joueur
+  authorId           String    @db.Uuid
+  version            Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  player           Player @relation(fields: [playerId], references: [id])
+  season           Season @relation(fields: [seasonId], references: [id])
+  author           User   @relation("EvaluationAuthor", fields: [authorId], references: [id])
+  levelValidatedBy User?  @relation("EvaluationLevelValidator", fields: [levelValidatedById], references: [id])
+
+  @@unique([playerId, seasonId, period])
 }
 
 // ───────────────────────── Divers ─────────────────────────

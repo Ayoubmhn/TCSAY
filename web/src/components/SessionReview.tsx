@@ -152,7 +152,7 @@ export function SessionReviewCard({ slotId, date }: { slotId: string; date: stri
 }
 
 /** Notes de 1 à 5 (boutons ronds). */
-function Dots({ label, value, onChange, disabled }: { label: string; value: number; onChange: (v: number) => void; disabled: boolean }) {
+export function Dots({ label, value, onChange, disabled }: { label: string; value: number; onChange: (v: number) => void; disabled: boolean }) {
   return (
     <div role="group" aria-label={label} className="flex gap-1.5">
       {[1, 2, 3, 4, 5].map((n) => (
