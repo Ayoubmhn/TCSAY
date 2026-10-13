@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -78,6 +80,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
 
 /** Terrains (vCourts) : entretien, désactivation (R11). */
 export function CourtsPage() {
+  const [view, setView] = useViewMode('terrains');
   const q = useQuery({ queryKey: ['courts'], queryFn: () => api.get<Court[]>('/courts') });
   const [form, setForm] = useState<{ open: boolean; court?: Court }>({ open: false });
   const [toDisable, setToDisable] = useState<Court>();
@@ -98,15 +101,18 @@ export function CourtsPage() {
         title="Terrains"
         subtitle="Découvrez les terrains et leur disponibilité."
         action={
-          <Button variant="primary" onClick={() => setForm({ open: true })}>
-            + Nouveau terrain
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setForm({ open: true })}>
+              + Nouveau terrain
+            </Button>
+          </div>
         }
       />
       <div className="mt-5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {q.data.map((c) => (
                 <Card key={c.id}>
                   <CardRow>
@@ -128,13 +134,11 @@ export function CourtsPage() {
                         {c.maintenance ? 'Fin d’entretien' : 'Mettre en entretien'}
                       </Button>
                     )}
-                    <Button onClick={() => setForm({ open: true, court: c })}>Modifier</Button>
+                    <ActionIcon kind="edit" onClick={() => setForm({ open: true, court: c })} />
                     {c.active ? (
-                      <Button variant="danger" onClick={() => setToDisable(c)}>
-                        Désactiver
-                      </Button>
+                      <ActionIcon kind="deactivate" onClick={() => setToDisable(c)} />
                     ) : (
-                      <Button onClick={() => toggle.mutate(c)}>Réactiver</Button>
+                      <ActionIcon kind="activate" onClick={() => toggle.mutate(c)} />
                     )}
                   </CardActions>
                 </Card>

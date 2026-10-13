@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/Button';
@@ -112,6 +113,7 @@ function LayoutEditor({ saved }: { saved: ReceiptLayout }) {
 
 /** Reçus : historique par n° du carnet (valides et annulés), impression et réglage du carnet. */
 export function ReceiptsPage() {
+  const [view, setView] = useViewMode('recus');
   const [search, setSearch] = useState('');
   const [term, setTerm] = useState('');
   const [status, setStatus] = useState<'' | 'ACTIVE' | 'VOIDED'>('');
@@ -129,7 +131,7 @@ export function ReceiptsPage() {
 
   return (
     <>
-      <PageHeader title="Reçus" subtitle="Découvrez les reçus émis, leur n° de carnet et leurs impressions." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Reçus" subtitle="Découvrez les reçus émis, leur n° de carnet et leurs impressions." />
       <Filters>
         <input
           className="fld w-[260px] text-fg"
@@ -154,7 +156,7 @@ export function ReceiptsPage() {
           {rows.length > valid.length && <Pill tone="r">{rows.length - valid.length} annulé(s)</Pill>}
         </Pills>
         {rows.length ? (
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {rows.map((r) => (
               <Card key={r.id}>
                 <CardRow>

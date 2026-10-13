@@ -4,14 +4,14 @@ import { IconGrid, IconList } from './Icons';
 
 export type ViewMode = 'cards' | 'list';
 
-/** Affichage en cases ou en liste, mémorisé par écran sur cet appareil (simple confort : rien d'indispensable). */
+/** Affichage en liste (par défaut) ou en cases, mémorisé par écran sur cet appareil (simple confort : rien d'indispensable). */
 export function useViewMode(screen: string): [ViewMode, (v: ViewMode) => void] {
   const key = `tcsay-vue-${screen}`;
   const [mode, setMode] = useState<ViewMode>(() => {
     try {
-      return localStorage.getItem(key) === 'list' ? 'list' : 'cards';
+      return localStorage.getItem(key) === 'cards' ? 'cards' : 'list';
     } catch {
-      return 'cards';
+      return 'list';
     }
   });
   const set = (v: ViewMode) => {

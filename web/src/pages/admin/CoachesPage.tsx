@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ACTOR_LABEL } from '../../auth/AuthContext';
@@ -20,7 +21,6 @@ import { byNumber, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
-const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
 export const payText = (mode: 'HOURLY' | 'MONTHLY' | null, rate: number) =>
   mode === 'HOURLY' ? `${DT(rate)} / heure` : mode === 'MONTHLY' ? `${DT(rate)} / mois` : 'à définir';
@@ -137,13 +137,9 @@ export function CoachesPage() {
                   </CardText>
                   <CardText>Rémunération : {payText(c.payMode, c.payRate)}</CardText>
                   <CardActions>
-                    <Link className={LINK_BTN} to={`/admin/entraineurs/${c.id}`}>
-                      Profil
-                    </Link>
-                    <Button onClick={() => setForm({ open: true, coach: c })}>Modifier</Button>
-                    <Button variant={c.isActive ? 'danger' : 'secondary'} onClick={() => setToToggle(c)}>
-                      {c.isActive ? 'Désactiver' : 'Réactiver'}
-                    </Button>
+                    <ActionIcon kind="view" label="Profil" to={`/admin/entraineurs/${c.id}`} />
+                    <ActionIcon kind="edit" onClick={() => setForm({ open: true, coach: c })} />
+                    <ActionIcon kind={c.isActive ? 'deactivate' : 'activate'} onClick={() => setToToggle(c)} />
                   </CardActions>
                 </Card>
               ))}

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useState } from 'react';
 import { Card, CardGrid, CardRow } from '../../components/ui/Card';
 import { FilterSelect, Filters } from '../../components/ui/Field';
@@ -22,13 +23,14 @@ const GENDER_LABEL = { M: 'Masculin', F: 'Féminin', MIXED: 'Mixte' } as const;
 
 /** Catégories (vCats) : 29 catégories par paires garçon / fille. */
 export function CategoriesPage() {
+  const [view, setView] = useViewMode('categories');
   const [family, setFamily] = useState<'all' | Category['family']>('all');
   const q = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/categories') });
   const list = (q.data ?? []).filter((c) => family === 'all' || c.family === family);
 
   return (
     <>
-      <PageHeader title="Catégories" subtitle="Découvrez les 29 catégories, par paires garçon / fille." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Catégories" subtitle="Découvrez les 29 catégories, par paires garçon / fille." />
       <Filters>
         <FilterSelect label="Filtrer par famille" value={family} onChange={(e) => setFamily(e.target.value as typeof family)}>
           <option value="all">Toutes</option>
@@ -46,7 +48,7 @@ export function CategoriesPage() {
       </Filters>
       <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {list.map((c) => (
               <Card key={c.id}>
                 <CardRow>

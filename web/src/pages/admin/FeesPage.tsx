@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, EmptyState, Kpi } from '../../components/ui/Card';
@@ -140,6 +142,7 @@ function FeeFormModal({
 
 /** Tarifs d'entraînement (vFees) : par catégorie et par groupe ; R6 sur saison clôturée. */
 export function FeesPage() {
+  const [view, setView] = useViewMode('tarifs');
   const seasons = useQuery({ queryKey: ['seasons', 'list'], queryFn: () => api.get<SeasonLite[]>('/seasons') });
   const options = (seasons.data ?? []).filter((s) => s.status !== 'HISTORICAL');
   const [seasonId, setSeasonId] = useState<string>();
@@ -160,11 +163,14 @@ export function FeesPage() {
         title="Tarifs d’entraînement"
         subtitle="Découvrez les tarifs par catégorie et par groupe."
         action={
-          season && !LOCKED.includes(season.status) ? (
-            <Button variant="primary" onClick={() => setForm({ open: true })}>
-              + Nouveau tarif
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            {season && !LOCKED.includes(season.status) && (
+              <Button variant="primary" onClick={() => setForm({ open: true })}>
+                + Nouveau tarif
+              </Button>
+            )}
+          </div>
         }
       />
       <Filters>
@@ -180,7 +186,7 @@ export function FeesPage() {
       <div className="mt-2.5">
         <QueryState isPending={q.isPending && Boolean(seasonId)} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {q.data.map((f) => (
                 <Card key={f.id}>
                   <CardRow>
@@ -193,7 +199,7 @@ export function FeesPage() {
                     <Pill tone={f.physicalIncluded ? 'g' : 's'}>{f.physicalIncluded ? 'Séance physique incluse' : 'Sans séance physique'}</Pill>
                   </Pills>
                   <CardActions>
-                    <Button onClick={() => setForm({ open: true, fee: f })}>Modifier</Button>
+                    <ActionIcon kind="edit" onClick={() => setForm({ open: true, fee: f })} />
                   </CardActions>
                 </Card>
               ))}

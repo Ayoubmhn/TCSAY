@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useState } from 'react';
 import { currentMonth, monthLabel, shiftMonth } from '../../components/SalaryParts';
 import { IconButton } from '../../components/ui/Button';
@@ -23,6 +24,7 @@ const clubTime = (instant: string) => new Date(instant).toLocaleTimeString('fr-F
  * Consultation par mois, regroupée par jour, avec le résumé du mois pour le compte rendu.
  */
 export function AuditPage() {
+  const [view, setView] = useViewMode('audit');
   const [month, setMonth] = useState(currentMonth());
   const [role, setRole] = useState<'' | Actor>('');
   const q = useQuery({ queryKey: ['audit', month], queryFn: () => api.get<AuditEntry[]>('/audit', { month }) });
@@ -39,7 +41,7 @@ export function AuditPage() {
 
   return (
     <>
-      <PageHeader title="Historique des actions" subtitle="Découvrez qui a fait quoi, jour par jour, pour le compte rendu du mois." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Historique des actions" subtitle="Découvrez qui a fait quoi, jour par jour, pour le compte rendu du mois." />
       <Filters>
         <IconButton aria-label="Mois précédent" onClick={() => setMonth(shiftMonth(month, -1))}>
           ‹
@@ -89,7 +91,7 @@ export function AuditPage() {
         </Section>
         {[...days.entries()].map(([day, entries]) => (
           <Section key={day} title={`${fD(day, { weekday: 'long', day: 'numeric', month: 'long' })} · ${entries.length} action(s)`}>
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {entries.map((a) => (
                 <Card key={a.id}>
                   <CardRow>

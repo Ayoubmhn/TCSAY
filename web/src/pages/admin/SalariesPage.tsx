@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { EMPLOYEE_TYPE_LABEL, EstimateCard, SalaryCard, currentMonth, monthLabel, shiftMonth } from '../../components/SalaryParts';
@@ -74,6 +76,7 @@ function EditSalaryModal({ salary, onClose }: { salary?: Salary; onClose: () => 
  * Le montant est proposé à partir des séances prévues et des absences validées (entraîneur), ou du forfait mensuel.
  */
 export function SalariesPage() {
+  const [view, setView] = useViewMode('salaires');
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const type = (params.get('type') as EmployeeType) || 'COACH';
@@ -121,7 +124,7 @@ export function SalariesPage() {
 
   return (
     <>
-      <PageHeader title="Salaires" subtitle="Découvrez les salaires des entraîneurs et du personnel." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Salaires" subtitle="Découvrez les salaires des entraîneurs et du personnel." />
       <div className="mt-5">
         <Segmented label="Type de personnel" options={TYPES} value={type} onChange={(v) => update({ type: v, employe: '' })} />
       </div>
@@ -157,7 +160,7 @@ export function SalariesPage() {
                         <Button variant="primary" onClick={() => pay.mutate(recorded.id)} disabled={pay.isPending}>
                           Marquer versé
                         </Button>
-                        <Button onClick={() => setEditing(recorded)}>Modifier</Button>
+                        <ActionIcon kind="edit" onClick={() => setEditing(recorded)} />
                       </>
                     )}
                   </SalaryCard>
@@ -188,7 +191,7 @@ export function SalariesPage() {
       <Section title={employeeId ? 'Historique des salaires' : 'Salaires enregistrés'}>
         <QueryState isPending={list.isPending} error={list.error} refetch={list.refetch}>
           {rows.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {rows.map((s) => (
                 <SalaryCard key={s.id} salary={s} showName={!employeeId}>
                   {!s.paid && (
@@ -196,7 +199,7 @@ export function SalariesPage() {
                       <Button variant="primary" onClick={() => pay.mutate(s.id)} disabled={pay.isPending}>
                         Marquer versé
                       </Button>
-                      <Button onClick={() => setEditing(s)}>Modifier</Button>
+                      <ActionIcon kind="edit" onClick={() => setEditing(s)} />
                     </>
                   )}
                 </SalaryCard>

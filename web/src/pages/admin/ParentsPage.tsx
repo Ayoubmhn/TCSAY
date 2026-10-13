@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
@@ -192,14 +193,10 @@ export function ParentsPage() {
                     {isPlaceholderEmail(u.email) ? 'Email à compléter' : u.email} · {u.phone ?? '—'} · CIN {u.cin ?? '—'}
                   </CardText>
                   <CardActions>
-                    <Button onClick={() => setLinkFor(u)}>Lier un joueur</Button>
-                    <Button onClick={() => setForm({ open: true, parent: u })}>Modifier</Button>
-                    <Button variant={u.isActive ? 'danger' : 'secondary'} onClick={() => setToToggle(u)}>
-                      {u.isActive ? 'Désactiver le compte' : 'Réactiver'}
-                    </Button>
-                    <Button variant="danger" onClick={() => setToDelete(u)}>
-                      Supprimer
-                    </Button>
+                    <ActionIcon kind="link" label="Lier un joueur" onClick={() => setLinkFor(u)} />
+                    <ActionIcon kind="edit" onClick={() => setForm({ open: true, parent: u })} />
+                    <ActionIcon kind={u.isActive ? 'deactivate' : 'activate'} label={u.isActive ? 'Désactiver le compte' : 'Réactiver'} onClick={() => setToToggle(u)} />
+                    <ActionIcon kind="delete" onClick={() => setToDelete(u)} />
                   </CardActions>
                 </Card>
               ))}

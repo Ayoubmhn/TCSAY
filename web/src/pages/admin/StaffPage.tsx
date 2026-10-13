@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { CredentialsModal } from '../../components/CredentialsModal';
@@ -21,7 +22,6 @@ import { useAction } from '../../lib/useAction';
 import { payText } from './CoachesPage';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
 
-const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
 /** Personnel administratif : agents administratifs et directeur technique (acteurs à préciser avec le bureau). */
 const STAFF_SORTS: SortOption<Staff>[] = [
@@ -117,13 +117,9 @@ export function StaffPage() {
                   </CardText>
                   <CardText>Rémunération : {payText(s.payMode, s.payRate)}</CardText>
                   <CardActions>
-                    <Link className={LINK_BTN} to={`/admin/personnel/${s.id}`}>
-                      Profil
-                    </Link>
-                    <Button onClick={() => setForm({ open: true, staff: s })}>Modifier</Button>
-                    <Button variant={s.isActive ? 'danger' : 'secondary'} onClick={() => setToToggle(s)}>
-                      {s.isActive ? 'Désactiver' : 'Réactiver'}
-                    </Button>
+                    <ActionIcon kind="view" label="Profil" to={`/admin/personnel/${s.id}`} />
+                    <ActionIcon kind="edit" onClick={() => setForm({ open: true, staff: s })} />
+                    <ActionIcon kind={s.isActive ? 'deactivate' : 'activate'} onClick={() => setToToggle(s)} />
                   </CardActions>
                 </Card>
               ))}

@@ -50,11 +50,11 @@ export function CardGrid({ children, className = '', list = false }: { children:
         // nom à gauche, largeur fixe pour aligner les colonnes
         '[&_.card-row]:w-[300px] [&_.card-row]:max-w-full [&_.card-row]:shrink-0',
         // pastilles et texte se partagent la place restante
-        '[&>*>div:not(.card-row):not(.card-actions)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions)]:flex-1',
-        '[&>*>span]:min-w-[140px] [&>*>span]:flex-1',
+        '[&>*>div:not(.card-row):not(.card-actions)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions)]:max-w-full [&>*>div:not(.card-row):not(.card-actions)]:flex-[1_0_auto]',
+        '[&>*>span]:min-w-[140px] [&>*>span]:flex-1 [&>*>span]:[overflow-wrap:anywhere]',
         // actions à droite, boutons compacts
         '[&_.card-actions]:ms-auto [&_.card-actions]:mt-0 [&_.card-actions]:pt-0 [&_.card-actions]:flex-nowrap',
-        '[&_.card-actions>*]:px-3 [&_.card-actions>*]:py-1.5 [&_.card-actions>*]:text-[13px]',
+        '[&_.card-actions>*:not(.act-ico)]:px-3 [&_.card-actions>*:not(.act-ico)]:py-1.5 [&_.card-actions>*:not(.act-ico)]:text-[13px]',
       ].join(' ')
     : 'grid-cols-1 gap-3.5 min-[561px]:grid-cols-[repeat(auto-fill,minmax(250px,1fr))]';
   return <div className={`grid ${layout} ${className}`}>{children}</div>;

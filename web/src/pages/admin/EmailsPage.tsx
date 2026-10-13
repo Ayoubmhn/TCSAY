@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -96,6 +97,7 @@ function MailServerCard({ config }: { config: MailConfig }) {
 
 /** Emails envoyés (vMails) : configuration SMTP, file d'envoi, historique, renvoi des échecs. */
 export function EmailsPage() {
+  const [view, setView] = useViewMode('emails');
   const [status, setStatus] = useState<'' | EmailStatus>('');
   // Tant que des emails attendent, compteurs et liste se mettent à jour seuls.
   const config = useQuery({
@@ -118,7 +120,7 @@ export function EmailsPage() {
 
   return (
     <>
-      <PageHeader title="Emails envoyés" subtitle="Découvrez les emails envoyés par la plateforme." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Emails envoyés" subtitle="Découvrez les emails envoyés par la plateforme." />
       <Section title="Messagerie">
         <QueryState isPending={config.isPending} error={config.error} refetch={config.refetch}>
           {config.data && (
@@ -145,7 +147,7 @@ export function EmailsPage() {
         </Filters>
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {q.data.map((m) => (
                 <Card key={m.id}>
                   <CardRow>

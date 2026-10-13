@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -15,6 +16,7 @@ import { useAction } from '../../lib/useAction';
 
 /** Réservations (vAres) : par jour, annulation forcée avec motif. */
 export function ReservationsAdminPage() {
+  const [view, setView] = useViewMode('reservations');
   const [day, setDay] = useState(addDays(todayIso(), 1));
   const [toCancel, setToCancel] = useState<Reservation>();
   const q = useQuery({ queryKey: ['reservations', 'day', day], queryFn: () => api.get<Reservation[]>('/reservations', { date: day }) });
@@ -26,14 +28,14 @@ export function ReservationsAdminPage() {
 
   return (
     <>
-      <PageHeader title="Réservations" subtitle="Découvrez les réservations par jour." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Réservations" subtitle="Découvrez les réservations par jour." />
       <div className="mt-[18px]">
         <DayChips value={day} onChange={setDay} />
       </div>
       <div className="mt-3.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {q.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {q.data.map((r) => (
                 <Card key={r.id}>
                   <CardRow>

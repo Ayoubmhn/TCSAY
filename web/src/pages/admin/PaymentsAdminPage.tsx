@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { CardGrid, EmptyState } from '../../components/ui/Card';
@@ -143,6 +144,7 @@ function PaymentLines({ installment: i, onReceipt }: { installment: Installment;
 
 /** Paiements (vApay) : tranches de la saison, encaissement en espèces ou par chèque (R7), reçus. */
 export function PaymentsAdminPage() {
+  const [view, setView] = useViewMode('paiements');
   // Filtres : recherche (joueur ou parent), parent, groupe, état de la tranche.
   const [search, setSearch] = useState('');
   const [parentId, setParentId] = useState('');
@@ -173,7 +175,7 @@ export function PaymentsAdminPage() {
 
   return (
     <>
-      <PageHeader title="Paiements" subtitle="Découvrez les tranches de la saison, encaissez les paiements et émettez les reçus." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Paiements" subtitle="Découvrez les tranches de la saison, encaissez les paiements et émettez les reçus." />
       <Filters>
         <input
           className="fld w-[240px] text-fg"
@@ -215,7 +217,7 @@ export function PaymentsAdminPage() {
           <Pill tone="r">Restant {DT(list.reduce((s, i) => s + i.remaining, 0))}</Pill>
         </Pills>
         {list.length ? (
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {list.map((i) => (
               <InstallmentCard
                 key={i.id}

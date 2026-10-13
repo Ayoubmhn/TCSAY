@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { CoachChip } from '../../components/SlotInfo';
@@ -284,13 +285,9 @@ export function GroupsPage() {
                       {g.slots.length === 0 && <CardText>Aucun créneau.</CardText>}
                     </div>
                     <CardActions>
-                      <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to={`/admin/groupes/${g.id}`}>
-                        Détails
-                      </Link>
-                      <Button onClick={() => setForm({ open: true, group: g })}>Modifier</Button>
-                      <Button variant="danger" onClick={() => setToArchive(g)}>
-                        Archiver
-                      </Button>
+                      <ActionIcon kind="view" label="Détails du groupe" to={`/admin/groupes/${g.id}`} />
+                      <ActionIcon kind="edit" onClick={() => setForm({ open: true, group: g })} />
+                      <ActionIcon kind="archive" onClick={() => setToArchive(g)} />
                     </CardActions>
                   </Card>
                 );

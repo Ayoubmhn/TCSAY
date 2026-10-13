@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, Kpi } from '../../components/ui/Card';
@@ -18,6 +20,7 @@ const TYPE = { LEISURE: 'Loisir', PRIVATE: 'Séance privée' } as const;
 
 /** Tarifs terrains (vCtar) : prix à l'heure par type et période. */
 export function CourtRatesPage() {
+  const [view, setView] = useViewMode('tarifs-terrains');
   const toast = useToast();
   const q = useQuery({ queryKey: ['court-rates'], queryFn: () => api.get<CourtRate[]>('/court-rates') });
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<Settings>('/settings') });
@@ -33,10 +36,10 @@ export function CourtRatesPage() {
 
   return (
     <>
-      <PageHeader title="Tarifs terrains" subtitle="Découvrez les tarifs horaires de réservation." />
+      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Tarifs terrains" subtitle="Découvrez les tarifs horaires de réservation." />
       <div className="mt-5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {q.data?.map((t) => (
               <Card key={t.id}>
                 <CardRow>
@@ -47,7 +50,7 @@ export function CourtRatesPage() {
                   {DT(t.pricePerHour)} <span className="text-sm font-medium text-mut">/ heure</span>
                 </Kpi>
                 <CardActions>
-                  <Button onClick={() => setEdit(t)}>Modifier</Button>
+                  <ActionIcon kind="edit" onClick={() => setEdit(t)} />
                 </CardActions>
               </Card>
             ))}

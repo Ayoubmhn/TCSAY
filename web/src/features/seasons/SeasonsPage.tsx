@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { Link } from 'react-router';
 import { useMe } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -58,23 +60,18 @@ function SeasonCard({ season, onAction, onEdit, onArchive, canManage }: CardProp
       </Pills>
       <CardText>{text}</CardText>
       <CardActions>
-        <Link
+        <ActionIcon
+          kind="stats"
           to={`/admin/saisons/${season.id}`}
-          className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg"
-        >
-          {season.status === 'ACTIVE' || season.status === 'DRAFT' ? 'Statistiques' : 'Historique et statistiques'}
-        </Link>
+          label={season.status === 'ACTIVE' || season.status === 'DRAFT' ? 'Statistiques' : 'Historique et statistiques'}
+        />
         {archived ? (
           <Pill tone="s">Archivée</Pill>
         ) : !canManage ? null : (
           <>
             <Button onClick={() => onAction(action)}>{action.label}</Button>
-            {editable && <Button onClick={onEdit}>Modifier</Button>}
-            {editable && season.status !== 'ACTIVE' && (
-              <Button variant="danger" onClick={onArchive}>
-                Archiver
-              </Button>
-            )}
+            {editable && <ActionIcon kind="edit" onClick={onEdit} />}
+            {editable && season.status !== 'ACTIVE' && <ActionIcon kind="archive" onClick={onArchive} />}
           </>
         )}
       </CardActions>
@@ -83,6 +80,7 @@ function SeasonCard({ season, onAction, onEdit, onArchive, canManage }: CardProp
 }
 
 export function SeasonsPage() {
+  const [view, setView] = useViewMode('saisons');
   const toast = useToast();
   const canManage = useMe().permissions.includes('seasons.manage');
   const [status, setStatus] = useState<SeasonStatus | ''>('');
@@ -114,11 +112,14 @@ export function SeasonsPage() {
         title="Saisons"
         subtitle="Découvrez les saisons du club, de l’historique à la prochaine."
         action={
-          canManage ? (
-            <Button variant="primary" onClick={() => setForm({ open: true })}>
-              + Nouvelle saison
-            </Button>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            {canManage && (
+              <Button variant="primary" onClick={() => setForm({ open: true })}>
+                + Nouvelle saison
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -156,7 +157,7 @@ export function SeasonsPage() {
         )}
         {seasons?.length === 0 && <EmptyState>Aucune saison.</EmptyState>}
         {seasons && seasons.length > 0 && (
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {seasons.map((season) => (
               <SeasonCard
                 key={season.id}

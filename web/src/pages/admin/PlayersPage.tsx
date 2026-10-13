@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
@@ -164,17 +165,13 @@ export function PlayersPage() {
                     {p.archivedAt ? (
                       <>
                         <Pill tone="s">Archivé</Pill>
-                        <Button onClick={() => restore.mutate(p.id)}>Restaurer</Button>
+                        <ActionIcon kind="restore" onClick={() => restore.mutate(p.id)} />
                       </>
                     ) : (
                       <>
-                        <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to={`/admin/joueurs/${p.id}`}>
-                          Profil
-                        </Link>
-                        <Button onClick={() => setForm({ open: true, player: p })}>Modifier</Button>
-                        <Button variant="danger" onClick={() => setToArchive(p)}>
-                          Archiver
-                        </Button>
+                        <ActionIcon kind="view" label="Profil" to={`/admin/joueurs/${p.id}`} />
+                        <ActionIcon kind="edit" onClick={() => setForm({ open: true, player: p })} />
+                        <ActionIcon kind="archive" onClick={() => setToArchive(p)} />
                       </>
                     )}
                   </CardActions>
