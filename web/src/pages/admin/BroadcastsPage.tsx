@@ -13,6 +13,7 @@ import { api } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
 import type { Broadcast, BroadcastTarget, Group, Recipient } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 const TARGETS: [BroadcastTarget, string][] = [
   ['PARENTS', 'Tous les parents'],
@@ -97,6 +98,7 @@ function RecipientPicker({ value, onChange }: { value: Recipient[]; onChange: (v
  * aux parents, joueurs, entraîneurs, à un groupe ou à des personnes choisies ; dans l'application et, au choix, par email.
  */
 export function BroadcastsPage() {
+  const [view, setView] = useViewMode('messages');
   const toast = useToast();
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -143,7 +145,7 @@ export function BroadcastsPage() {
 
   return (
     <>
-      <PageHeader title="Envoyer une notification" subtitle="Découvrez les messages envoyés par le club et écrivez-en un nouveau." />
+      <PageHeader title="Envoyer une notification" subtitle="Découvrez les messages envoyés par le club et écrivez-en un nouveau." action={<ViewToggle value={view} onChange={setView} />} />
       <Section title="Nouveau message">
         <Card className="max-w-[760px]">
           <FormGrid onSubmit={submit} noValidate>
@@ -191,7 +193,7 @@ export function BroadcastsPage() {
       <Section title="Messages envoyés">
         <QueryState isPending={history.isPending} error={history.error} refetch={history.refetch}>
           {history.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {history.data.map((b) => (
                 <Card key={b.id}>
                   <CardRow>

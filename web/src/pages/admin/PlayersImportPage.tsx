@@ -140,7 +140,7 @@ export function PlayersImportPage() {
           </Section>
           <div className="mt-2.5">
             {rows.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {rows.map((r) => (
                   <Card key={r.line}>
                     <CardRow>
@@ -216,7 +216,7 @@ export function PlayersImportPage() {
               Voir les joueurs
             </Link>
           </Filters>
-          <CardGrid>
+          <CardGrid list>
             {report.imported.map((r) => (
               <Card key={r.line}>
                 <CardRow>

@@ -17,10 +17,9 @@ import { fD, todayIso } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
 import { first, type MatchSummary } from './types';
 
-/** Le joueur peut-il créer des matchs ? Entraîneur, ou direction avec l'autorisation « matchs ». */
+/** Tout acteur peut créer un match pour en suivre le score (spectateur compris) ; il en saisit ensuite les points. */
 export function useCanManageMatches() {
-  const me = useMe();
-  return me.role === 'COACH' || (me.role === 'ADMIN' && me.permissions.includes('matches.manage'));
+  return Boolean(useMe());
 }
 
 export function LivePill() {
@@ -118,8 +117,8 @@ export function MatchesPage() {
         </QueryState>
       </div>
       <Note>
-        Le score se met à jour tout seul pendant le match. L’entraîneur (pour ses joueurs) et la direction saisissent les points ; les
-        parents sont prévenus au début et à la fin du match.
+        Le score se met à jour tout seul pendant le match. Chacun peut créer un match et en saisir les points (même en spectateur) ;
+        l’entraîneur des joueurs et la direction peuvent aussi saisir. Les parents sont prévenus au début et à la fin du match.
       </Note>
       {creating && <CreateMatchModal onClose={() => setCreating(false)} />}
     </>

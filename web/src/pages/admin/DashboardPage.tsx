@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useMe } from '../../auth/AuthContext';
-import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState, Kpi } from '../../components/ui/Card';
 import { ProgressBar } from '../../components/ui/InstallmentCard';
 import { QueryState } from '../../components/ui/Loading';
@@ -12,6 +11,7 @@ import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
 import type { Dashboard } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
@@ -90,7 +90,7 @@ export function DashboardPage() {
 
               <Section title="Tranches à relancer">
                 {d.late.length ? (
-                  <CardGrid>
+                  <CardGrid list>
                     {d.late.map((i) => (
                       <Card key={i.id}>
                         <CardRow>
@@ -108,12 +108,8 @@ export function DashboardPage() {
                         <CardText>Restant {DT(i.remaining)}</CardText>
                         {canCollect && (
                           <CardActions>
-                            <Link className={LINK_BTN} to="/admin/paiements">
-                              Encaisser
-                            </Link>
-                            <Button onClick={() => remind.mutate(i.id)} disabled={remind.isPending}>
-                              Envoyer un rappel
-                            </Button>
+                            <ActionIcon kind="pay" to="/admin/paiements" />
+                            <ActionIcon kind="remind" onClick={() => remind.mutate(i.id)} disabled={remind.isPending} />
                           </CardActions>
                         )}
                       </Card>
@@ -125,7 +121,7 @@ export function DashboardPage() {
               </Section>
 
               <Section title="Groupes">
-                <CardGrid>
+                <CardGrid list>
                   {d.groups.map((g) => (
                     <Card key={g.id}>
                       <CardRow>

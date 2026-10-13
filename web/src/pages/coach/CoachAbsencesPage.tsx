@@ -15,6 +15,8 @@ import { api } from '../../lib/api';
 import { fD, formatDateTime, fullName, todayIso } from '../../lib/format';
 import type { AbsenceResolution, Coach, CoachAbsence, CoachSession } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 const STATUS = {
   PENDING: { label: 'En attente de validation', tone: 's' },
@@ -184,12 +186,8 @@ function AbsenceCard({ a, admin, onDecide }: { a: CoachAbsence; admin: boolean; 
       {!a.decidedBy && <CardText>Déclarée le {formatDateTime(a.createdAt)}</CardText>}
       {admin && a.status === 'PENDING' && onDecide && (
         <CardActions>
-          <Button variant="primary" onClick={() => onDecide(a, true)}>
-            Valider
-          </Button>
-          <Button variant="danger" onClick={() => onDecide(a, false)}>
-            Refuser
-          </Button>
+          <ActionIcon kind="check" primary onClick={() => onDecide(a, true)} />
+          <ActionIcon kind="refuse" onClick={() => onDecide(a, false)} />
         </CardActions>
       )}
     </Card>
@@ -201,6 +199,7 @@ function AbsenceCard({ a, admin, onDecide }: { a: CoachAbsence; admin: boolean; 
  * et les groupes sont prévenus si demandé), refus, saisie directe.
  */
 export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
+  const [view, setView] = useViewMode('absences-coach');
   const [status, setStatus] = useState<'' | CoachAbsence['status']>('');
   const [open, setOpen] = useState(false);
   const [decision, setDecision] = useState<{ a: CoachAbsence; approve: boolean }>();
@@ -232,9 +231,12 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
         title={admin ? 'Absences des entraîneurs' : 'Mes absences'}
         subtitle={admin ? 'Découvrez les absences déclarées et validez-les.' : 'Déclarez une absence : elle est validée par l’administration.'}
         action={
-          <Button variant="primary" onClick={() => setOpen(true)}>
-            {admin ? '+ Saisir une absence' : '+ Déclarer une absence'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button variant="primary" onClick={() => setOpen(true)}>
+              {admin ? '+ Saisir une absence' : '+ Déclarer une absence'}
+            </Button>
+          </div>
         }
       />
       <Filters>
@@ -249,7 +251,7 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {pending.length > 0 && (
           <Section title="En attente de validation">
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {pending.map((a) => (
                 <AbsenceCard key={a.id} a={a} admin={admin} onDecide={(x, approve) => (setNote(''), setRes({ resolution: '', replacementCoachId: '' }), setDecision({ a: x, approve }))} />
               ))}
@@ -258,7 +260,7 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
         )}
         <Section title="Historique">
           {others.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {others.map((a) => (
                 <AbsenceCard key={a.id} a={a} admin={admin} />
               ))}

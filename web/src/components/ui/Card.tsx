@@ -22,9 +22,9 @@ export function CardSubtitle({ children }: { children: ReactNode }) {
   return <span className="text-[13px] font-semibold text-mut">{tr(children)}</span>;
 }
 
-/** Texte secondaire 13px gris. */
-export function CardText({ children }: { children: ReactNode }) {
-  return <span className="text-[13px] text-mut">{children}</span>;
+/** Texte secondaire 13px gris ; masqué en affichage liste (détail visible en cases ou dans la fiche), sauf `keep`. */
+export function CardText({ children, keep = false }: { children: ReactNode; keep?: boolean }) {
+  return <span className={`text-[13px] text-mut ${keep ? '' : 'card-text'}`}>{children}</span>;
 }
 
 /** Actions en bas de carte (.acts). */
@@ -52,6 +52,8 @@ export function CardGrid({ children, className = '', list = false }: { children:
         // pastilles et texte se partagent la place restante
         '[&>*>div:not(.card-row):not(.card-actions)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions)]:max-w-full [&>*>div:not(.card-row):not(.card-actions)]:flex-[1_0_auto]',
         '[&>*>span]:min-w-[140px] [&>*>span]:flex-1 [&>*>span]:[overflow-wrap:anywhere]',
+        // moins d'informations visibles : le texte secondaire reste en cases et dans la fiche
+        '[&_.card-text]:hidden',
         // actions à droite, boutons compacts
         '[&_.card-actions]:ms-auto [&_.card-actions]:mt-0 [&_.card-actions]:pt-0 [&_.card-actions]:flex-nowrap',
         '[&_.card-actions>*:not(.act-ico)]:px-3 [&_.card-actions>*:not(.act-ico)]:py-1.5 [&_.card-actions>*:not(.act-ico)]:text-[13px]',

@@ -157,9 +157,7 @@ export function SalariesPage() {
                   <SalaryCard salary={recorded}>
                     {!recorded.paid && (
                       <>
-                        <Button variant="primary" onClick={() => pay.mutate(recorded.id)} disabled={pay.isPending}>
-                          Marquer versé
-                        </Button>
+                        <ActionIcon kind="pay" label="Marquer versé" primary onClick={() => pay.mutate(recorded.id)} disabled={pay.isPending} />
                         <ActionIcon kind="edit" onClick={() => setEditing(recorded)} />
                       </>
                     )}
@@ -196,9 +194,7 @@ export function SalariesPage() {
                 <SalaryCard key={s.id} salary={s} showName={!employeeId}>
                   {!s.paid && (
                     <>
-                      <Button variant="primary" onClick={() => pay.mutate(s.id)} disabled={pay.isPending}>
-                        Marquer versé
-                      </Button>
+                      <ActionIcon kind="pay" label="Marquer versé" primary onClick={() => pay.mutate(s.id)} disabled={pay.isPending} />
                       <ActionIcon kind="edit" onClick={() => setEditing(s)} />
                     </>
                   )}

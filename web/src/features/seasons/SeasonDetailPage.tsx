@@ -127,7 +127,7 @@ export function SeasonDetailPage() {
 
           <Section title="Groupes">
             {d.groups.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {d.groups.map((g) => (
                   <Card key={g.id}>
                     <CardRow>

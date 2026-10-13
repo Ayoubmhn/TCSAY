@@ -11,6 +11,8 @@ import { api } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import type { AppNotification } from '../lib/types';
 import { useAction } from '../lib/useAction';
+import { useViewMode, ViewToggle } from '../components/ui/ViewToggle';
+import { ActionIcon } from '../components/ui/ActionIcon';
 
 const KIND: Record<string, { tone: PillTone; label: string }> = {
   REMINDER: { tone: 'r', label: 'Paiement' },
@@ -21,6 +23,7 @@ const KIND: Record<string, { tone: PillTone; label: string }> = {
 
 /** Notifications dans l'application (tous les rôles) : non lues d'abord, marquer comme lu, ouvrir l'écran concerné. */
 export function NotificationsPage() {
+  const [view, setView] = useViewMode('notifications');
   const navigate = useNavigate();
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
   const q = useQuery({ queryKey: ['notifications', filter], queryFn: () => api.get<AppNotification[]>('/notifications', { filter }) });
@@ -42,9 +45,12 @@ export function NotificationsPage() {
         title="Notifications"
         subtitle="Découvrez les messages du club : paiements, réservations, salaires."
         action={
-          <Button onClick={() => readAll.mutate()} disabled={readAll.isPending}>
-            Tout marquer comme lu
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Button onClick={() => readAll.mutate()} disabled={readAll.isPending}>
+              Tout marquer comme lu
+            </Button>
+          </div>
         }
       />
       <Filters>
@@ -57,7 +63,7 @@ export function NotificationsPage() {
       <div className="mt-2.5">
         <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
           {rows.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {rows.map((n) => {
                 const kind = n.broadcastId ? { tone: 'b' as PillTone, label: 'Message du club' } : (KIND[n.kind] ?? { tone: 's' as PillTone, label: 'Information' });
                 return (
@@ -67,14 +73,10 @@ export function NotificationsPage() {
                       <Pill tone={kind.tone}>{kind.label}</Pill>
                     </CardRow>
                     <p className="m-0 text-sm whitespace-pre-line text-fg">{n.body}</p>
-                    <CardText>{formatDateTime(n.createdAt)}</CardText>
+                    <CardText keep>{formatDateTime(n.createdAt)}</CardText>
                     <CardActions>
-                      {n.link && (
-                        <Button variant="primary" onClick={() => open(n)}>
-                          Ouvrir
-                        </Button>
-                      )}
-                      {!n.readAt && <Button onClick={() => read.mutate(n.id)}>Marquer comme lu</Button>}
+                      {n.link && <ActionIcon kind="open" primary onClick={() => open(n)} />}
+                      {!n.readAt && <ActionIcon kind="check" label="Marquer comme lu" onClick={() => read.mutate(n.id)} />}
                     </CardActions>
                   </Card>
                 );

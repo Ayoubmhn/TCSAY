@@ -111,7 +111,7 @@ export function PlayerProfilePage() {
           </Section>
           <Section title="Groupe">
             {p.groups.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {p.groups.map((g) => (
                   <Card key={g.id}>
                     <h3>{g.name}</h3>
@@ -134,7 +134,7 @@ export function PlayerProfilePage() {
               </Pills>
             )}
             {p.installments.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {p.installments.map((i) => (
                   <InstallmentCard
                     key={i.id}
@@ -153,7 +153,7 @@ export function PlayerProfilePage() {
               <Pill tone={p.absences.length ? 'r' : 'g'}>{p.absences.length} absence(s)</Pill>
             </Pills>
             {p.absences.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {p.absences.map((a) => (
                   <Card key={a.id}>
                     <CardRow>
@@ -219,7 +219,7 @@ export function CoachProfilePage() {
           </Section>
           <Section title="Groupes">
             {groups.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {groups.map((g) => (
                   <Card key={g.id}>
                     <h3>{g.name}</h3>

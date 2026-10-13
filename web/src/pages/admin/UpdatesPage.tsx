@@ -185,7 +185,7 @@ export function UpdatesPage() {
             </Filters>
           </Section>
           <div className="mt-2.5">
-            <CardGrid>
+            <CardGrid list>
               {groups &&
                 keep(groups.rows).map((r) => (
                   <Card key={r.line}>

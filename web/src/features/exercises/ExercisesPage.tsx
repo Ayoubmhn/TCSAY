@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext';
 import { KidSelect } from '../../components/KidSelect';
-import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { Filters } from '../../components/ui/Field';
 import { ProgressBar } from '../../components/ui/InstallmentCard';
@@ -15,6 +14,8 @@ import { fD, todayIso } from '../../lib/format';
 import type { ExerciseKind } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { KINDS } from './kinds';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 type MyExercise = {
   id: string;
@@ -31,6 +32,7 @@ type MyExercise = {
 
 /** Exercices (joueur, parent) : à faire avant la séance ou à la maison, cochés « fait ». */
 export function ExercisesPage() {
+  const [view, setView] = useViewMode('exercices');
   const { playerId } = useAuth();
   const q = useQuery({
     queryKey: ['my-exercises', playerId],
@@ -47,7 +49,7 @@ export function ExercisesPage() {
 
   return (
     <>
-      <PageHeader title="Exercices" subtitle="Découvrez les exercices donnés par l’entraîneur, avant la séance ou à la maison." />
+      <PageHeader title="Exercices" subtitle="Découvrez les exercices donnés par l’entraîneur, avant la séance ou à la maison." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         <KidSelect />
         {q.data && <Pill tone={done === list.length && list.length > 0 ? 'g' : 'b'}>{done}/{list.length} fait(s)</Pill>}
@@ -58,7 +60,7 @@ export function ExercisesPage() {
             <ProgressBar value={done} max={list.length} />
             {KINDS.filter((k) => list.some((e) => e.kind === k.value)).map((k) => (
               <Section key={k.value} title={`${k.icon} ${k.label}`}>
-                <CardGrid>
+                <CardGrid list={view === 'list'}>
                   {list
                     .filter((e) => e.kind === k.value)
                     .map((e) => {
@@ -77,13 +79,13 @@ export function ExercisesPage() {
                           <CardText>{e.instructions}</CardText>
                           {e.note && <CardText>💬 {e.note}</CardText>}
                           <CardActions>
-                            <Button
-                              variant={e.doneAt ? 'secondary' : 'primary'}
+                            <ActionIcon
+                              kind={e.doneAt ? 'cancel' : 'check'}
+                              label={e.doneAt ? 'Annuler « fait »' : 'Marquer fait'}
+                              primary={!e.doneAt}
                               onClick={() => toggle.mutate({ id: e.id, done: !e.doneAt })}
                               disabled={toggle.isPending}
-                            >
-                              {e.doneAt ? 'Annuler « fait »' : '✓ Marquer fait'}
-                            </Button>
+                            />
                             {e.videoUrl && (
                               <a
                                 href={e.videoUrl}

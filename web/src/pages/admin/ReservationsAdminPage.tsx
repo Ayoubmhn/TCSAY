@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useState } from 'react';
-import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { DayChips } from '../../components/ui/DayChips';
@@ -13,6 +12,7 @@ import { api } from '../../lib/api';
 import { addDays, fD, fullName, todayIso } from '../../lib/format';
 import type { Reservation } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 /** Réservations (vAres) : par jour, annulation forcée avec motif. */
 export function ReservationsAdminPage() {
@@ -53,9 +53,7 @@ export function ReservationsAdminPage() {
                     {r.coach ? ` · coach ${fullName(r.coach)}` : ''}
                   </CardText>
                   <CardActions>
-                    <Button variant="danger" onClick={() => setToCancel(r)}>
-                      Annulation forcée
-                    </Button>
+                    <ActionIcon kind="cancel" label="Annulation forcée" onClick={() => setToCancel(r)} />
                   </CardActions>
                 </Card>
               ))}

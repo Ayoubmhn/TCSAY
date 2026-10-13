@@ -3,6 +3,15 @@ import { Link } from 'react-router';
 import { useI18n } from '../../lib/i18n';
 import {
   IconArchive,
+  IconArrow,
+  IconBell,
+  IconCheck,
+  IconClipboard,
+  IconMinus,
+  IconSend,
+  IconStar,
+  IconWrench,
+  IconX,
   IconCard,
   IconChart,
   IconEdit,
@@ -14,7 +23,7 @@ import {
   IconTrash,
 } from './Icons';
 
-export type ActionKind = 'view' | 'edit' | 'archive' | 'delete' | 'restore' | 'deactivate' | 'activate' | 'pay' | 'add' | 'link' | 'stats';
+export type ActionKind = 'view' | 'edit' | 'archive' | 'delete' | 'restore' | 'deactivate' | 'activate' | 'pay' | 'add' | 'link' | 'stats' | 'check' | 'refuse' | 'cancel' | 'remove' | 'remind' | 'send' | 'rate' | 'attendance' | 'maintenance' | 'open';
 
 const KINDS: Record<ActionKind, { Icon: ComponentType<{ size?: number }>; label: string; danger?: boolean }> = {
   view: { Icon: IconEye, label: 'Voir' },
@@ -28,6 +37,16 @@ const KINDS: Record<ActionKind, { Icon: ComponentType<{ size?: number }>; label:
   add: { Icon: IconPlus, label: 'Ajouter' },
   link: { Icon: IconLink, label: 'Lier' },
   stats: { Icon: IconChart, label: 'Statistiques' },
+  check: { Icon: IconCheck, label: 'Valider' },
+  refuse: { Icon: IconX, label: 'Refuser', danger: true },
+  cancel: { Icon: IconX, label: 'Annuler', danger: true },
+  remove: { Icon: IconMinus, label: 'Retirer', danger: true },
+  remind: { Icon: IconBell, label: 'Envoyer un rappel' },
+  send: { Icon: IconSend, label: 'Renvoyer' },
+  rate: { Icon: IconStar, label: 'Évaluer' },
+  attendance: { Icon: IconClipboard, label: 'Présences' },
+  maintenance: { Icon: IconWrench, label: 'Entretien' },
+  open: { Icon: IconArrow, label: 'Ouvrir' },
 };
 
 const CLS = 'act-ico grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full disabled:opacity-45';

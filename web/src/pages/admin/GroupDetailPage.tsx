@@ -16,6 +16,7 @@ import { fD, fullName, isPlaceholderEmail } from '../../lib/format';
 import type { GroupDetail, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { PlayerFormModal } from './PlayerFormModal';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 type Member = GroupDetail['members'][number];
 type Candidate = GroupDetail['candidates'][number];
@@ -107,7 +108,7 @@ export function GroupDetailPage() {
 
           <Section title={`Joueurs (${g.members.length})`}>
             {g.members.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {g.members.map((m) => (
                   <Card key={m.playerId}>
                     <CardRow>
@@ -141,9 +142,7 @@ export function GroupDetailPage() {
                     </CardText>
                     {canManage && (
                       <CardActions>
-                        <Button variant="danger" onClick={() => setRemove(m)}>
-                          Retirer
-                        </Button>
+                        <ActionIcon kind="remove" label="Retirer du groupe" onClick={() => setRemove(m)} />
                       </CardActions>
                     )}
                   </Card>
@@ -156,7 +155,7 @@ export function GroupDetailPage() {
 
           <Section title="Dernières séances">
             {g.recentSessions.length ? (
-              <CardGrid>
+              <CardGrid list>
                 {g.recentSessions.map((s) => (
                   <Card key={s.date}>
                     <h3>{fD(s.date, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
@@ -195,7 +194,7 @@ export function GroupDetailPage() {
               {full ? (
                 <EmptyState>Groupe complet (R4).</EmptyState>
               ) : found.length ? (
-                <CardGrid>
+                <CardGrid list>
                   {found.slice(0, 30).map((c) => (
                     <Card key={c.playerId}>
                       <CardRow>
@@ -209,13 +208,13 @@ export function GroupDetailPage() {
                         {c.age === null ? 'âge inconnu' : `${c.age} ans`}
                       </CardText>
                       <CardActions>
-                        <Button
-                          variant={c.sameCategory ? 'primary' : 'secondary'}
+                        <ActionIcon
+                          kind="add"
+                          label={c.sameCategory ? 'Ajouter au groupe' : 'Ajouter (dérogation)'}
+                          primary={c.sameCategory}
                           disabled={add.isPending}
                           onClick={() => (c.sameCategory ? add.mutate({ playerId: c.playerId }) : setDerogation(c))}
-                        >
-                          {c.sameCategory ? 'Ajouter' : 'Ajouter (dérogation)'}
-                        </Button>
+                        />
                       </CardActions>
                     </Card>
                   ))}

@@ -13,6 +13,7 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DAY_NAMES, fD, todayIso } from '../../lib/format';
 import type { PlayerSession, Slot } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 type Data = {
   groups: { id: string; name: string; slots: Slot[] }[];
@@ -58,6 +59,7 @@ function SessionCard({ s }: { s: PlayerSession }) {
 
 /** Mes séances (vSes) : calendrier, séances à venir puis passées. */
 export function SessionsPage() {
+  const [view, setView] = useViewMode('mes-seances');
   const { playerId } = useAuth();
   const [day, setDay] = useState(todayIso());
   const q = useQuery({
@@ -72,7 +74,7 @@ export function SessionsPage() {
 
   return (
     <>
-      <PageHeader title="Mes séances" subtitle="Découvrez vos entraînements à venir et passés." />
+      <PageHeader title="Mes séances" subtitle="Découvrez vos entraînements à venir et passés." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         <KidSelect />
         {q.data?.groups.map((g) => (
@@ -110,7 +112,7 @@ export function SessionsPage() {
             </div>
             <Section title="À venir">
               {up.length ? (
-                <CardGrid>
+                <CardGrid list={view === 'list'}>
                   {up.map((s) => (
                     <SessionCard key={s.slotId + s.date} s={s} />
                   ))}
@@ -121,7 +123,7 @@ export function SessionsPage() {
             </Section>
             <Section title="Passées">
               {past.length ? (
-                <CardGrid>
+                <CardGrid list={view === 'list'}>
                   {past.map((s) => (
                     <SessionCard key={s.slotId + s.date} s={s} />
                   ))}

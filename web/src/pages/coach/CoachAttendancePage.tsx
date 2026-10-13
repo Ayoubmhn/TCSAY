@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { AttendanceSheetForm } from '../../components/AttendanceSheetForm';
 import { SessionPlanForm, SessionReviewCard, useSessionReview } from '../../components/SessionReview';
 import { ResolutionPill } from '../../components/SlotInfo';
-import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
@@ -13,6 +12,8 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD, todayIso } from '../../lib/format';
 import type { CoachSession } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 /** Objectif de la séance (chargé avec l'évaluation). */
 function PlanCard({ slotId, date }: { slotId: string; date: string }) {
@@ -29,6 +30,7 @@ function PlanCard({ slotId, date }: { slotId: string; date: string }) {
  * (présent, en retard, absent). Les séances passées ne se pointent plus : la direction peut corriger.
  */
 export function CoachAttendancePage() {
+  const [view, setView] = useViewMode('presences');
   const today = todayIso();
   const q = useQuery({
     queryKey: ['sessions', 'coach', 'today', today],
@@ -45,7 +47,7 @@ export function CoachAttendancePage() {
 
   return (
     <>
-      <PageHeader title="Présences" subtitle="Découvrez vos séances du jour et pointez la séance en cours." />
+      <PageHeader title="Présences" subtitle="Découvrez vos séances du jour et pointez la séance en cours." action={<ViewToggle value={view} onChange={setView} />} />
       <Pills className="mt-4">
         <Pill tone="b">{fD(today, { weekday: 'long', day: 'numeric', month: 'long' })}</Pill>
       </Pills>
@@ -90,7 +92,7 @@ export function CoachAttendancePage() {
 
         <Section title="Séances du jour">
           {sessions.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {sessions.map((s) => (
                 <Card key={s.slotId + s.date}>
                   <CardRow>
@@ -118,8 +120,8 @@ export function CoachAttendancePage() {
                   </CardText>
                   {s.resolution !== 'CANCELLED' && s.started && (
                     <CardActions>
-                      {s.open && s.slotId !== selected?.slotId && <Button onClick={() => setChosen(s.slotId)}>Pointer cette séance</Button>}
-                      {s.recorded && s.slotId !== toReview?.slotId && <Button onClick={() => setReviewed(s.slotId)}>Évaluer</Button>}
+                      {s.open && s.slotId !== selected?.slotId && <ActionIcon kind="attendance" label="Pointer cette séance" primary onClick={() => setChosen(s.slotId)} />}
+                      {s.recorded && s.slotId !== toReview?.slotId && <ActionIcon kind="rate" label="Évaluer la séance" onClick={() => setReviewed(s.slotId)} />}
                     </CardActions>
                   )}
                 </Card>

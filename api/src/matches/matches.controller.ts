@@ -83,7 +83,8 @@ const UNDO_AFTER_END_MIN = 30;
 
 /**
  * Matchs suivis point par point : tous les acteurs du club consultent (liste, score en direct, statistiques) ;
- * l'entraîneur (de l'un des joueurs) et la direction (« matches.manage ») créent les matchs et saisissent les points.
+ * tout acteur crée un match (spectateur compris) et en saisit les points ; l'entraîneur des joueurs et la direction
+ * (« matches.manage ») saisissent aussi.
  * Le score et les statistiques sont recalculés depuis les points (moteur score-engine).
  */
 @ApiTags('Matchs')
@@ -96,15 +97,15 @@ export class MatchesController {
     private readonly audit: AuditService,
   ) {}
 
-  /** L'entraîneur gère les matchs de ses joueurs (saison active) ou ceux qu'il a créés ; la direction avec « matches.manage ». */
+  /**
+   * Saisie des points : le créateur du match (tout acteur, même simple spectateur) ; l'entraîneur de l'un des joueurs ;
+   * la direction avec « matches.manage ».
+   */
   private async assertScorer(user: AuthUser, m: { createdById: string; playerAId: string | null; playerBId: string | null }) {
-    if (user.role === Role.ADMIN) {
-      if (!can(user, 'matches.manage')) throw new ForbiddenException('Accès refusé : autorisation « matchs » manquante.');
-      return;
-    }
-    if (user.role !== Role.COACH) throw new ForbiddenException('Saisie réservée à l’entraîneur et à la direction.');
     if (m.createdById === user.id) return;
-    if (!(await this.coachesOne(user, [m.playerAId, m.playerBId]))) throw new ForbiddenException('Ce match ne concerne pas vos joueurs.');
+    if (user.role === Role.ADMIN && can(user, 'matches.manage')) return;
+    if (user.role === Role.COACH && (await this.coachesOne(user, [m.playerAId, m.playerBId]))) return;
+    throw new ForbiddenException('Seul le créateur du match, l’entraîneur des joueurs ou la direction saisit les points.');
   }
 
   private async coachesOne(user: AuthUser, ids: (string | null)[]) {
@@ -149,23 +150,15 @@ export class MatchesController {
     };
   }
 
-  /** Joueurs du club sélectionnables pour un match : entraîneur = ses groupes ; direction = joueurs inscrits cette saison. */
+  /** Joueurs du club sélectionnables pour un match (inscrits cette saison, noms seulement), pour tous les acteurs. */
   @Get('players')
-  @Roles(Role.ADMIN, Role.COACH)
-  async players(@CurrentUser() user: AuthUser) {
-    if (user.role === Role.ADMIN && !can(user, 'matches.manage')) throw new ForbiddenException('Accès refusé : autorisation « matchs » manquante.');
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
+  async players() {
     const season = await this.access.activeSeason();
     const rows = await this.prisma.player.findMany({
       where: {
         archivedAt: null,
-        enrollments: {
-          some: {
-            seasonId: season.id,
-            ...(user.role === Role.COACH
-              ? { groups: { some: { group: { archivedAt: null, slots: { some: { coaches: { some: { coachId: user.coachId ?? '' } } } } } } } }
-              : {}),
-          },
-        },
+        enrollments: { some: { seasonId: season.id } },
       },
       orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
       select: { id: true, firstName: true, lastName: true },
@@ -223,7 +216,7 @@ export class MatchesController {
   }
 
   @Post()
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateMatchDto) {
     if (!dto.playerAId && !dto.playerBId) throw new BadRequestException('Au moins un joueur du club.');
     if (dto.playerAId && dto.playerAId === dto.playerBId) throw new BadRequestException('Deux joueurs différents.');
@@ -234,7 +227,6 @@ export class MatchesController {
       const p = players.find((x) => x.id === id);
       return p ? `${p.firstName} ${p.lastName}`.trim() : (fallback ?? '').trim();
     };
-    await this.assertScorer(user, { createdById: '', playerAId: dto.playerAId ?? null, playerBId: dto.playerBId ?? null });
     if (dto.superTB && !dto.tiebreak) dto.tiebreak = true;
     const m = await this.prisma.match.create({
       data: {
@@ -260,7 +252,7 @@ export class MatchesController {
 
   /** Lancer le match : qui sert en premier ; notification aux familles des joueurs du club. */
   @Post(':id/start')
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async start(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: StartDto) {
     const m = await this.load(id);
     await this.assertScorer(user, m);
@@ -272,7 +264,7 @@ export class MatchesController {
 
   /** Saisir un point (dans l'ordre) ; le match se termine tout seul au dernier point. */
   @Post(':id/points')
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async point(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PointDto) {
     const m = await this.load(id);
     await this.assertScorer(user, m);
@@ -302,7 +294,7 @@ export class MatchesController {
 
   /** Annuler le dernier point (erreur de saisie). Match terminé : seulement dans les 30 minutes, sinon la direction. */
   @Delete(':id/points/last')
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async undo(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     const m = await this.load(id);
     await this.assertScorer(user, m);
@@ -310,7 +302,7 @@ export class MatchesController {
     if (m.status === MatchStatus.ABANDONED || m.status === MatchStatus.SCHEDULED) throw new BadRequestException('Match non en cours.');
     if (m.status === MatchStatus.FINISHED) {
       const late = !m.finishedAt || Date.now() - m.finishedAt.getTime() > UNDO_AFTER_END_MIN * 60_000;
-      if (late && user.role !== Role.ADMIN) throw new BadRequestException('Match terminé depuis plus de 30 minutes : correction par la direction.');
+      if (late && !(user.role === Role.ADMIN && can(user, 'matches.manage'))) throw new BadRequestException('Match terminé depuis plus de 30 minutes : correction par la direction.');
     }
     const last = m.points.reduce((a, b) => (a.seq > b.seq ? a : b));
     await this.prisma.$transaction([
@@ -327,7 +319,7 @@ export class MatchesController {
 
   /** Abandon ou annulation (motif obligatoire) ; le score atteint est conservé. */
   @Post(':id/abandon')
-  @Roles(Role.ADMIN, Role.COACH)
+  @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async abandon(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: ReasonDto) {
     const m = await this.load(id);
     await this.assertScorer(user, m);

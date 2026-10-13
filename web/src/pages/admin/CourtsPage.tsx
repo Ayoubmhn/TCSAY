@@ -130,9 +130,7 @@ export function CourtsPage() {
                   </CardText>
                   <CardActions>
                     {c.active && (
-                      <Button onClick={() => maint.mutate(c)} disabled={maint.isPending}>
-                        {c.maintenance ? 'Fin d’entretien' : 'Mettre en entretien'}
-                      </Button>
+                      <ActionIcon kind="maintenance" label={c.maintenance ? 'Fin d’entretien' : 'Mettre en entretien'} primary={c.maintenance} onClick={() => maint.mutate(c)} disabled={maint.isPending} />
                     )}
                     <ActionIcon kind="edit" onClick={() => setForm({ open: true, court: c })} />
                     {c.active ? (

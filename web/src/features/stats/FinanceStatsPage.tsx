@@ -243,7 +243,7 @@ export function FinanceStatsPage() {
 
               <Section title="Familles à relancer">
                 {d.toRemind.length ? (
-                  <CardGrid>
+                  <CardGrid list>
                     {d.toRemind.map((f) => (
                       <Card key={f.playerId}>
                         <CardRow>

@@ -69,7 +69,12 @@ function SeasonCard({ season, onAction, onEdit, onArchive, canManage }: CardProp
           <Pill tone="s">Archivée</Pill>
         ) : !canManage ? null : (
           <>
-            <Button onClick={() => onAction(action)}>{action.label}</Button>
+            <ActionIcon
+              kind={action.kind === 'activate' ? 'activate' : action.kind === 'close' ? 'check' : 'restore'}
+              label={action.label}
+              primary={action.kind === 'activate'}
+              onClick={() => onAction(action)}
+            />
             {editable && <ActionIcon kind="edit" onClick={onEdit} />}
             {editable && season.status !== 'ACTIVE' && <ActionIcon kind="archive" onClick={onArchive} />}
           </>

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useEffect, useState } from 'react';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { Button } from '../../components/ui/Button';
 import { CardGrid, EmptyState } from '../../components/ui/Card';
 import { FilterSelect, Filters, TextField } from '../../components/ui/Field';
@@ -231,30 +232,26 @@ export function PaymentsAdminPage() {
                     </Pill>
                     <Pill tone="b">{fD(i.dueDate, { day: 'numeric', month: 'short' })}</Pill>
                     {i.groups?.map((g) => (
-                      <Pill key={g.id} tone="s">
+                      <Pill key={g.id} tone="s" className="card-text">
                         {g.name}
                       </Pill>
                     ))}
-                    {i.parents?.length ? <Pill tone="s">Parent : {i.parents.map((p) => fullName(p)).join(', ')}</Pill> : null}
+                    {i.parents?.length ? <Pill tone="s" className="card-text">Parent : {i.parents.map((p) => fullName(p)).join(', ')}</Pill> : null}
                   </>
                 }
                 action={
                   <>
                   <PaymentLines installment={i} onReceipt={setReceiptFor} />
-                  {i.remaining ? (
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="primary" onClick={() => setCashFor(i)}>
-                        Encaisser
-                      </Button>
-                      {i.status === 'LATE' && (
-                        <Button onClick={() => remind.mutate(i.id)} disabled={remind.isPending}>
-                          Envoyer un rappel
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <Button onClick={() => edit.mutate()}>Modifier le paiement</Button>
-                  )}
+                  <div className="card-actions flex flex-wrap gap-1.5">
+                    {i.remaining ? (
+                      <>
+                        <ActionIcon kind="pay" primary onClick={() => setCashFor(i)} />
+                        {i.status === 'LATE' && <ActionIcon kind="remind" onClick={() => remind.mutate(i.id)} disabled={remind.isPending} />}
+                      </>
+                    ) : (
+                      <ActionIcon kind="edit" label="Modifier le paiement" onClick={() => edit.mutate()} />
+                    )}
+                  </div>
                   </>
                 }
               />

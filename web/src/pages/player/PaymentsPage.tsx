@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { DT } from '../../lib/format';
 import type { Installment, SeasonLite } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 /** N° des reçus remis au club pour les paiements de la tranche (impression réservée à l'administration). */
 function ReceiptPills({ installment: i }: { installment: Installment }) {
@@ -32,6 +33,7 @@ function ReceiptPills({ installment: i }: { installment: Installment }) {
 
 /** Mes paiements (vPay) : cotisation d'une saison, tranche par tranche. */
 export function PaymentsPage() {
+  const [view, setView] = useViewMode('mes-paiements');
   const { playerId } = useAuth();
   const toast = useToast();
   const seasons = useQuery({ queryKey: ['seasons', 'list'], queryFn: () => api.get<SeasonLite[]>('/seasons') });
@@ -52,7 +54,7 @@ export function PaymentsPage() {
 
   return (
     <>
-      <PageHeader title="Mes paiements" subtitle="Découvrez vos cotisations et l’état de chaque tranche." />
+      <PageHeader title="Mes paiements" subtitle="Découvrez vos cotisations et l’état de chaque tranche." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         <KidSelect />
         <FilterSelect label="Choisir la saison" value={seasonId} onChange={(e) => setSeasonId(e.target.value)}>
@@ -72,7 +74,7 @@ export function PaymentsPage() {
               <Pill tone="g">Payé {DT(paid)}</Pill>
               <Pill tone={total - paid ? 'r' : 'g'}>Restant {DT(total - paid)}</Pill>
             </Pills>
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {rows.map((i) => (
                 <InstallmentCard
                   key={i.id}

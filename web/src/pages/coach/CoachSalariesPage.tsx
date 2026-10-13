@@ -9,17 +9,19 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DT } from '../../lib/format';
 import type { Estimate, Salary } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 type Mine = { paid: Salary[]; pending: Salary[]; upcoming: Estimate[] };
 
 /** Mes salaires (vCSal) : salaires à venir (estimation), à verser, puis historique des salaires versés. */
 export function CoachSalariesPage() {
+  const [view, setView] = useViewMode('salaires-coach');
   const q = useQuery({ queryKey: ['salaries', 'mine'], queryFn: () => api.get<Mine>('/salaries/mine') });
   const d = q.data;
 
   return (
     <>
-      <PageHeader title="Mes salaires" subtitle="Découvrez vos salaires à venir et ceux qui vous ont été versés." />
+      <PageHeader title="Mes salaires" subtitle="Découvrez vos salaires à venir et ceux qui vous ont été versés." action={<ViewToggle value={view} onChange={setView} />} />
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {d && (
           <>
@@ -29,7 +31,7 @@ export function CoachSalariesPage() {
             </Pills>
             <Section title="À venir">
               {d.upcoming.length || d.pending.length ? (
-                <CardGrid>
+                <CardGrid list={view === 'list'}>
                   {d.pending.map((s) => (
                     <SalaryCard key={s.id} salary={s} />
                   ))}
@@ -43,7 +45,7 @@ export function CoachSalariesPage() {
             </Section>
             <Section title="Historique">
               {d.paid.length ? (
-                <CardGrid>
+                <CardGrid list={view === 'list'}>
                   {d.paid.map((s) => (
                     <SalaryCard key={s.id} salary={s} />
                   ))}

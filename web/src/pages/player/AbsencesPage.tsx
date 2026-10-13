@@ -10,9 +10,11 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
 import { fD } from '../../lib/format';
 import type { Absence } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 /** Mes absences (vAbs). */
 export function AbsencesPage() {
+  const [view, setView] = useViewMode('mes-absences');
   const { playerId } = useAuth();
   const q = useQuery({
     queryKey: ['absences', playerId],
@@ -23,7 +25,7 @@ export function AbsencesPage() {
 
   return (
     <>
-      <PageHeader title="Mes absences" subtitle="Découvrez les séances manquées cette saison." />
+      <PageHeader title="Mes absences" subtitle="Découvrez les séances manquées cette saison." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         <KidSelect />
         {q.data && (
@@ -34,7 +36,7 @@ export function AbsencesPage() {
       </Filters>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {list.length ? (
-          <CardGrid>
+          <CardGrid list={view === 'list'}>
             {list.map((a) => (
               <Card key={a.id}>
                 <CardRow>

@@ -19,6 +19,8 @@ import { api } from '../lib/api';
 import { addDays, DT, fD, todayIso } from '../lib/format';
 import type { CourtRate, Grid, Player, Reservation, Settings, SlotState } from '../lib/types';
 import { useAction } from '../lib/useAction';
+import { useViewMode, ViewToggle } from '../components/ui/ViewToggle';
+import { ActionIcon } from '../components/ui/ActionIcon';
 
 const BLOCKED: Partial<Record<SlotState, string>> = {
   short: 'Une réservation dure au moins une heure : la demi-heure suivante est occupée. Commencez plus tôt, puis prolongez jusqu’ici.',
@@ -32,6 +34,7 @@ const BLOCKED: Partial<Record<SlotState, string>> = {
 
 /** Réserver un terrain (vBook) : loisir pour joueur / parent, séance privée pour le coach. */
 export function BookPage() {
+  const [view, setView] = useViewMode('mes-reservations');
   const me = useMe();
   const { playerId: kidId } = useAuth();
   const toast = useToast();
@@ -104,8 +107,7 @@ export function BookPage() {
     <>
       <PageHeader
         title="Réserver un terrain"
-        subtitle={isCoach ? 'Réservez un court pour une séance privée avec un élève.' : 'Choisissez un jour, puis un créneau libre.'}
-      />
+        subtitle={isCoach ? 'Réservez un court pour une séance privée avec un élève.' : 'Choisissez un jour, puis un créneau libre.'} action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         {isCoach ? (
           <FilterSelect label="Choisir l’élève" value={student} onChange={(e) => setStudent(e.target.value)}>
@@ -178,7 +180,7 @@ export function BookPage() {
       <Section title="Mes réservations">
         <QueryState isPending={mine.isPending} error={mine.error} refetch={mine.refetch}>
           {mine.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {mine.data.map((r) => {
                 const past = new Date(r.startTime).getTime() < now;
                 return (
@@ -201,9 +203,7 @@ export function BookPage() {
                     )}
                     {!past && (
                       <CardActions>
-                        <Button variant="danger" onClick={() => setToCancel(r)}>
-                          Annuler
-                        </Button>
+                        <ActionIcon kind="cancel" label="Annuler la réservation" onClick={() => setToCancel(r)} />
                       </CardActions>
                     )}
                   </Card>

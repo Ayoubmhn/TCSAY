@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AttendanceSheetForm } from '../../components/AttendanceSheetForm';
 import { CoachChip, ResolutionPill } from '../../components/SlotInfo';
-import { Button } from '../../components/ui/Button';
 import { Calendar } from '../../components/ui/Calendar';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
 import { Filters } from '../../components/ui/Field';
@@ -14,6 +13,8 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { addDays, fD, todayIso } from '../../lib/format';
 import type { CoachSession, Group } from '../../lib/types';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 /** Feuille de présence d'une séance (modale « Présences »). */
 function AttendanceModal({ session, onClose }: { session?: CoachSession; onClose: () => void }) {
@@ -68,13 +69,13 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
         </div>
       )}
       <CardActions>
-        <Button
+        <ActionIcon
+          kind="attendance"
+          label={s.open ? 'Présences' : 'Présences (pointage pendant la séance en cours)'}
+          primary={s.open}
           onClick={onAttendance}
           disabled={!s.started || s.resolution === 'CANCELLED'}
-          title={s.open ? undefined : 'Pointage pendant la séance en cours seulement'}
-        >
-          Présences
-        </Button>
+        />
       </CardActions>
     </Card>
   );
@@ -82,6 +83,7 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
 
 /** Mes séances coach (vCSes) : calendrier, à venir, passées, pointage. */
 export function CoachSessionsPage() {
+  const [view, setView] = useViewMode('seances-coach');
   const [day, setDay] = useState(todayIso());
   const [sheetFor, setSheetFor] = useState<CoachSession>();
   const groups = useQuery({ queryKey: ['groups', 'coach'], queryFn: () => api.get<Group[]>('/groups') });
@@ -96,7 +98,7 @@ export function CoachSessionsPage() {
 
   return (
     <>
-      <PageHeader title="Mes séances" subtitle="Découvrez vos groupes et pointez les présences." />
+      <PageHeader title="Mes séances" subtitle="Découvrez vos groupes et pointez les présences." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         {groups.data?.map((g) => (
           <Pill key={g.id} tone="s">
@@ -128,7 +130,7 @@ export function CoachSessionsPage() {
         </div>
         <Section title="À venir">
           {up.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {up.map((s) => (
                 <SessionCard key={s.slotId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
               ))}
@@ -139,7 +141,7 @@ export function CoachSessionsPage() {
         </Section>
         <Section title="Passées">
           {past.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {past.map((s) => (
                 <SessionCard key={s.slotId + s.date} s={s} onAttendance={() => setSheetFor(s)} />
               ))}

@@ -15,6 +15,7 @@ import { api } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
 import type { EmailLog, EmailStatus, MailConfig } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 
 const KIND: Record<EmailLog['kind'], string> = {
   CREDENTIALS: 'Identifiants',
@@ -159,19 +160,17 @@ export function EmailsPage() {
                     <Pill tone="b">{formatDateTime(m.sentAt ?? m.createdAt)}</Pill>
                     {m.attempts > 1 && <Pill tone="s">{m.attempts} tentatives</Pill>}
                   </Pills>
-                  <CardText>
+                  <CardText keep>
                     <span className="[overflow-wrap:anywhere]">À : {m.to}</span>
                   </CardText>
                   {m.error && (
-                    <CardText>
+                    <CardText keep>
                       <span className="[overflow-wrap:anywhere]">Erreur : {m.error}</span>
                     </CardText>
                   )}
                   {m.status === 'FAILED' && (
                     <CardActions>
-                      <Button onClick={() => resend.mutate(m.id)} disabled={resend.isPending}>
-                        Renvoyer
-                      </Button>
+                      <ActionIcon kind="send" onClick={() => resend.mutate(m.id)} disabled={resend.isPending} />
                     </CardActions>
                   )}
                 </Card>

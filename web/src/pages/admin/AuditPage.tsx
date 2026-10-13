@@ -117,7 +117,7 @@ export function AuditPage() {
                       )}
                     </Pills>
                   )}
-                  {a.reason && <CardText>Motif : {a.reason}</CardText>}
+                  {a.reason && <CardText keep>Motif : {a.reason}</CardText>}
                 </Card>
               ))}
             </CardGrid>

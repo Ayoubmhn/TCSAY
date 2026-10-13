@@ -14,6 +14,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import type { Actor } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 type Overview = {
   catalog: { key: string; label: string; group: string }[];
@@ -165,6 +166,7 @@ function UserCard({ user }: { user: UserRoles }) {
  * Le président a toujours tous les droits ; il reste au moins un président actif (R12).
  */
 export function PermissionsPage() {
+  const [view, setView] = useViewMode('autorisations');
   const overview = useQuery({ queryKey: ['permissions'], queryFn: () => api.get<Overview>('/permissions') });
   const [q, setQ] = useState('');
   const users = useQuery({
@@ -175,7 +177,7 @@ export function PermissionsPage() {
 
   return (
     <>
-      <PageHeader title="Autorisations" subtitle="Découvrez les droits de chaque rôle et attribuez les rôles des comptes." />
+      <PageHeader title="Autorisations" subtitle="Découvrez les droits de chaque rôle et attribuez les rôles des comptes." action={<ViewToggle value={view} onChange={setView} />} />
       <Section title="Droits par rôle">
         <QueryState isPending={overview.isPending} error={overview.error} refetch={overview.refetch}>
           {o && (
@@ -214,7 +216,7 @@ export function PermissionsPage() {
         </Filters>
         <QueryState isPending={users.isPending} error={users.error} refetch={users.refetch}>
           {users.data?.length ? (
-            <CardGrid>
+            <CardGrid list={view === 'list'}>
               {users.data.map((u) => (
                 <UserCard key={u.id} user={u} />
               ))}

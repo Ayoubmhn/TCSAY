@@ -126,9 +126,7 @@ export function EvaluationsPage({ admin = false }: { admin?: boolean }) {
                     <CardActions>
                       <ActionIcon kind={e ? 'edit' : 'add'} label={e ? 'Modifier le bilan' : 'Rédiger le bilan'} onClick={() => setEditing(p)} />
                       {canValidate && e?.proposedLevel && !e.levelValidated && (
-                        <Button onClick={() => validate.mutate(e.id)} disabled={validate.isPending}>
-                          Valider {e.proposedLevel}
-                        </Button>
+                        <ActionIcon kind="check" label={`Valider le niveau ${e.proposedLevel}`} primary onClick={() => validate.mutate(e.id)} disabled={validate.isPending} />
                       )}
                     </CardActions>
                   </Card>

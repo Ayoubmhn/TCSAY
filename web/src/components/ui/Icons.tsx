@@ -223,3 +223,53 @@ export const IconLink = (p: IconProps) => (
     <path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" />
   </Svg>
 );
+
+/** Valider, marquer comme lu, fait (coche). */
+export const IconCheck = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4.5 12.5 9.5 17.5 19.5 7" />
+  </Svg>
+);
+
+/** Refuser, annuler (croix). */
+export const IconX = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M6 6l12 12M18 6 6 18" />
+  </Svg>
+);
+
+/** Retirer d'une liste (moins). */
+export const IconMinus = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 12h14" />
+  </Svg>
+);
+
+/** Envoyer, renvoyer (avion en papier). */
+export const IconSend = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M21 3 10 14" />
+    <path d="M21 3 14.5 21l-4.5-7-7-4.5z" />
+  </Svg>
+);
+
+/** Évaluer (étoile). */
+export const IconStar = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z" />
+  </Svg>
+);
+
+/** Entretien (clé). */
+export const IconWrench = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M15 4a5 5 0 0 0-4.6 6.9L4 17.3V20h2.7l6.4-6.4A5 5 0 0 0 20 9l-3 3-3-3 3-3a5 5 0 0 0-2-1z" />
+  </Svg>
+);
+
+/** Ouvrir (flèche). */
+export const IconArrow = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </Svg>
+);
