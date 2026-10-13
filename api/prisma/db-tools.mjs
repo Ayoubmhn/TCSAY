@@ -155,6 +155,26 @@ async function migrate() {
   console.log('\n✔ Base à jour. Redémarrez l’API.');
 }
 
+/** Contenu de la base (pour savoir tout de suite si elle est vide, de démo ou réelle). */
+async function contents() {
+  const db = new PrismaClient();
+  try {
+    const [users, players, payments, matches, demo] = await Promise.all([
+      db.user.count(),
+      db.player.count(),
+      db.payment.count(),
+      db.match.count().catch(() => 0),
+      db.user.count({ where: { email: 'admin@tcsay.tn' } }),
+    ]);
+    if (!users && !players) console.log('⚠ Base VIDE : aucun compte, aucun joueur.\n');
+    else console.log(`Contenu : ${users} compte(s), ${players} joueur(s), ${payments} paiement(s), ${matches} match(s)${demo ? ' · données de DÉMO (admin@tcsay.tn)' : ''}\n`);
+  } catch {
+    console.log('⚠ Tables absentes : base neuve (lancez npm run db:migrate, ou npm run db:demo pour une base de test).\n');
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 const [command, arg, value] = process.argv.slice(2);
 try {
   if (command === 'backup') {
@@ -164,6 +184,7 @@ try {
   else if (command === 'restore') await restore(arg);
   else if (command === 'status') {
     console.log(`Base : « ${databaseName()} »\n`);
+    await contents();
     prisma(['migrate', 'status']);
   } else if (command === 'migrate') await migrate();
   else console.log('Commandes : backup | restore <fichier> | status | migrate');
