@@ -140,8 +140,34 @@ async function confirm(question) {
   return answer.trim().toUpperCase() === 'OUI';
 }
 
+/** Arrête tout si le serveur PostgreSQL ne répond pas (sinon une base injoignable passerait pour une base vide). */
+async function assertReachable() {
+  const db = new PrismaClient();
+  try {
+    await db.$queryRawUnsafe('SELECT 1');
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientInitializationError) {
+      let where = 'le serveur';
+      try {
+        const u = new URL(process.env.DATABASE_URL ?? '');
+        where = `${u.hostname}:${u.port || 5432}`;
+      } catch {
+        /* adresse illisible : message générique */
+      }
+      throw new Error(
+        `Serveur PostgreSQL injoignable (${where}) : rien n’a été lu ni modifié.\n` +
+          '   Démarrez PostgreSQL (Windows : services.msc → « postgresql-x64-… » → Démarrer ; Docker : docker compose up -d), puis relancez.',
+      );
+    }
+    throw e;
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 async function migrate() {
   console.log(`Base : « ${databaseName()} »${process.env.TCSAY_PRODUCTION === 'true' ? ' (PRODUCTION)' : ''}\n`);
+  await assertReachable();
   const status = prisma(['migrate', 'status'], false);
   const out = `${status.stdout ?? ''}${status.stderr ?? ''}`;
   if (status.status === 0 && /up to date/i.test(out)) {
@@ -183,6 +209,7 @@ async function contents() {
 
 const [command, arg, value] = process.argv.slice(2);
 try {
+  if (['backup', 'restore', 'status'].includes(command)) await assertReachable();
   if (command === 'backup') {
     await backup();
     if (arg === '--keep') prune(Number(value));
