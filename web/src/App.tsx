@@ -36,6 +36,7 @@ import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
+import { ProgressPage } from './pages/player/ProgressPage';
 import { AbsencesPage } from './pages/player/AbsencesPage';
 import { HomePage } from './pages/player/HomePage';
 import { PaymentsPage } from './pages/player/PaymentsPage';
@@ -106,6 +107,7 @@ export function App() {
         <Route path="paiements" element={<Protected roles={PLAYER}><PaymentsPage /></Protected>} />
         <Route path="seances" element={<Protected roles={PLAYER}><SessionsPage /></Protected>} />
         <Route path="absences" element={<Protected roles={PLAYER}><AbsencesPage /></Protected>} />
+        <Route path="suivi" element={<Protected roles={PLAYER}><ProgressPage /></Protected>} />
         <Route path="reserver" element={<Protected roles={PLAYER}><BookPage /></Protected>} />
         <Route
           path="tournois"

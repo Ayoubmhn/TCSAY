@@ -39,6 +39,7 @@ const PLAYER_MENU: MenuItem[] = [
     label: 'Mon activité',
     icon: IconRacket,
     children: [
+      { label: 'Suivi et progression', path: '/suivi' },
       { label: 'Mes séances', path: '/seances' },
       { label: 'Mes absences', path: '/absences' },
     ],

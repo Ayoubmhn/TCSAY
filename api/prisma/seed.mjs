@@ -335,6 +335,39 @@ async function main() {
     });
   }
 
+  // Objectifs et évaluations de séance (DÉMO) : Yassine (Benjamins G) et Lina (Poussines F), une séance par semaine
+  const OBJ = ['Coup droit', 'Revers', 'Service', 'Jeu de jambes', 'Volée', 'Match à thème'];
+  const COMMENTS = ['Bonne intensité, préparation à travailler.', '', 'Très concentré aujourd’hui, bravo.', '', 'Régulier en fond de court ; la volée reste à travailler.', ''];
+  for (const [g, pid, base] of [['Benjamins G', 'J1', 2.6], ['Poussines F', 'J2', 2.4]]) {
+    let n = 0;
+    for (let t = Date.parse('2026-09-07T00:00:00Z'); t <= Date.parse('2026-10-12T00:00:00Z'); t += 86_400_000) {
+      const d = new Date(t);
+      const found = PROGRAMME[g].slice(0, 2).find(([w]) => w === d.getUTCDay());
+      if (!found) continue;
+      const [wd, start, , , coachName] = found;
+      const slotId = SLOT[`${g}|${wd}|${start}`];
+      const rater = coachUser[coachName] ?? coachUser.Iheb;
+      const date = day(d.toISOString().slice(0, 10));
+      const exists = await prisma.attendance.findUnique({ where: { slotId_playerId_date: { slotId, playerId: J_[pid], date } } });
+      if (exists) continue;
+      await prisma.attendance.create({ data: { groupId: G[g], slotId, playerId: J_[pid], date, status: 'PRESENT', recordedById: rater } });
+      await prisma.sessionPlan.upsert({
+        where: { slotId_date: { slotId, date } },
+        create: { groupId: G[g], slotId, date, objective: OBJ[n % OBJ.length], updatedById: rater },
+        update: {},
+      });
+      const v = (k) => Math.max(1, Math.min(5, Math.round(base + n * 0.16 + k)));
+      await prisma.sessionRating.create({
+        data: {
+          groupId: G[g], slotId, playerId: J_[pid], date,
+          effort: v(0.6), focus: v(0), behavior: v(0.9), objective: v(-0.2), play: v(-0.4),
+          comment: COMMENTS[n % COMMENTS.length] || null, ratedById: rater,
+        },
+      });
+      n++;
+    }
+  }
+
   await prisma.event.create({
     data: { title: 'Tournoi interne d’automne', date: day('2026-10-25'), place: 'Club, courts 1 à 3', tag: 'Tournoi' },
   });

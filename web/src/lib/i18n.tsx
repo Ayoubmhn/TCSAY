@@ -352,6 +352,7 @@ const DICT: Record<string, [string, string]> = {
   'Mailpit (développement)': ['Mailpit (development)', 'Mailpit (التطوير)'],
   // Reçus
   'Reçus': ['Receipts', 'الوصولات'],
+  'Suivi et progression': ['Follow-up and progress', 'المتابعة والتقدّم'],
   'Statistiques financières': ['Financial statistics', 'الإحصائيات المالية'],
   'Émettre le reçu': ['Issue the receipt', 'إصدار الوصل'],
   'Imprimer sur le carnet': ['Print on the receipt book', 'الطباعة على دفتر الوصولات'],
