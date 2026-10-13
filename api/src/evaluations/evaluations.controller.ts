@@ -1,11 +1,11 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, NotFoundException, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { EmailKind, Prisma, Role } from '@prisma/client';
+import { AttendanceStatus, EmailKind, Mood, Prisma, Role } from '@prisma/client';
 import { IsBoolean, IsIn, IsObject, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
-import { dayFromIso } from '../common/dates';
+import { addDaysIso, dayFromIso, isoDay, todayIso } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { ratingAverage } from '../attendance/session-review.controller';
 
@@ -193,6 +193,98 @@ export class EvaluationsController {
           };
         }),
     };
+  }
+
+  /**
+   * Suivi technique : moyenne des séances par groupe (mois en cours et précédent), assiduité sur 30 jours, et alertes
+   * — 3 absences de suite, notes en baisse, engagement faible, douleur signalée (14 derniers jours).
+   * Direction : tous les groupes ; entraîneur : ses groupes.
+   */
+  @Get('overview')
+  @Roles(Role.COACH, Role.ADMIN)
+  async overview(@CurrentUser() user: AuthUser) {
+    this.assertManager(user);
+    const season = await this.access.activeSeason();
+    const today = todayIso();
+    const groups = await this.prisma.trainingGroup.findMany({
+      where: {
+        seasonId: season.id,
+        archivedAt: null,
+        ...(user.role === Role.COACH ? { slots: { some: { coaches: { some: { coachId: user.coachId ?? '' } } } } } : {}),
+      },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        members: {
+          where: { enrollment: { player: { archivedAt: null } } },
+          select: { enrollment: { select: { player: { select: { id: true, firstName: true, lastName: true } } } } },
+        },
+      },
+    });
+    const groupIds = groups.map((g) => g.id);
+    const [ratings, marks, plans] = await Promise.all([
+      this.prisma.sessionRating.findMany({ where: { groupId: { in: groupIds } }, orderBy: { date: 'asc' } }),
+      this.prisma.attendance.findMany({ where: { groupId: { in: groupIds } }, orderBy: { date: 'asc' }, select: { groupId: true, playerId: true, status: true, date: true } }),
+      this.prisma.sessionPlan.findMany({
+        where: { groupId: { in: groupIds }, date: { gte: dayFromIso(addDaysIso(today, -30)) } },
+        select: { groupId: true, objective: true },
+      }),
+    ]);
+    const month = today.slice(0, 7);
+    const prevMonth = (() => {
+      const [y, m] = month.split('-').map(Number);
+      return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+    })();
+    const mean = (v: number[]) => (v.length ? Math.round((v.reduce((t, x) => t + x, 0) / v.length) * 10) / 10 : null);
+    const since30 = dayFromIso(addDaysIso(today, -30)).getTime();
+    const since14 = dayFromIso(addDaysIso(today, -14)).getTime();
+
+    const groupViews = groups.map((g) => {
+      const own = ratings.filter((r) => r.groupId === g.id);
+      const recentMarks = marks.filter((m) => m.groupId === g.id && m.date.getTime() >= since30);
+      const attended = recentMarks.filter((m) => m.status !== AttendanceStatus.ABSENT).length;
+      const objectives = [...new Set(plans.filter((p) => p.groupId === g.id).map((p) => p.objective))];
+      return {
+        id: g.id,
+        name: g.name,
+        players: g.members.length,
+        average: mean(own.filter((r) => isoDay(r.date).startsWith(month)).map(ratingAverage)),
+        previous: mean(own.filter((r) => isoDay(r.date).startsWith(prevMonth)).map(ratingAverage)),
+        attendanceRate: recentMarks.length ? Math.round((attended / recentMarks.length) * 100) : null,
+        objectives: objectives.slice(0, 4),
+      };
+    });
+
+    type Alert = { playerId: string; name: string; group: string; kind: 'ABSENCES' | 'DROP' | 'EFFORT' | 'PAIN'; label: string; date: string };
+    const alerts: Alert[] = [];
+    for (const g of groups) {
+      for (const { enrollment } of g.members) {
+        const p = enrollment.player;
+        const name = `${p.firstName} ${p.lastName}`.trim();
+        const pm = marks.filter((m) => m.playerId === p.id && m.groupId === g.id);
+        const lastThree = pm.slice(-3);
+        if (lastThree.length === 3 && lastThree.every((m) => m.status === AttendanceStatus.ABSENT)) {
+          alerts.push({ playerId: p.id, name, group: g.name, kind: 'ABSENCES', label: '3 absences de suite', date: isoDay(lastThree[2].date) });
+        }
+        const pr = ratings.filter((r) => r.playerId === p.id && r.groupId === g.id);
+        const pain = [...pr].reverse().find((r) => r.mood === Mood.PAIN && r.date.getTime() >= since14);
+        if (pain) alerts.push({ playerId: p.id, name, group: g.name, kind: 'PAIN', label: 'Douleur signalée', date: isoDay(pain.date) });
+        const recent = pr.slice(-3).map(ratingAverage);
+        const before = pr.slice(-8, -3).map(ratingAverage);
+        const r = mean(recent);
+        const b = mean(before);
+        if (recent.length === 3 && b !== null && r !== null && b - r >= 0.7) {
+          alerts.push({ playerId: p.id, name, group: g.name, kind: 'DROP', label: `Notes en baisse (${b} → ${r})`, date: isoDay(pr[pr.length - 1].date) });
+        }
+        const lastTwo = pr.slice(-2);
+        if (lastTwo.length === 2 && lastTwo.every((x) => x.effort <= 2)) {
+          alerts.push({ playerId: p.id, name, group: g.name, kind: 'EFFORT', label: 'Engagement faible (2 séances)', date: isoDay(lastTwo[1].date) });
+        }
+      }
+    }
+    alerts.sort((a, b) => b.date.localeCompare(a.date));
+    return { month, groups: groupViews, alerts };
   }
 
   /** Bilans d'un joueur : tous pour l'entraîneur et la direction ; partagés seulement pour le joueur et le parent. */

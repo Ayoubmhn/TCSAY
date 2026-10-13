@@ -34,6 +34,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { BookPage } from './pages/BookPage';
 import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
 import { EvaluationsPage } from './pages/coach/EvaluationsPage';
+import { TechOverviewPage } from './pages/admin/TechOverviewPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
@@ -145,6 +146,7 @@ export function App() {
         <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
         <Route path="admin/bilans" element={admin(['evaluations.manage'], <EvaluationsPage admin />)} />
+        <Route path="admin/suivi-technique" element={admin(['evaluations.manage'], <TechOverviewPage />)} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />
         <Route path="admin/saisons/:id" element={admin(['seasons.manage', 'stats.view'], <SeasonDetailPage />)} />

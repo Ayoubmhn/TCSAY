@@ -79,6 +79,7 @@ const ADMIN_MENU: MenuItem[] = [
     children: [
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
+      { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'] },
       { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },

@@ -12,6 +12,8 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useMe } from '../../auth/AuthContext';
+import { Section } from '../../components/ui/Section';
+import { AlertList, useTechOverview } from '../admin/TechOverviewPage';
 import { api } from '../../lib/api';
 import type { Evaluation, EvaluationCriterion } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -60,6 +62,8 @@ export function EvaluationsPage({ admin = false }: { admin?: boolean }) {
     invalidate: [['evaluation-group']],
     success: (r) => `Niveau ${r.level} validé.`,
   });
+  const overview = useTechOverview();
+  const alerts = !admin ? (overview.data?.alerts ?? []) : [];
   const players = sheet.data?.players ?? [];
   const done = players.filter((p) => p.evaluation).length;
 
@@ -70,6 +74,11 @@ export function EvaluationsPage({ admin = false }: { admin?: boolean }) {
         subtitle="Découvrez et rédigez le bilan de chaque joueur pour la période."
         action={<ViewToggle value={view} onChange={setView} />}
       />
+      {alerts.length > 0 && (
+        <Section title={`Joueurs à suivre · ${alerts.length}`}>
+          <AlertList alerts={alerts} linkPlayers={false} />
+        </Section>
+      )}
       <Filters>
         <FilterSelect label="Groupe" value={gid} onChange={(e) => setGroupId(e.target.value)}>
           {(groups.data ?? []).map((g) => (

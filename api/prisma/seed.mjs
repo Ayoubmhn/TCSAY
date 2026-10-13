@@ -368,6 +368,20 @@ async function main() {
     }
   }
 
+  // Alerte de démonstration : Rayen (Lutins 1) absent 3 séances de suite après le 5 octobre
+  {
+    let left = 3;
+    for (let t = Date.parse('2026-10-06T00:00:00Z'); t <= Date.parse('2026-10-12T00:00:00Z') && left > 0; t += 86_400_000) {
+      const d = new Date(t);
+      const slot = PROGRAMME['Lutins 1'].find(([w]) => w === d.getUTCDay());
+      if (!slot) continue;
+      await prisma.attendance.create({
+        data: { groupId: G['Lutins 1'], slotId: SLOT[`Lutins 1|${slot[0]}|${slot[1]}`], playerId: J_.J6, date: day(d.toISOString().slice(0, 10)), status: 'ABSENT', recordedById: coachUser.Iheb },
+      });
+      left--;
+    }
+  }
+
   await prisma.event.create({
     data: { title: 'Tournoi interne d’automne', date: day('2026-10-25'), place: 'Club, courts 1 à 3', tag: 'Tournoi' },
   });
