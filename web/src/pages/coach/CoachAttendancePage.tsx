@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AttendanceSheetForm } from '../../components/AttendanceSheetForm';
+import { SessionPlanForm, SessionReviewCard, useSessionReview } from '../../components/SessionReview';
 import { ResolutionPill } from '../../components/SlotInfo';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -12,6 +13,16 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD, todayIso } from '../../lib/format';
 import type { CoachSession } from '../../lib/types';
+
+/** Objectif de la séance (chargé avec l'évaluation). */
+function PlanCard({ slotId, date }: { slotId: string; date: string }) {
+  const q = useSessionReview(slotId, date);
+  return (
+    <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
+      {q.data && <SessionPlanForm review={q.data} />}
+    </QueryState>
+  );
+}
 
 /**
  * Présences (entraîneur) : les séances du jour, la séance en cours ouverte au pointage
@@ -25,9 +36,12 @@ export function CoachAttendancePage() {
     refetchInterval: 60_000, // la séance en cours change avec l'heure
   });
   const [chosen, setChosen] = useState<string>();
+  const [reviewed, setReviewed] = useState<string>();
   const sessions = q.data ?? [];
   const current = sessions.filter((s) => s.open && s.resolution !== 'CANCELLED');
   const selected = sessions.find((s) => s.slotId === chosen) ?? current[0];
+  const live = selected && selected.open && selected.resolution !== 'CANCELLED' ? selected : undefined;
+  const toReview = sessions.find((s) => s.slotId === reviewed) ?? live;
 
   return (
     <>
@@ -36,6 +50,14 @@ export function CoachAttendancePage() {
         <Pill tone="b">{fD(today, { weekday: 'long', day: 'numeric', month: 'long' })}</Pill>
       </Pills>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
+        {live && (
+          <Section title="Objectif de la séance">
+            <Card>
+              <PlanCard slotId={live.slotId} date={live.date} />
+            </Card>
+          </Section>
+        )}
+
         <Section title="Séance en cours">
           {selected && selected.open && selected.resolution !== 'CANCELLED' ? (
             <Card>
@@ -57,6 +79,14 @@ export function CoachAttendancePage() {
             <EmptyState>Pas de séance en cours : le pointage s’ouvre 15 minutes avant le début de la séance.</EmptyState>
           )}
         </Section>
+
+        {toReview && (
+          <Section title={`Évaluation de la séance · ${toReview.groupName} ${toReview.startTime}`}>
+            <Card>
+              <SessionReviewCard slotId={toReview.slotId} date={toReview.date} />
+            </Card>
+          </Section>
+        )}
 
         <Section title="Séances du jour">
           {sessions.length ? (
@@ -86,9 +116,10 @@ export function CoachAttendancePage() {
                   <CardText>
                     {s.membersCount} joueur{s.membersCount > 1 ? 's' : ''}
                   </CardText>
-                  {s.open && s.resolution !== 'CANCELLED' && s.slotId !== selected?.slotId && (
+                  {s.resolution !== 'CANCELLED' && s.started && (
                     <CardActions>
-                      <Button onClick={() => setChosen(s.slotId)}>Pointer cette séance</Button>
+                      {s.open && s.slotId !== selected?.slotId && <Button onClick={() => setChosen(s.slotId)}>Pointer cette séance</Button>}
+                      {s.recorded && s.slotId !== toReview?.slotId && <Button onClick={() => setReviewed(s.slotId)}>Évaluer</Button>}
                     </CardActions>
                   )}
                 </Card>
@@ -101,7 +132,8 @@ export function CoachAttendancePage() {
       </QueryState>
       <Note>
         Le pointage n’est possible que pendant la séance en cours (de 15 minutes avant le début à 30 minutes après la fin).
-        Une erreur sur une séance passée se corrige par la direction.
+        Une erreur sur une séance passée se corrige par la direction. L’évaluation (5 notes, forme du jour, commentaire pour
+        le parent) se fait dans sa propre fenêtre, jusqu’au lendemain soir de la séance.
       </Note>
     </>
   );

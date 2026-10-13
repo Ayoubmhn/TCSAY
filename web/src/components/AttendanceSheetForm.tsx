@@ -36,7 +36,7 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
         date,
         entries: Object.entries(marks).map(([playerId, m]) => ({ playerId, status: m.status, reason: m.reason.trim() || undefined })),
       }),
-    { invalidate: [['sessions'], ['attendance']], success: 'Présences enregistrées.', onSuccess: onSaved },
+    { invalidate: [['sessions'], ['attendance'], ['session-review']], success: 'Présences enregistrées.', onSuccess: onSaved },
   );
 
   const d = sheet.data;

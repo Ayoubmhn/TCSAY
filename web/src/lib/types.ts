@@ -445,6 +445,30 @@ export type AttendanceSheet = {
   entries: { playerId: string; firstName: string; lastName: string; status: AttendanceStatus | null; reason: string | null }[];
 };
 
+export type Mood = 'GOOD' | 'TIRED' | 'PAIN';
+
+export type SessionRatingNotes = { effort: number; focus: number; behavior: number; objective: number; play: number };
+
+/** Objectif et évaluations d'une séance (fenêtre d'évaluation de l'entraîneur). */
+export type SessionReview = {
+  group: { id: string; name: string };
+  slotId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  plan: { objective: string; content: string | null } | null;
+  attendanceRecorded: boolean;
+  editable: boolean;
+  closesAt: string;
+  players: {
+    playerId: string;
+    firstName: string;
+    lastName: string;
+    attendance: AttendanceStatus | null;
+    rating: (SessionRatingNotes & { mood: Mood; comment: string | null; average: number }) | null;
+  }[];
+};
+
 export type Absence = {
   id: string;
   date: string;

@@ -43,6 +43,13 @@ enum AttendanceStatus {
   LATE // en retard
 }
 
+/// Forme du jour notée par l'entraîneur (douleur = alerte au parent et au directeur technique).
+enum Mood {
+  GOOD // en forme
+  TIRED // fatigué
+  PAIN // douleur ou blessure
+}
+
 /// Décision de la direction sur la séance d'un entraîneur absent.
 enum AbsenceResolution {
   REPLACED // animée par un autre entraîneur
@@ -173,6 +180,8 @@ model User {
   receiptsIssued   Receipt[]               @relation("ReceiptIssuedBy")
   receiptsVoided   Receipt[]               @relation("ReceiptVoidedBy")
   attendances      Attendance[]
+  sessionPlans     SessionPlan[]
+  sessionRatings   SessionRating[]
   salaries         Salary[]
   absenceDecisions CoachAbsence[]          @relation("AbsenceDecidedBy")
   notifications    Notification[]
@@ -216,11 +225,12 @@ model Player {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  user         User?         @relation(fields: [userId], references: [id])
-  parentLinks  ParentLink[]
-  enrollments  Enrollment[]
-  reservations Reservation[]
-  attendances  Attendance[]
+  user           User?           @relation(fields: [userId], references: [id])
+  parentLinks    ParentLink[]
+  enrollments    Enrollment[]
+  reservations   Reservation[]
+  attendances    Attendance[]
+  sessionRatings SessionRating[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -345,13 +355,15 @@ model TrainingGroup {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  season       Season        @relation(fields: [seasonId], references: [id])
-  category     Category?     @relation(fields: [categoryId], references: [id])
-  slots        GroupSlot[]
-  members      GroupMember[]
-  attendances  Attendance[]
-  reservations Reservation[]
-  feeSchedules FeeSchedule[]
+  season         Season          @relation(fields: [seasonId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  slots          GroupSlot[]
+  members        GroupMember[]
+  attendances    Attendance[]
+  sessionPlans   SessionPlan[]
+  sessionRatings SessionRating[]
+  reservations   Reservation[]
+  feeSchedules   FeeSchedule[]
 
   @@unique([seasonId, name])
 }
@@ -365,11 +377,13 @@ model GroupSlot {
   endTime   String // « 19:00 »
   courtId   String? @db.Uuid
 
-  group       TrainingGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  court       Court?         @relation(fields: [courtId], references: [id])
-  coaches     SlotCoach[]
-  attendances Attendance[]
-  absences    CoachAbsence[]
+  group          TrainingGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  court          Court?          @relation(fields: [courtId], references: [id])
+  coaches        SlotCoach[]
+  attendances    Attendance[]
+  sessionPlans   SessionPlan[]
+  sessionRatings SessionRating[]
+  absences       CoachAbsence[]
 
   @@index([day])
 }
@@ -618,6 +632,52 @@ model Attendance {
   recordedBy User          @relation(fields: [recordedById], references: [id])
 
   @@unique([slotId, playerId, date])
+}
+
+/// Objectif et contenu d'une séance (créneau + date), saisis par l'entraîneur.
+model SessionPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  groupId     String   @db.Uuid
+  slotId      String   @db.Uuid
+  date        DateTime @db.Date
+  objective   String // point travaillé, ex. « Coup droit croisé »
+  content     String? // déroulé de la séance
+  updatedById String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  group     TrainingGroup @relation(fields: [groupId], references: [id])
+  slot      GroupSlot     @relation(fields: [slotId], references: [id])
+  updatedBy User          @relation(fields: [updatedById], references: [id])
+
+  @@unique([slotId, date])
+}
+
+/// Évaluation d'un joueur pour une séance : 5 notes de 1 à 5, forme du jour, commentaire visible par le parent.
+model SessionRating {
+  id        String   @id @default(uuid()) @db.Uuid
+  groupId   String   @db.Uuid
+  slotId    String   @db.Uuid
+  playerId  String   @db.Uuid
+  date      DateTime @db.Date
+  effort    Int // engagement
+  focus     Int // concentration, écoute
+  behavior  Int // comportement, fair-play
+  objective Int // objectif du jour
+  play      Int // qualité de jeu, régularité
+  mood      Mood     @default(GOOD)
+  comment   String?
+  ratedById String   @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group   TrainingGroup @relation(fields: [groupId], references: [id])
+  slot    GroupSlot     @relation(fields: [slotId], references: [id])
+  player  Player        @relation(fields: [playerId], references: [id])
+  ratedBy User          @relation(fields: [ratedById], references: [id])
+
+  @@unique([slotId, playerId, date])
+  @@index([playerId, date])
 }
 
 // ───────────────────────── Divers ─────────────────────────

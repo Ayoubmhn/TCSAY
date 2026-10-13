@@ -5,6 +5,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { CoachAbsencesController } from './absences/coach-absences.controller';
 import { AttendanceController } from './attendance/attendance.controller';
+import { SessionReviewController } from './attendance/session-review.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
@@ -75,6 +76,7 @@ import { StaffController } from './staff/staff.controller';
     FederationController,
     PlayersImportController,
     AttendanceController,
+    SessionReviewController,
     EventsController,
     EmailsController,
     AuditController,
