@@ -8,6 +8,7 @@ import { AttendanceController } from './attendance/attendance.controller';
 import { SessionReviewController } from './attendance/session-review.controller';
 import { ProgressController } from './attendance/progress.controller';
 import { EvaluationsController } from './evaluations/evaluations.controller';
+import { ExercisesController } from './exercises/exercises.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
@@ -81,6 +82,7 @@ import { StaffController } from './staff/staff.controller';
     SessionReviewController,
     ProgressController,
     EvaluationsController,
+    ExercisesController,
     EventsController,
     EmailsController,
     AuditController,

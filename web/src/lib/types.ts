@@ -488,6 +488,20 @@ export type Evaluation = {
   updatedAt: string;
 };
 
+export type ExerciseKind = 'WARMUP' | 'TECHNIQUE' | 'PHYSICAL' | 'RECOVERY';
+
+export type Exercise = {
+  id: string;
+  title: string;
+  kind: ExerciseKind;
+  durationMin: number | null;
+  instructions: string;
+  videoUrl: string | null;
+  author: string;
+  mine: boolean;
+  assignments: number;
+};
+
 export type Absence = {
   id: string;
   date: string;

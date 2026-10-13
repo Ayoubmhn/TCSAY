@@ -43,6 +43,14 @@ enum AttendanceStatus {
   LATE // en retard
 }
 
+/// Type d'exercice à faire à la maison ou avant la séance.
+enum ExerciseKind {
+  WARMUP // échauffement
+  TECHNIQUE
+  PHYSICAL // physique
+  RECOVERY // récupération, étirements
+}
+
 /// Forme du jour notée par l'entraîneur (douleur = alerte au parent et au directeur technique).
 enum Mood {
   GOOD // en forme
@@ -184,6 +192,8 @@ model User {
   sessionRatings     SessionRating[]
   evaluationsWritten Evaluation[]            @relation("EvaluationAuthor")
   levelsValidated    Evaluation[]            @relation("EvaluationLevelValidator")
+  exercisesCreated   Exercise[]
+  exercisesAssigned  ExerciseAssignment[]
   salaries           Salary[]
   absenceDecisions   CoachAbsence[]          @relation("AbsenceDecidedBy")
   notifications      Notification[]
@@ -230,13 +240,15 @@ model Player {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  user           User?           @relation(fields: [userId], references: [id])
-  parentLinks    ParentLink[]
-  enrollments    Enrollment[]
-  reservations   Reservation[]
-  attendances    Attendance[]
-  sessionRatings SessionRating[]
-  evaluations    Evaluation[]
+  user                User?                @relation(fields: [userId], references: [id])
+  parentLinks         ParentLink[]
+  enrollments         Enrollment[]
+  reservations        Reservation[]
+  attendances         Attendance[]
+  sessionRatings      SessionRating[]
+  evaluations         Evaluation[]
+  exerciseAssignments ExerciseAssignment[]
+  exerciseCompletions ExerciseCompletion[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -362,15 +374,16 @@ model TrainingGroup {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  season         Season          @relation(fields: [seasonId], references: [id])
-  category       Category?       @relation(fields: [categoryId], references: [id])
-  slots          GroupSlot[]
-  members        GroupMember[]
-  attendances    Attendance[]
-  sessionPlans   SessionPlan[]
-  sessionRatings SessionRating[]
-  reservations   Reservation[]
-  feeSchedules   FeeSchedule[]
+  season              Season               @relation(fields: [seasonId], references: [id])
+  category            Category?            @relation(fields: [categoryId], references: [id])
+  slots               GroupSlot[]
+  members             GroupMember[]
+  attendances         Attendance[]
+  sessionPlans        SessionPlan[]
+  sessionRatings      SessionRating[]
+  exerciseAssignments ExerciseAssignment[]
+  reservations        Reservation[]
+  feeSchedules        FeeSchedule[]
 
   @@unique([seasonId, name])
 }
@@ -713,6 +726,57 @@ model Evaluation {
   levelValidatedBy User?  @relation("EvaluationLevelValidator", fields: [levelValidatedById], references: [id])
 
   @@unique([playerId, seasonId, period])
+}
+
+/// Exercice de la bibliothèque du club (échauffement, technique, physique, récupération). Archivé, jamais supprimé (R8).
+model Exercise {
+  id           String       @id @default(uuid()) @db.Uuid
+  title        String
+  kind         ExerciseKind
+  durationMin  Int?
+  instructions String
+  videoUrl     String? // lien vers une vidéo (ouvert dans un nouvel onglet)
+  createdById  String       @db.Uuid
+  archivedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  createdBy   User                 @relation(fields: [createdById], references: [id])
+  assignments ExerciseAssignment[]
+}
+
+/// Exercice donné par l'entraîneur à un groupe ou à un joueur, avec échéance facultative.
+model ExerciseAssignment {
+  id           String    @id @default(uuid()) @db.Uuid
+  exerciseId   String    @db.Uuid
+  groupId      String?   @db.Uuid
+  playerId     String?   @db.Uuid
+  dueDate      DateTime? @db.Date
+  note         String?
+  assignedById String    @db.Uuid
+  createdAt    DateTime  @default(now())
+
+  exercise    Exercise             @relation(fields: [exerciseId], references: [id])
+  group       TrainingGroup?       @relation(fields: [groupId], references: [id])
+  player      Player?              @relation(fields: [playerId], references: [id])
+  assignedBy  User                 @relation(fields: [assignedById], references: [id])
+  completions ExerciseCompletion[]
+
+  @@index([groupId])
+  @@index([playerId])
+}
+
+/// Exercice marqué « fait » par le joueur ou son parent.
+model ExerciseCompletion {
+  id           String   @id @default(uuid()) @db.Uuid
+  assignmentId String   @db.Uuid
+  playerId     String   @db.Uuid
+  doneAt       DateTime @default(now())
+
+  assignment ExerciseAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  player     Player             @relation(fields: [playerId], references: [id])
+
+  @@unique([assignmentId, playerId])
 }
 
 // ───────────────────────── Divers ─────────────────────────

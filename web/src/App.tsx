@@ -35,6 +35,8 @@ import { BookPage } from './pages/BookPage';
 import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
 import { EvaluationsPage } from './pages/coach/EvaluationsPage';
 import { TechOverviewPage } from './pages/admin/TechOverviewPage';
+import { ExercisesCoachPage } from './features/exercises/ExercisesCoachPage';
+import { ExercisesPage } from './features/exercises/ExercisesPage';
 import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
 import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
 import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
@@ -110,6 +112,7 @@ export function App() {
         <Route path="seances" element={<Protected roles={PLAYER}><SessionsPage /></Protected>} />
         <Route path="absences" element={<Protected roles={PLAYER}><AbsencesPage /></Protected>} />
         <Route path="suivi" element={<Protected roles={PLAYER}><ProgressPage /></Protected>} />
+        <Route path="exercices" element={<Protected roles={PLAYER}><ExercisesPage /></Protected>} />
         <Route path="reserver" element={<Protected roles={PLAYER}><BookPage /></Protected>} />
         <Route
           path="tournois"
@@ -126,6 +129,7 @@ export function App() {
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
         <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
         <Route path="coach/bilans" element={<Protected roles={['COACH']}><EvaluationsPage /></Protected>} />
+        <Route path="coach/exercices" element={<Protected roles={['COACH']}><ExercisesCoachPage /></Protected>} />
         <Route path="coach/reserver" element={<Protected roles={['COACH']}><BookPage /></Protected>} />
 
         {/* Administration : président, agents, superviseur, directeur technique (selon les autorisations) */}
@@ -147,6 +151,7 @@ export function App() {
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
         <Route path="admin/bilans" element={admin(['evaluations.manage'], <EvaluationsPage admin />)} />
         <Route path="admin/suivi-technique" element={admin(['evaluations.manage'], <TechOverviewPage />)} />
+        <Route path="admin/exercices" element={admin(['evaluations.manage'], <ExercisesCoachPage />)} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />
         <Route path="admin/saisons/:id" element={admin(['seasons.manage', 'stats.view'], <SeasonDetailPage />)} />

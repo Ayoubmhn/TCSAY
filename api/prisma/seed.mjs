@@ -40,7 +40,7 @@ async function wipe() {
   await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
-    'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
+    'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
     'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
@@ -367,6 +367,25 @@ async function main() {
       n++;
     }
   }
+
+  // Exercices (DÉMO) : bibliothèque et exercices donnés
+  const EX = {};
+  for (const [key, title, kind, durationMin, instructions] of [
+    ['warm', 'Échauffement dynamique', 'WARMUP', 8, 'Montées de genoux, talons-fesses, pas chassés, rotations des bras : 1 minute chacun.'],
+    ['core', 'Gainage et équilibre', 'PHYSICAL', 10, '3 × 30 s de planche, 3 × 20 s sur une jambe, 2 × 10 squats.'],
+    ['shadow', 'Shadow coup droit', 'TECHNIQUE', 5, '30 coups droits sans balle devant un miroir : préparation tôt, fin du geste au-dessus de l’épaule.'],
+    ['toss', 'Lancer de balle du service', 'TECHNIQUE', 5, '20 lancers : la balle doit retomber dans un cerceau posé devant le pied avant.'],
+    ['stretch', 'Étirements après séance', 'RECOVERY', 6, 'Mollets, ischios, quadriceps, épaules : 30 secondes chacun, sans à-coups.'],
+  ]) {
+    EX[key] = (await prisma.exercise.create({ data: { title, kind, durationMin, instructions, createdById: coachUser.Iheb } })).id;
+  }
+  const assigned = {};
+  for (const [key, g, due] of [['warm', 'Poussines F', null], ['toss', 'Poussines F', '2026-10-20'], ['shadow', 'Benjamins G', '2026-10-18'], ['core', 'Benjamins G', null]]) {
+    assigned[key + g] = (await prisma.exerciseAssignment.create({
+      data: { exerciseId: EX[key], groupId: G[g], dueDate: due ? day(due) : null, assignedById: g === 'Benjamins G' ? coachUser.Aziz : coachUser.Iheb },
+    })).id;
+  }
+  await prisma.exerciseCompletion.create({ data: { assignmentId: assigned['warmPoussines F'], playerId: J_.J2 } });
 
   // Alerte de démonstration : Rayen (Lutins 1) absent 3 séances de suite après le 5 octobre
   {

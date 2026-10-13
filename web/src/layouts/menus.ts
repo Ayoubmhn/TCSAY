@@ -40,6 +40,7 @@ const PLAYER_MENU: MenuItem[] = [
     icon: IconRacket,
     children: [
       { label: 'Suivi et progression', path: '/suivi' },
+      { label: 'Exercices', path: '/exercices' },
       { label: 'Mes séances', path: '/seances' },
       { label: 'Mes absences', path: '/absences' },
     ],
@@ -53,6 +54,7 @@ const COACH_MENU: MenuItem[] = [
   { label: 'Mes séances', path: '/coach/seances', icon: IconCalendar },
   { label: 'Présences', path: '/coach/presences', icon: IconClipboard },
   { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart },
+  { label: 'Exercices', path: '/coach/exercices', icon: IconRacket },
   { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
@@ -81,6 +83,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
       { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'] },
       { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
+      { label: 'Exercices', path: '/admin/exercices', perm: ['evaluations.manage'] },
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
     ],
