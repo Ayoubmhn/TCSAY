@@ -134,6 +134,7 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
   const [date, setDate] = useState(todayIso());
   const [court, setCourt] = useState('');
   const [a, setA] = useState('');
+  const [aName, setAName] = useState('');
   const [b, setB] = useState('');
   const [bName, setBName] = useState('');
   const [setsToWin, setSetsToWin] = useState(2);
@@ -142,8 +143,10 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
   const [noAd, setNoAd] = useState(false);
   const [tiebreak, setTiebreak] = useState(true);
   const list = players.data ?? [];
-  const aId = a || list[0]?.id || '';
-  const external = b === 'EXT' || kind !== 'INTERNAL';
+  // Chaque joueur : du club (liste) ou saisi à la main (« EXT », hors club)
+  const aSel = a || list[0]?.id || 'EXT';
+  const bSel = b || list.find((p) => p.id !== aSel)?.id || 'EXT';
+  const side = (sel: string, name: string) => (sel === 'EXT' ? { name: name.trim() } : { id: sel });
   const create = useAction(
     () =>
       api.post<{ id: string }>('/matches', {
@@ -151,8 +154,10 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
         title: title.trim() || undefined,
         date,
         court: court.trim() || undefined,
-        playerAId: aId,
-        ...(external ? { playerBName: bName.trim() } : { playerBId: b || list.find((p) => p.id !== aId)?.id }),
+        playerAId: side(aSel, aName).id,
+        playerAName: side(aSel, aName).name,
+        playerBId: side(bSel, bName).id,
+        playerBName: side(bSel, bName).name,
         setsToWin,
         games,
         tiebreak: tiebreak || superTB,
@@ -161,7 +166,7 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
       }),
     { invalidate: [['matches']], success: 'Match créé.', onSuccess: (r) => navigate(`/matchs/${r.id}`) },
   );
-  const ready = aId && (external ? bName.trim() : true);
+  const ready = (aSel !== 'EXT' || aName.trim()) && (bSel !== 'EXT' || bName.trim()) && (aSel === 'EXT' || aSel !== bSel);
 
   return (
     <Modal
@@ -185,29 +190,29 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
           <option value="TOURNAMENT">Tournoi</option>
         </SelectField>
         <TextField label="Tournoi, tour (facultatif)" value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Open de Sayada U14 · quart" />
-        <SelectField label="Joueur A (club)" value={aId} onChange={(e) => setA(e.target.value)}>
+        <SelectField label="Joueur A" value={aSel} onChange={(e) => setA(e.target.value)}>
           {list.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
             </option>
           ))}
+          <option value="EXT">Saisir un nom (hors club)…</option>
         </SelectField>
-        {kind === 'INTERNAL' ? (
-          <SelectField label="Joueur B" value={b} onChange={(e) => setB(e.target.value)}>
-            {list
-              .filter((p) => p.id !== aId)
-              .map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            <option value="EXT">Adversaire extérieur…</option>
-          </SelectField>
-        ) : (
-          <TextField label="Adversaire (nom, club)" value={bName} maxLength={80} onChange={(e) => setBName(e.target.value)} placeholder="ex. Lina Haddad (CT Monastir)" />
+        <SelectField label="Joueur B" value={bSel} onChange={(e) => setB(e.target.value)}>
+          {list
+            .filter((p) => p.id !== aSel)
+            .map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          <option value="EXT">Saisir un nom (hors club)…</option>
+        </SelectField>
+        {aSel === 'EXT' && (
+          <TextField label="Nom du joueur A" value={aName} maxLength={80} onChange={(e) => setAName(e.target.value)} placeholder="ex. Karim Jaziri (CT Monastir)" />
         )}
-        {kind === 'INTERNAL' && b === 'EXT' && (
-          <TextField label="Adversaire (nom, club)" value={bName} maxLength={80} full onChange={(e) => setBName(e.target.value)} />
+        {bSel === 'EXT' && (
+          <TextField label="Nom du joueur B" value={bName} maxLength={80} onChange={(e) => setBName(e.target.value)} placeholder="ex. Lina Haddad (ES Sahel)" />
         )}
         <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         <TextField label="Terrain (facultatif)" value={court} maxLength={40} onChange={(e) => setCourt(e.target.value)} placeholder="ex. Court 2" />

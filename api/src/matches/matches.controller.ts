@@ -218,7 +218,6 @@ export class MatchesController {
   @Post()
   @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateMatchDto) {
-    if (!dto.playerAId && !dto.playerBId) throw new BadRequestException('Au moins un joueur du club.');
     if (dto.playerAId && dto.playerAId === dto.playerBId) throw new BadRequestException('Deux joueurs différents.');
     const ids = [dto.playerAId, dto.playerBId].filter((x): x is string => Boolean(x));
     const players = await this.prisma.player.findMany({ where: { id: { in: ids }, archivedAt: null }, select: { id: true, firstName: true, lastName: true } });
