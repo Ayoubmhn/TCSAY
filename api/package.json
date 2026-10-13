@@ -21,6 +21,7 @@
     "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test:score": "node test/score-engine.check.cjs",
+    "test:e2e": "node --test \"test/e2e/*.e2e.mjs\"",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio"
   },
