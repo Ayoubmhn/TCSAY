@@ -37,6 +37,7 @@ import { LateInstallmentsService } from './payments/late-installments.service';
 import { PaymentsService } from './payments/payments.service';
 import { PlayersImportController } from './players/import/players-import.controller';
 import { PlayersImportService } from './players/import/players-import.service';
+import { FederationAdminController } from './federation/federation-admin.controller';
 import { FederationController } from './federation/federation.controller';
 import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
@@ -81,6 +82,7 @@ import { StaffController } from './staff/staff.controller';
     BroadcastsController,
     NotificationsController,
     FederationController,
+    FederationAdminController,
     PlayersImportController,
     AttendanceController,
     SessionReviewController,

@@ -255,6 +255,8 @@ model Player {
   level                 String?
   levelUpdatedAt        DateTime?
   /// Accès après paiement : exception accordée (motif), le joueur garde l'accès malgré une tranche en retard.
+  ijinLogin             String? // compte fédération IJIN d'un joueur sans compte (mineur) : saisi par le club
+  ijinPasswordEnc       String? // chiffré (AES-GCM), visible des parents seulement
   accessExemptReason    String?
   accessExemptAt        DateTime?
   origin                Origin    @default(MANUAL)

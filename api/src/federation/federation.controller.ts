@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, HttpCode, Post, Put } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Param, ParseUUIDPipe, Post, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
 import { AllowPendingPassword, AuthUser, CurrentUser } from '../auth/auth-user';
@@ -57,6 +57,39 @@ export class FederationController {
       return { password: open(u.ijinPasswordEnc) };
     } catch {
       throw new BadRequestException('Mot de passe IJIN illisible (clé de chiffrement changée) : saisissez-le à nouveau.');
+    }
+  }
+
+  /** Parent : comptes IJIN de ses enfants (enregistrés par le club). */
+  @Get('kids')
+  async kids(@CurrentUser() user: AuthUser) {
+    const links = await this.prisma.parentLink.findMany({
+      where: { parentId: user.id, player: { archivedAt: null } },
+      select: { player: { select: { id: true, firstName: true, lastName: true, ijinLogin: true, ijinPasswordEnc: true, user: { select: { ijinLogin: true, ijinPasswordEnc: true } } } } },
+    });
+    return links.map(({ player: p }) => ({
+      playerId: p.id,
+      name: `${p.firstName} ${p.lastName}`.trim(),
+      login: p.user ? p.user.ijinLogin : p.ijinLogin,
+      hasPassword: Boolean(p.user ? p.user.ijinPasswordEnc : p.ijinPasswordEnc),
+    }));
+  }
+
+  /** Parent : affiche le mot de passe IJIN d'un de ses enfants. */
+  @Post('kids/:playerId/reveal')
+  @HttpCode(200)
+  async revealKid(@CurrentUser() user: AuthUser, @Param('playerId', ParseUUIDPipe) playerId: string) {
+    const link = await this.prisma.parentLink.findUnique({
+      where: { parentId_playerId: { parentId: user.id, playerId } },
+      select: { player: { select: { ijinPasswordEnc: true, user: { select: { ijinPasswordEnc: true } } } } },
+    });
+    if (!link) throw new ForbiddenException('Ce joueur n’est pas lié à votre compte.');
+    const enc = link.player.user ? link.player.user.ijinPasswordEnc : link.player.ijinPasswordEnc;
+    if (!enc) throw new BadRequestException('Aucun mot de passe IJIN enregistré.');
+    try {
+      return { password: open(enc) };
+    } catch {
+      throw new BadRequestException('Mot de passe IJIN illisible : demandez au club de le saisir à nouveau.');
     }
   }
 }

@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { useState, type FormEvent } from 'react';
 import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { FederationCard } from '../components/FederationCard';
+import { KidsFederation } from '../components/KidsFederation';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
@@ -87,6 +88,7 @@ export function SettingsPage() {
           )}
           <Section title="Compte fédération (IJIN)">
             <FederationCard />
+            {me.roles.includes('PARENT') && <KidsFederation />}
           </Section>
         </div>
 
