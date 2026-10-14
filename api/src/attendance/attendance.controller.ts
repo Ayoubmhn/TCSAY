@@ -102,6 +102,15 @@ function absenceView(a: AbsenceRow | null) {
   };
 }
 
+type ChangeRow = { slotId: string; date: Date; kind: string; reason: string; court: { id: string; name: string } | null };
+
+/** Changement ponctuel d'une séance (terrain pris par un tournoi) : déplacée sur un autre terrain ou reportée. */
+function changeView(changes: ChangeRow[], slotId: string, date: string) {
+  const c = changes.find((x) => x.slotId === slotId && isoDay(x.date) === date);
+  if (!c) return null;
+  return { kind: c.kind as 'MOVED' | 'POSTPONED', reason: c.reason, court: c.kind === 'MOVED' ? c.court : null };
+}
+
 /** Fenêtre de pointage de l'entraîneur pour une séance. */
 export function attendanceWindow(date: string, startTime: string, endTime: string) {
   const opens = new Date(localInstant(date, startTime).getTime() - ATTENDANCE_OPEN_BEFORE_MIN * 60_000);
@@ -177,7 +186,10 @@ export class AttendanceController {
       .map((s) => ({ s, replacing: true }));
 
     const allSlotIds = [...slots, ...extraSlots].map((s) => s.id);
-    const recorded = await this.prisma.attendance.groupBy({ by: ['slotId', 'date'], where: { slotId: { in: allSlotIds }, date: range } });
+    const [recorded, changes] = await Promise.all([
+      this.prisma.attendance.groupBy({ by: ['slotId', 'date'], where: { slotId: { in: allSlotIds }, date: range } }),
+      this.prisma.sessionChange.findMany({ where: { slotId: { in: allSlotIds }, date: range }, include: { court: { select: { id: true, name: true } } } }),
+    ]);
     const done = new Set(recorded.map((r) => `${r.slotId}|${isoDay(r.date)}`));
     const now = new Date();
 
@@ -185,6 +197,7 @@ export class AttendanceController {
       .sort((a, b) => a.s.start.getTime() - b.s.start.getTime())
       .map(({ s, replacing: isReplacing }) => {
         const absence = absenceFor(absences, s.slot, s.date);
+        const change = changeView(changes, s.slot.id, s.date);
         // L'entraîneur absent ne voit plus la séance comme la sienne à pointer, sauf si elle est maintenue en physique.
         return {
           slotId: s.slot.id,
@@ -203,6 +216,7 @@ export class AttendanceController {
           open: attendanceWindow(s.date, s.slot.startTime, s.slot.endTime).open,
           replacing: isReplacing,
           ...absenceView(absence),
+          ...(change ? { change, court: change.court ?? s.slot.court } : {}),
         };
       });
   }
@@ -223,11 +237,15 @@ export class AttendanceController {
     );
     const from = q.from ?? addDaysIso(todayIso(), -21);
     const to = q.to ?? addDaysIso(todayIso(), 28);
-    const [marks, absences] = await Promise.all([
+    const [marks, absences, changes] = await Promise.all([
       this.prisma.attendance.findMany({ where: { playerId, date: { gte: dayFromIso(from), lte: dayFromIso(to) } } }),
       this.prisma.coachAbsence.findMany({
         where: { status: 'APPROVED', date: { gte: dayFromIso(from), lte: dayFromIso(to) } },
         include: absenceInclude,
+      }),
+      this.prisma.sessionChange.findMany({
+        where: { slotId: { in: slots.map((x) => x.id) }, date: { gte: dayFromIso(from), lte: dayFromIso(to) } },
+        include: { court: { select: { id: true, name: true } } },
       }),
     ]);
     const now = new Date();
@@ -249,6 +267,10 @@ export class AttendanceController {
           attendance: mark?.status ?? null,
           resolution: absence.resolution,
           replacement: absence.replacement,
+          ...(() => {
+            const change = changeView(changes, s.slot.id, s.date);
+            return change ? { change, court: change.court ?? s.slot.court } : {};
+          })(),
         };
       }),
     };

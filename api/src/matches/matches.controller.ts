@@ -8,6 +8,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { dayFromIso, isoDay } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
+import { TBD, TournamentsService } from '../tournaments/tournaments.service';
 import { computeMatch, matchStats, MatchFormat, PointInput, scoreLine, Side } from './score-engine';
 
 const KINDS = ['INTERNAL', 'FRIENDLY', 'TOURNAMENT'] as const;
@@ -95,6 +96,7 @@ export class MatchesController {
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    private readonly tournaments: TournamentsService,
   ) {}
 
   /**
@@ -175,6 +177,8 @@ export class MatchesController {
       where: {
         ...(q.status ? { status: q.status } : {}),
         ...(q.playerId ? { OR: [{ playerAId: q.playerId }, { playerBId: q.playerId }] } : { OR: [{ status: { in: [MatchStatus.LIVE, MatchStatus.SCHEDULED] } }, { date: { gte: since } }] }),
+        // Matchs de tournoi dont les joueurs ne sont pas encore connus : visibles dans le tableau du tournoi seulement.
+        NOT: [{ playerAName: { startsWith: TBD } }, { playerBName: { startsWith: TBD } }],
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       take: 100,
@@ -256,6 +260,7 @@ export class MatchesController {
     const m = await this.load(id);
     await this.assertScorer(user, m);
     if (m.status !== MatchStatus.SCHEDULED) throw new BadRequestException('Match déjà lancé.');
+    if (m.playerAName.startsWith(TBD) || m.playerBName.startsWith(TBD)) throw new BadRequestException('Tournoi : les deux joueurs de ce match ne sont pas encore connus.');
     await this.prisma.match.update({ where: { id }, data: { firstServer: dto.firstServer, status: MatchStatus.LIVE, startedAt: new Date() } });
     await this.notify(m, `Match en cours : ${m.playerAName} – ${m.playerBName}`, 'Suivez le score en direct dans Matchs.');
     return { ok: true };
@@ -289,6 +294,7 @@ export class MatchesController {
     const name = winner === 0 ? m.playerAName : m.playerBName;
     await this.audit.log(user.id, { action: 'Match terminé', entity: 'Match', entityId: m.id, target: `${m.playerAName} – ${m.playerBName}`, after: `${name} gagne ${score}` });
     await this.notify(m, `Match terminé : ${name} gagne ${score}`, `${m.playerAName} – ${m.playerBName}. Statistiques dans Matchs.`);
+    await this.tournaments.afterMatch(m.id);
   }
 
   /** Annuler le dernier point (erreur de saisie). Match terminé : seulement dans les 30 minutes, sinon la direction. */
@@ -303,6 +309,7 @@ export class MatchesController {
       const late = !m.finishedAt || Date.now() - m.finishedAt.getTime() > UNDO_AFTER_END_MIN * 60_000;
       if (late && !(user.role === Role.ADMIN && can(user, 'matches.manage'))) throw new BadRequestException('Match terminé depuis plus de 30 minutes : correction par la direction.');
     }
+    if (m.status === MatchStatus.FINISHED) await this.tournaments.beforeReopen(m);
     const last = m.points.reduce((a, b) => (a.seq > b.seq ? a : b));
     await this.prisma.$transaction([
       this.prisma.matchPoint.delete({ where: { id: last.id } }),

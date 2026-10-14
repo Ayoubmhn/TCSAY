@@ -49,7 +49,7 @@ const PLAYER_MENU: MenuItem[] = [
   },
   { label: 'Mes paiements', path: '/paiements', icon: IconCard },
   { label: 'Réserver un terrain', path: '/reserver', icon: IconCourt },
-  { label: 'Historique des tournois', path: '/tournois', icon: IconTrophy, soon: true },
+  { label: 'Tournois', path: '/tournois', icon: IconTrophy },
 ];
 
 const COACH_MENU: MenuItem[] = [
@@ -58,6 +58,7 @@ const COACH_MENU: MenuItem[] = [
   { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart },
   { label: 'Exercices', path: '/coach/exercices', icon: IconRacket },
   { label: 'Matchs', path: '/matchs', icon: IconTrophy },
+  { label: 'Tournois', path: '/tournois', icon: IconTrophy },
   { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
   { label: 'Mes disponibilités', path: '/coach/disponibilites', icon: IconClock },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
@@ -92,6 +93,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
       { label: 'Exercices', path: '/admin/exercices', perm: ['evaluations.manage'] },
       { label: 'Matchs', path: '/matchs' },
+      { label: 'Tournois', path: '/tournois' },
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
     ],

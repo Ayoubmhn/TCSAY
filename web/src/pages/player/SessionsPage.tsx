@@ -21,7 +21,9 @@ type Data = {
 };
 
 function SessionCard({ s }: { s: PlayerSession }) {
-  const status = s.resolution === 'CANCELLED' ? (
+  const status = s.change?.kind === 'POSTPONED' ? (
+    <Pill tone="r">Reportée</Pill>
+  ) : s.resolution === 'CANCELLED' ? (
     <Pill tone="r">Annulée</Pill>
   ) : !s.past ? (
     <Pill tone="g">Confirmée</Pill>
@@ -47,6 +49,7 @@ function SessionCard({ s }: { s: PlayerSession }) {
           {s.startTime} – {s.endTime}
         </Pill>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
+        {s.change?.kind === 'MOVED' && <Pill tone="s">Déplacée : terrain pris par un tournoi</Pill>}
       </Pills>
       {s.coaches.length > 0 && (
         <CardText>

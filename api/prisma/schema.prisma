@@ -126,6 +126,7 @@ enum SeasonStatus {
 enum ReservationType {
   LEISURE // Loisir (joueur, parent)
   PRIVATE // Séance privée (coach avec un élève)
+  TOURNAMENT // Terrain bloqué pour un match de tournoi
 }
 
 enum RatePeriod {
@@ -219,6 +220,7 @@ model User {
   broadcastsSent     NotificationBroadcast[]
   passwordResets     PasswordReset[]
   expensesCreated    Expense[]
+  tournamentsCreated Tournament[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -266,22 +268,23 @@ model Player {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  user                User?                @relation(fields: [userId], references: [id])
-  parentLinks         ParentLink[]
-  enrollments         Enrollment[]
-  reservations        Reservation[]
-  attendances         Attendance[]
-  sessionRatings      SessionRating[]
-  evaluations         Evaluation[]
-  exerciseAssignments ExerciseAssignment[]
-  exerciseCompletions ExerciseCompletion[]
-  matchesAsA          Match[]              @relation("MatchPlayerA")
-  matchesAsB          Match[]              @relation("MatchPlayerB")
+  user                   User?                   @relation(fields: [userId], references: [id])
+  parentLinks            ParentLink[]
+  enrollments            Enrollment[]
+  reservations           Reservation[]
+  attendances            Attendance[]
+  sessionRatings         SessionRating[]
+  evaluations            Evaluation[]
+  exerciseAssignments    ExerciseAssignment[]
+  exerciseCompletions    ExerciseCompletion[]
+  matchesAsA             Match[]                 @relation("MatchPlayerA")
+  matchesAsB             Match[]                 @relation("MatchPlayerB")
+  availability           Availability?
+  availabilityExceptions AvailabilityException[]
+  tournamentEntries      TournamentEntry[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
-  availability          Availability?
-  availabilityExceptions AvailabilityException[]
 }
 
 model ParentLink {
@@ -303,12 +306,12 @@ model Coach {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user         User           @relation(fields: [userId], references: [id])
-  slots        SlotCoach[]
-  absences     CoachAbsence[]
-  replacements CoachAbsence[] @relation("AbsenceReplacement")
-  reservations Reservation[]
-  availability Availability?
+  user                   User                    @relation(fields: [userId], references: [id])
+  slots                  SlotCoach[]
+  absences               CoachAbsence[]
+  replacements           CoachAbsence[]          @relation("AbsenceReplacement")
+  reservations           Reservation[]
+  availability           Availability?
   availabilityExceptions AvailabilityException[]
 }
 
@@ -392,6 +395,7 @@ model Court {
 
   slots        GroupSlot[]
   reservations Reservation[]
+  sessionMoves SessionChange[]
 }
 
 model TrainingGroup {
@@ -436,6 +440,7 @@ model GroupSlot {
   sessionPlans   SessionPlan[]
   sessionRatings SessionRating[]
   absences       CoachAbsence[]
+  changes        SessionChange[]
 
   @@index([day])
 }
@@ -500,6 +505,7 @@ model Reservation {
   group       TrainingGroup? @relation(fields: [groupId], references: [id])
   bookedBy    User           @relation("ReservationBookedBy", fields: [bookedById], references: [id])
   cancelledBy User?          @relation("ReservationCancelledBy", fields: [cancelledById], references: [id])
+  match       Match?
 
   @@index([startTime])
 }
@@ -555,16 +561,16 @@ model Membership {
 }
 
 model Installment {
-  id           String   @id @default(uuid()) @db.Uuid
-  membershipId String   @db.Uuid
-  number       Int // 1
-  count        Int // sur 2
-  dueDate      DateTime @db.Date
-  amount       Decimal  @db.Decimal(10, 3)
-  version      Int      @default(1)
+  id             String    @id @default(uuid()) @db.Uuid
+  membershipId   String    @db.Uuid
+  number         Int // 1
+  count          Int // sur 2
+  dueDate        DateTime  @db.Date
+  amount         Decimal   @db.Decimal(10, 3)
+  version        Int       @default(1)
   lateNotifiedAt DateTime? // famille prévenue du retard (une seule fois par échéance)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   membership Membership @relation(fields: [membershipId], references: [id])
   payments   Payment[]
@@ -814,37 +820,45 @@ model ExerciseCompletion {
 
 /// Match suivi point par point (interne, amical ou tournoi). Le score et les statistiques se recalculent depuis les points.
 model Match {
-  id          String      @id @default(uuid()) @db.Uuid
-  kind        String // INTERNAL (match interne), FRIENDLY (amical, adversaire extérieur), TOURNAMENT
-  title       String? // nom du tournoi, tour…
-  date        DateTime    @db.Date
-  court       String?
-  playerAId   String?     @db.Uuid // joueur du club (ou null : adversaire extérieur)
-  playerAName String
-  playerBId   String?     @db.Uuid
-  playerBName String
-  setsToWin   Int         @default(2)
-  games       Int         @default(6)
-  tiebreak    Boolean     @default(true)
-  superTB     Boolean     @default(false) // dernier set = super tie-break à 10
-  noAd        Boolean     @default(false) // point décisif à 40-40
-  firstServer Int? // 0 = joueur A, 1 = joueur B
-  status      MatchStatus @default(SCHEDULED)
-  winner      Int?
-  score       String? // « 6-3 7-6(4) »
-  stats       Json? // statistiques figées à la fin du match
-  endReason   String? // abandon : motif
-  createdById String      @db.Uuid
-  startedAt   DateTime?
-  finishedAt  DateTime?
-  version     Int         @default(1)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id            String      @id @default(uuid()) @db.Uuid
+  kind          String // INTERNAL (match interne), FRIENDLY (amical, adversaire extérieur), TOURNAMENT
+  title         String? // nom du tournoi, tour…
+  date          DateTime    @db.Date
+  court         String?
+  playerAId     String?     @db.Uuid // joueur du club (ou null : adversaire extérieur)
+  playerAName   String
+  playerBId     String?     @db.Uuid
+  playerBName   String
+  setsToWin     Int         @default(2)
+  games         Int         @default(6)
+  tiebreak      Boolean     @default(true)
+  superTB       Boolean     @default(false) // dernier set = super tie-break à 10
+  noAd          Boolean     @default(false) // point décisif à 40-40
+  firstServer   Int? // 0 = joueur A, 1 = joueur B
+  status        MatchStatus @default(SCHEDULED)
+  winner        Int?
+  score         String? // « 6-3 7-6(4) »
+  stats         Json? // statistiques figées à la fin du match
+  endReason     String? // abandon : motif
+  createdById   String      @db.Uuid
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  // Tournoi : tour (1 = premier tour), position dans le tour, horaire prévu, réservation du terrain
+  tournamentId  String?     @db.Uuid
+  round         Int?
+  position      Int?
+  scheduledAt   DateTime?
+  reservationId String?     @unique @db.Uuid
 
-  playerA   Player?      @relation("MatchPlayerA", fields: [playerAId], references: [id])
-  playerB   Player?      @relation("MatchPlayerB", fields: [playerBId], references: [id])
-  createdBy User         @relation(fields: [createdById], references: [id])
-  points    MatchPoint[]
+  tournament  Tournament?  @relation(fields: [tournamentId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  playerA     Player?      @relation("MatchPlayerA", fields: [playerAId], references: [id])
+  playerB     Player?      @relation("MatchPlayerB", fields: [playerBId], references: [id])
+  createdBy   User         @relation(fields: [createdById], references: [id])
+  points      MatchPoint[]
 
   @@index([date])
   @@index([status])
@@ -1026,26 +1040,26 @@ enum ExpenseCategory {
 /// Dépense du club (facture, déclaration…) : saisie par l'administration (droit « expenses.manage »).
 /// Suppression = archivage (R8) ; justificatif facultatif (PDF ou image, 5 Mo au plus) stocké en base.
 model Expense {
-  id          String          @id @default(uuid()) @db.Uuid
-  category    ExpenseCategory
-  label       String
-  supplier    String?
-  reference   String? // n° de facture, de déclaration
-  amount      Decimal         @db.Decimal(10, 3)
-  date        DateTime        @db.Date // date de la facture / de la déclaration
-  dueDate     DateTime?       @db.Date // date limite de paiement
-  paidAt      DateTime?       @db.Date
-  method      String? // CASH, CHEQUE, TRANSFER
-  note        String?
-  fileName    String?
-  fileType    String?
-  fileData    Bytes?
-  archivedAt  DateTime?
+  id            String          @id @default(uuid()) @db.Uuid
+  category      ExpenseCategory
+  label         String
+  supplier      String?
+  reference     String? // n° de facture, de déclaration
+  amount        Decimal         @db.Decimal(10, 3)
+  date          DateTime        @db.Date // date de la facture / de la déclaration
+  dueDate       DateTime?       @db.Date // date limite de paiement
+  paidAt        DateTime?       @db.Date
+  method        String? // CASH, CHEQUE, TRANSFER
+  note          String?
+  fileName      String?
+  fileType      String?
+  fileData      Bytes?
+  archivedAt    DateTime?
   archiveReason String?
-  version     Int             @default(1)
-  createdById String          @db.Uuid
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  version       Int             @default(1)
+  createdById   String          @db.Uuid
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   createdBy User @relation(fields: [createdById], references: [id])
 
@@ -1080,4 +1094,94 @@ model AvailabilityException {
   player Player? @relation(fields: [playerId], references: [id])
 
   @@index([fromDate])
+}
+
+enum TournamentStatus {
+  DRAFT // en préparation
+  REGISTRATION // inscriptions ouvertes
+  RUNNING // tirage fait, matchs en cours
+  FINISHED
+  CANCELLED
+}
+
+enum TournamentFormat {
+  KNOCKOUT // élimination directe
+  ROUND_ROBIN // championnat : tous contre tous
+}
+
+/// Tournoi organisé par la direction technique (droit « tournaments.manage »).
+model Tournament {
+  id            String           @id @default(uuid()) @db.Uuid
+  name          String
+  kind          String // INTERNAL, OPEN, CHAMPIONSHIP, INTERCLUB
+  startDate     DateTime         @db.Date
+  endDate       DateTime         @db.Date
+  /// Qui peut jouer : { mode: "cats" | "age" | "open", categoryIds, fromYear, toYear, gender: "M" | "F" | null }
+  eligibility   Json
+  format        TournamentFormat @default(KNOCKOUT)
+  maxPlayers    Int              @default(16)
+  fee           Decimal?         @db.Decimal(10, 3) // frais d'inscription saisis par le club (facultatif)
+  familyRequest Boolean          @default(false) // les familles peuvent demander l'inscription (validée par le DT)
+  setsToWin     Int              @default(2)
+  games         Int              @default(6)
+  tiebreak      Boolean          @default(true)
+  superTB       Boolean          @default(false)
+  noAd          Boolean          @default(false)
+  courtIds      String[]         @db.Uuid
+  dayStart      String           @default("09:00")
+  dayEnd        String           @default("18:00")
+  matchMinutes  Int              @default(90)
+  restMinutes   Int              @default(60)
+  status        TournamentStatus @default(REGISTRATION)
+  winnerName    String?
+  notes         String?
+  createdById   String           @db.Uuid
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  createdBy      User              @relation(fields: [createdById], references: [id])
+  entries        TournamentEntry[]
+  matches        Match[]
+  sessionChanges SessionChange[]
+
+  @@index([startDate])
+}
+
+/// Inscription à un tournoi : joueur du club (playerId) ou joueur extérieur (nom seul).
+model TournamentEntry {
+  id               String   @id @default(uuid()) @db.Uuid
+  tournamentId     String   @db.Uuid
+  playerId         String?  @db.Uuid
+  name             String
+  seed             Int? // tête de série (1 = la meilleure)
+  status           String   @default("CONFIRMED") // CONFIRMED, PENDING (demande d'une famille), WITHDRAWN
+  derogationReason String? // hors critères d'âge ou de catégorie
+  requestedById    String?  @db.Uuid
+  createdAt        DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player?    @relation(fields: [playerId], references: [id])
+
+  @@unique([tournamentId, playerId])
+}
+
+/// Changement ponctuel d'une séance d'entraînement (terrain pris par un tournoi…) : déplacée sur un autre terrain,
+/// ou reportée (annulée ce jour-là, à rattraper).
+model SessionChange {
+  id           String   @id @default(uuid()) @db.Uuid
+  slotId       String   @db.Uuid
+  date         DateTime @db.Date
+  kind         String // MOVED, POSTPONED
+  courtId      String?  @db.Uuid // nouveau terrain (MOVED)
+  reason       String
+  tournamentId String?  @db.Uuid
+  createdById  String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  slot       GroupSlot   @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  court      Court?      @relation(fields: [courtId], references: [id])
+  tournament Tournament? @relation(fields: [tournamentId], references: [id])
+
+  @@unique([slotId, date])
 }

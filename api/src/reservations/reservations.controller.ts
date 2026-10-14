@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } fr
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReservationType, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
 import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { todayIso } from '../common/dates';
 import { ReservationsService } from './reservations.service';
@@ -52,7 +52,7 @@ class CreateReservationDto {
   playerId?: string;
 
   @IsOptional()
-  @IsEnum(ReservationType)
+  @IsIn([ReservationType.LEISURE, ReservationType.PRIVATE])
   type?: ReservationType;
 }
 

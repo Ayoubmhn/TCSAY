@@ -42,6 +42,8 @@ import { FederationController } from './federation/federation.controller';
 import { ReenrollmentController } from './seasons/reenrollment.controller';
 import { ExpensesController } from './expenses/expenses.controller';
 import { AvailabilityController } from './availability/availability.controller';
+import { TournamentsController } from './tournaments/tournaments.controller';
+import { TournamentsService } from './tournaments/tournaments.service';
 import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReceiptsController } from './receipts/receipts.controller';
@@ -89,6 +91,7 @@ import { StaffController } from './staff/staff.controller';
     ReenrollmentController,
     ExpensesController,
     AvailabilityController,
+    TournamentsController,
     PlayersImportController,
     AttendanceController,
     SessionReviewController,
@@ -111,6 +114,7 @@ import { StaffController } from './staff/staff.controller';
     PlayersService,
     PaymentsService,
     LateInstallmentsService,
+    TournamentsService,
     ReceiptsService,
     PlayersImportService,
     ReservationsService,

@@ -51,6 +51,8 @@ import { PaymentsPage } from './pages/player/PaymentsPage';
 import { SessionsPage } from './pages/player/SessionsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { TournamentsPage } from './features/tournaments/TournamentsPage';
+import { TournamentPage } from './features/tournaments/TournamentPage';
 import { FederationAccountsPage } from './pages/admin/FederationAccountsPage';
 import { ReenrollmentPage } from './pages/admin/ReenrollmentPage';
 import { ExpensesPage } from './pages/admin/ExpensesPage';
@@ -127,14 +129,8 @@ export function App() {
         <Route path="suivi" element={<Protected roles={PLAYER}><PaymentGate module="progress" title="Suivi et progression"><ProgressPage /></PaymentGate></Protected>} />
         <Route path="exercices" element={<Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>} />
         <Route path="reserver" element={<Protected roles={PLAYER}><PaymentGate module="reservation" title="Réserver un terrain"><BookPage /></PaymentGate></Protected>} />
-        <Route
-          path="tournois"
-          element={
-            <Protected roles={PLAYER}>
-              <SoonPage title="Historique des tournois" text="Vos résultats et participations aux tournois apparaîtront ici." />
-            </Protected>
-          }
-        />
+        <Route path="tournois" element={<TournamentsPage />} />
+        <Route path="tournois/:id" element={<TournamentPage />} />
 
         {/* Entraîneur */}
         <Route path="coach/seances" element={<Protected roles={['COACH']}><CoachSessionsPage /></Protected>} />

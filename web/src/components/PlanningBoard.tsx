@@ -94,11 +94,11 @@ export function PlanningBoard({ planning }: { planning: Planning }) {
                 <div
                   key={x.id}
                   role="gridcell"
-                  title={`Réservation ${x.type === 'PRIVATE' ? 'séance privée' : 'loisir'} · ${x.startTime}–${x.endTime}${x.player ? ' · ' + x.player : ''}`}
+                  title={`Réservation ${x.type === 'PRIVATE' ? 'séance privée' : x.type === 'TOURNAMENT' ? 'tournoi' : 'loisir'} · ${x.startTime}–${x.endTime}${x.player ? ' · ' + x.player : ''}`}
                   className="z-[1] mx-px flex h-[46px] flex-col justify-center overflow-hidden rounded-[10px] border-[1.5px] border-dashed border-ink/40 bg-pr px-2 text-ink"
                   style={{ gridRow: row, gridColumn: `${col(x.startTime)} / ${col(x.endTime)}` }}
                 >
-                  <b className="truncate text-[12px] font-semibold leading-tight">{x.type === 'PRIVATE' ? 'Séance privée' : 'Réservé'}</b>
+                  <b className="truncate text-[12px] font-semibold leading-tight">{x.type === 'PRIVATE' ? 'Séance privée' : x.type === 'TOURNAMENT' ? 'Tournoi' : 'Réservé'}</b>
                   <span dir="ltr" className="truncate text-[11px] leading-tight">{x.player ?? x.coach?.name ?? '—'}</span>
                 </div>
               ))}

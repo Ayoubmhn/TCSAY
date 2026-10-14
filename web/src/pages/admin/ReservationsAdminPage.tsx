@@ -45,7 +45,7 @@ export function ReservationsAdminPage() {
                     <Pill tone="g">Confirmée</Pill>
                   </CardRow>
                   <Pills>
-                    <Pill tone="s">{r.type === 'PRIVATE' ? 'Séance privée' : 'Loisir'}</Pill>
+                    <Pill tone="s">{r.type === 'PRIVATE' ? 'Séance privée' : r.type === 'TOURNAMENT' ? 'Tournoi' : 'Loisir'}</Pill>
                     <Pill tone="b">{fD(r.date)}</Pill>
                   </Pills>
                   <CardText>

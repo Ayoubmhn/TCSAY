@@ -318,7 +318,7 @@ export type Reservation = {
   time: string;
   endTimeLabel: string;
   startTime: string;
-  type: 'LEISURE' | 'PRIVATE';
+  type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT';
   price: number;
   court: { id: string; name: string };
   player: PersonRef | null;
@@ -388,11 +388,13 @@ export type Planning = {
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
   sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[]; resolution: AbsenceResolution | null; replacement: CoachRef | null })[];
-  reservations: { id: string; courtId: string; startTime: string; endTime: string; type: 'LEISURE' | 'PRIVATE'; player: string | null; coach: { name: string; color: string } | null }[];
+  reservations: { id: string; courtId: string; startTime: string; endTime: string; type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT'; player: string | null; coach: { name: string; color: string } | null }[];
   legend: { id: string; name: string; color: string }[];
 };
 
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE';
+/** Changement ponctuel (terrain pris par un tournoi) : séance déplacée sur un autre terrain ou reportée. */
+export type SessionChange = { kind: 'MOVED' | 'POSTPONED'; reason: string; court: { id: string; name: string } | null };
 export type AbsenceResolution = 'REPLACED' | 'PHYSICAL' | 'CANCELLED';
 
 export type CoachSession = {
@@ -417,6 +419,7 @@ export type CoachSession = {
   capacity: number;
   started: boolean;
   recorded: boolean;
+  change?: SessionChange;
 };
 
 export type PlayerSession = {
@@ -432,6 +435,7 @@ export type PlayerSession = {
   attendance: AttendanceStatus | null;
   resolution: AbsenceResolution | null;
   replacement: CoachRef | null;
+  change?: SessionChange;
 };
 
 export type AttendanceSheet = {
