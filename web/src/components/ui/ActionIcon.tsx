@@ -16,6 +16,8 @@ import {
   IconChart,
   IconEdit,
   IconEye,
+  IconFile,
+  IconPrinter,
   IconLink,
   IconPlus,
   IconPower,
@@ -23,7 +25,7 @@ import {
   IconTrash,
 } from './Icons';
 
-export type ActionKind = 'view' | 'edit' | 'archive' | 'delete' | 'restore' | 'deactivate' | 'activate' | 'pay' | 'add' | 'link' | 'stats' | 'check' | 'refuse' | 'cancel' | 'remove' | 'remind' | 'send' | 'rate' | 'attendance' | 'maintenance' | 'open';
+export type ActionKind = 'view' | 'edit' | 'archive' | 'delete' | 'restore' | 'deactivate' | 'activate' | 'pay' | 'add' | 'link' | 'stats' | 'check' | 'refuse' | 'cancel' | 'remove' | 'remind' | 'send' | 'rate' | 'attendance' | 'maintenance' | 'open' | 'print' | 'pdf' | 'receipt';
 
 const KINDS: Record<ActionKind, { Icon: ComponentType<{ size?: number }>; label: string; danger?: boolean }> = {
   view: { Icon: IconEye, label: 'Voir' },
@@ -47,6 +49,9 @@ const KINDS: Record<ActionKind, { Icon: ComponentType<{ size?: number }>; label:
   attendance: { Icon: IconClipboard, label: 'Présences' },
   maintenance: { Icon: IconWrench, label: 'Entretien' },
   open: { Icon: IconArrow, label: 'Ouvrir' },
+  print: { Icon: IconPrinter, label: 'Imprimer' },
+  pdf: { Icon: IconFile, label: 'Reçu PDF' },
+  receipt: { Icon: IconFile, label: 'Émettre le reçu' },
 };
 
 const CLS = 'act-ico grid h-[38px] w-[38px] shrink-0 place-items-center rounded-full disabled:opacity-45';

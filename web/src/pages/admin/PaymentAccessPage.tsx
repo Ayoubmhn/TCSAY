@@ -6,7 +6,7 @@ import { ActionIcon } from '../../components/ui/ActionIcon';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { SelectField } from '../../components/ui/Field';
+import { SelectField, TextField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -14,6 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
+import type { Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 type Module = 'sessions' | 'progress' | 'exercises' | 'reservation';
@@ -37,7 +38,13 @@ export function PaymentAccessPage() {
   useEffect(() => {
     if (cfg.data) setDraft({ enabled: cfg.data.enabled, graceDays: cfg.data.graceDays, modules: { ...cfg.data.modules } });
   }, [cfg.data]);
-  const [exempting, setExempting] = useState<Locked['players'][number]>();
+  const [exempting, setExempting] = useState<{ id: string; name: string }>();
+  const [search, setSearch] = useState('');
+  const found = useQuery({
+    queryKey: ['players', 'exemption', search],
+    queryFn: () => api.get<Player[]>('/players', { q: search.trim() }),
+    enabled: search.trim().length >= 2,
+  });
 
   const save = useAction(() => api.put('/access/payment/config', draft), {
     invalidate: [['access-config'], ['access-locked'], ['access-status']],
@@ -153,6 +160,42 @@ export function PaymentAccessPage() {
           )}
         </QueryState>
       </Section>
+      <Section title="Ajouter une exception">
+        <div className="max-w-[420px]">
+          <TextField label="Rechercher un joueur (nom ou code TCSAY)" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ex. Hammami" />
+        </div>
+        {search.trim().length >= 2 && (
+          <div className="mt-3">
+            <QueryState isPending={found.isPending} error={found.error} refetch={found.refetch}>
+              {found.data?.length ? (
+                <CardGrid list>
+                  {found.data.slice(0, 8).map((p) => {
+                    const name = `${p.firstName} ${p.lastName}`.trim();
+                    const already = locked.data?.players.find((x) => x.id === p.id)?.exempt;
+                    return (
+                      <Card key={p.id}>
+                        <CardRow>
+                          <h3>{name}</h3>
+                        </CardRow>
+                        <Pills>{already ? <Pill tone="g">Exception : {already}</Pill> : <Pill tone="s">Sans exception</Pill>}</Pills>
+                        <CardActions>
+                          {already ? (
+                            <ActionIcon kind="restore" label="Retirer l’exception" onClick={() => exemption.mutate({ playerId: p.id })} />
+                          ) : (
+                            <ActionIcon kind="add" primary label="Accorder une exception (motif)" onClick={() => setExempting({ id: p.id, name })} />
+                          )}
+                        </CardActions>
+                      </Card>
+                    );
+                  })}
+                </CardGrid>
+              ) : (
+                <EmptyState>Aucun joueur trouvé.</EmptyState>
+              )}
+            </QueryState>
+          </div>
+        )}
+      </Section>
       <Note>
         L’entraîneur garde toujours le joueur dans ses présences et ses évaluations : seul l’affichage côté famille est fermé.
         Le réglage revient au président ; une exception (exonération, accord du bureau) se donne avec un motif et figure dans
@@ -161,7 +204,7 @@ export function PaymentAccessPage() {
       <ConfirmModal
         open={Boolean(exempting)}
         title="Accorder une exception ?"
-        text={`${exempting?.name ?? ''} gardera l’accès malgré la tranche en retard.`}
+        text={`${exempting?.name ?? ''} gardera l’accès même avec une tranche en retard.`}
         cta="Accorder"
         withMotif
         pending={exemption.isPending}

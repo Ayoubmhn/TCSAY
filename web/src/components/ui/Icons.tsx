@@ -273,3 +273,20 @@ export const IconArrow = (p: IconProps) => (
     <path d="M5 12h14M13 6l6 6-6 6" />
   </Svg>
 );
+
+/** Imprimer (imprimante). */
+export const IconPrinter = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 9V3h10v6" />
+    <rect x="3" y="9" width="18" height="8" rx="2" />
+    <path d="M7 14h10v7H7z" />
+  </Svg>
+);
+
+/** Document, reçu, PDF (feuille au coin plié). */
+export const IconFile = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z" />
+    <path d="M14 3v5h5M8.5 13h7M8.5 17h5" />
+  </Svg>
+);

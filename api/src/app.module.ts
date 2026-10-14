@@ -32,6 +32,7 @@ import { MeController } from './me/me.controller';
 import { ParentsController } from './parents/parents.controller';
 import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
+import { LateInstallmentsService } from './payments/late-installments.service';
 import { PaymentsService } from './payments/payments.service';
 import { PlayersImportController } from './players/import/players-import.controller';
 import { PlayersImportService } from './players/import/players-import.service';
@@ -98,6 +99,7 @@ import { StaffController } from './staff/staff.controller';
     LoginThrottle,
     PlayersService,
     PaymentsService,
+    LateInstallmentsService,
     ReceiptsService,
     PlayersImportService,
     ReservationsService,

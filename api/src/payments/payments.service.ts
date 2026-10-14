@@ -82,6 +82,34 @@ export class PaymentsService {
     return rows.map((r) => this.view(r));
   }
 
+  /**
+   * Nouvelle date limite d'une tranche non soldée (accord avec la famille, erreur de saisie). Motif obligatoire, audit ;
+   * repousser l'échéance permet de prévenir à nouveau la famille si elle est encore dépassée plus tard.
+   */
+  async changeDueDate(actor: AuthUser, installmentId: string, dueDate: string, reason: string) {
+    const inst = await this.find(installmentId);
+    assertSeasonOpen(inst.membership.enrollment.season);
+    const { remaining } = this.view(inst);
+    if (remaining === 0) throw new BadRequestException('Tranche déjà payée : la date limite ne change plus.');
+    const before = isoDay(inst.dueDate);
+    if (before === dueDate) return this.view(inst);
+    await this.prisma.installment.update({
+      where: { id: installmentId },
+      data: { dueDate: dayFromIso(dueDate), lateNotifiedAt: null, version: { increment: 1 } },
+    });
+    const player = inst.membership.enrollment.player;
+    await this.audit.log(actor.id, {
+      action: 'Date limite modifiée',
+      entity: 'Installment',
+      entityId: installmentId,
+      target: `${fullName(player)} · tranche ${inst.number}/${inst.count}`,
+      before,
+      after: dueDate,
+      reason,
+    });
+    return this.view(await this.find(installmentId));
+  }
+
   /** Encaissement par l'admin (espèces ou chèque). R7 : jamais au-delà du restant. */
   async cash(actor: AuthUser, installmentId: string, amount: number, note?: string, method: 'CASH' | 'CHEQUE' = 'CASH', chequeNumber?: string) {
     const inst = await this.find(installmentId);

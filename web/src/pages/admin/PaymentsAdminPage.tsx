@@ -11,6 +11,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { Section } from '../../components/ui/Section';
 import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
@@ -23,6 +24,74 @@ const KEYS = [['installments'], ['dashboard'], ['audit'], ['overview']];
 
 /** Dernier encaissement d'une tranche (celui qu'on vient d'enregistrer). */
 const lastPayment = (i: Installment) => [...(i.payments ?? [])].filter((p) => p.kind === 'PAYMENT').pop();
+
+/** Nouvelle date limite d'une tranche non soldée (motif obligatoire, audit) : la famille sera prévenue si elle est dépassée. */
+function DueDateModal({ installment: i, onClose }: { installment?: Installment; onClose: () => void }) {
+  const [date, setDate] = useState('');
+  const [reason, setReason] = useState('');
+  useEffect(() => {
+    if (i) (setDate(i.dueDate), setReason(''));
+  }, [i]);
+  const save = useAction(() => api.patch(`/installments/${i!.id}/due-date`, { dueDate: date, reason: reason.trim() }), {
+    invalidate: KEYS,
+    success: 'Date limite modifiée.',
+    onSuccess: onClose,
+  });
+  return (
+    <Modal
+      open={Boolean(i)}
+      title={i ? `Date limite · ${fullName(i.player)} · tranche ${i.number}/${i.count}` : ''}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button variant="primary" data-primary onClick={() => save.mutate()} disabled={!date || !reason.trim() || save.isPending}>
+            Enregistrer
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        <TextField label="Nouvelle date limite" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        <TextField label="Motif *" value={reason} maxLength={300} onChange={(e) => setReason(e.target.value)} placeholder="ex. accord avec la famille" />
+      </div>
+    </Modal>
+  );
+}
+
+type GroupBy = 'parent' | 'player' | 'due' | 'none';
+const MONTH = (iso: string) => new Date(`${iso.slice(0, 7)}-01T00:00:00`).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+/** Regroupe les tranches : par famille (parents), par joueur ou par mois d'échéance. */
+function groupInstallments(list: Installment[], by: GroupBy): { key: string; title: string; items: Installment[] }[] {
+  if (by === 'none') return [{ key: 'all', title: '', items: list }];
+  const map = new Map<string, { key: string; title: string; items: Installment[]; sort: string }>();
+  for (const i of list) {
+    const key =
+      by === 'player' ? i.player.id : by === 'due' ? i.dueDate.slice(0, 7) : (i.parents ?? []).map((p) => p.id).sort().join('|') || `sans-${i.player.id}`;
+    const title =
+      by === 'player'
+        ? fullName(i.player)
+        : by === 'due'
+          ? `Échéance ${MONTH(i.dueDate)}`
+          : i.parents?.length
+            ? `Famille ${i.parents.map((p) => fullName(p)).join(' · ')}`
+            : `${fullName(i.player)} (sans parent)`;
+    const sort = by === 'due' ? key : title.toLocaleLowerCase('fr');
+    if (!map.has(key)) map.set(key, { key, title, items: [], sort });
+    map.get(key)!.items.push(i);
+  }
+  return [...map.values()].sort((a, b) => a.sort.localeCompare(b.sort, 'fr'));
+}
+
+function readGroupBy(): GroupBy {
+  try {
+    const v = localStorage.getItem('tcsay-paiements-groupe');
+    return v === 'player' || v === 'due' || v === 'none' ? v : 'parent';
+  } catch {
+    return 'parent';
+  }
+}
 
 function CashModal({
   installment: i,
@@ -133,9 +202,7 @@ function PaymentLines({ installment: i, onReceipt }: { installment: Installment;
               Reçu n° {p.receipt.number}
             </button>
           ) : (
-            <button type="button" className="rounded-full bg-btn px-[13px] py-[5px] font-medium text-fg" onClick={() => onReceipt(p.id)}>
-              Émettre le reçu
-            </button>
+            <ActionIcon kind="receipt" onClick={() => onReceipt(p.id)} />
           )}
         </div>
       ))}
@@ -163,6 +230,16 @@ export function PaymentsAdminPage() {
   const parents = useQuery({ queryKey: ['parents'], queryFn: () => api.get<Parent[]>('/parents') });
   const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
   const [cashFor, setCashFor] = useState<Installment>();
+  const [dueFor, setDueFor] = useState<Installment>();
+  const [groupBy, setGroupByState] = useState<GroupBy>(readGroupBy);
+  const setGroupBy = (v: GroupBy) => {
+    setGroupByState(v);
+    try {
+      localStorage.setItem('tcsay-paiements-groupe', v);
+    } catch {
+      /* préférence non mémorisée */
+    }
+  };
   const [receiptFor, setReceiptFor] = useState<string>();
   // R7 : la règle vit côté API, l'écran affiche son refus.
   const edit = useAction(() => api.patch('/payments/0'), {});
@@ -207,6 +284,12 @@ export function PaymentsAdminPage() {
           <option value="LATE">En retard</option>
           <option value="PAID">Payées</option>
         </FilterSelect>
+        <FilterSelect label="Grouper par" value={groupBy} onChange={(e) => setGroupBy(e.target.value as GroupBy)}>
+          <option value="parent">Grouper par famille</option>
+          <option value="player">Grouper par joueur</option>
+          <option value="due">Grouper par échéance</option>
+          <option value="none">Sans regroupement</option>
+        </FilterSelect>
         {(search || parentId || groupId || state) && (
           <Button onClick={() => (setSearch(''), setParentId(''), setGroupId(''), setState(''))}>Effacer les filtres</Button>
         )}
@@ -218,45 +301,64 @@ export function PaymentsAdminPage() {
           <Pill tone="r">Restant {DT(list.reduce((s, i) => s + i.remaining, 0))}</Pill>
         </Pills>
         {list.length ? (
-          <CardGrid list={view === 'list'}>
-            {list.map((i) => (
-              <InstallmentCard
-                key={i.id}
-                installment={i}
-                title={fullName(i.player)}
-                bar={false}
-                pills={
-                  <>
-                    <Pill tone="b">
-                      Tranche {i.number}/{i.count}
-                    </Pill>
-                    <Pill tone="b">{fD(i.dueDate, { day: 'numeric', month: 'short' })}</Pill>
-                    {i.groups?.map((g) => (
-                      <Pill key={g.id} tone="s" className="card-text">
-                        {g.name}
+          groupInstallments(list, groupBy).map((g) => {
+            const grid = (
+              <CardGrid list={view === 'list'}>
+              {g.items.map((i) => (
+                <InstallmentCard
+                  key={i.id}
+                  installment={i}
+                  title={fullName(i.player)}
+                  bar={false}
+                  pills={
+                    <>
+                      <Pill tone="b">
+                        Tranche {i.number}/{i.count}
                       </Pill>
-                    ))}
-                    {i.parents?.length ? <Pill tone="s" className="card-text">Parent : {i.parents.map((p) => fullName(p)).join(', ')}</Pill> : null}
-                  </>
-                }
-                action={
-                  <>
-                  <PaymentLines installment={i} onReceipt={setReceiptFor} />
-                  <div className="card-actions flex flex-wrap gap-1.5">
-                    {i.remaining ? (
-                      <>
-                        <ActionIcon kind="pay" primary onClick={() => setCashFor(i)} />
-                        {i.status === 'LATE' && <ActionIcon kind="remind" onClick={() => remind.mutate(i.id)} disabled={remind.isPending} />}
-                      </>
-                    ) : (
-                      <ActionIcon kind="edit" label="Modifier le paiement" onClick={() => edit.mutate()} />
-                    )}
-                  </div>
-                  </>
-                }
-              />
-            ))}
-          </CardGrid>
+                      <Pill tone="b">{fD(i.dueDate, { day: 'numeric', month: 'short' })}</Pill>
+                      {i.groups?.map((g) => (
+                        <Pill key={g.id} tone="s" className="card-text">
+                          {g.name}
+                        </Pill>
+                      ))}
+                      {i.parents?.length ? <Pill tone="s" className="card-text">Parent : {i.parents.map((p) => fullName(p)).join(', ')}</Pill> : null}
+                    </>
+                  }
+                  action={
+                    <>
+                    <PaymentLines installment={i} onReceipt={setReceiptFor} />
+                    <div className="card-actions flex flex-wrap gap-1.5">
+                      {i.remaining ? (
+                        <>
+                          <ActionIcon kind="pay" primary onClick={() => setCashFor(i)} />
+                          <ActionIcon kind="edit" label="Modifier la date limite" onClick={() => setDueFor(i)} />
+                          {i.status === 'LATE' && <ActionIcon kind="remind" onClick={() => remind.mutate(i.id)} disabled={remind.isPending} />}
+                        </>
+                      ) : (
+                        <ActionIcon kind="edit" label="Modifier le paiement" onClick={() => edit.mutate()} />
+                      )}
+                    </div>
+                    </>
+                  }
+                />
+              ))}
+              </CardGrid>
+            );
+            if (!g.title) return <div key={g.key}>{grid}</div>;
+            const rest = g.items.reduce((t, i) => t + i.remaining, 0);
+            const late = g.items.filter((i) => i.status === 'LATE').length;
+            return (
+              <Section key={g.key} title={g.title}>
+                <Pills className="mb-3">
+                  <Pill tone="b">{g.items.length} tranche(s)</Pill>
+                  <Pill tone="g">Payé {DT(g.items.reduce((t, i) => t + i.paid, 0))}</Pill>
+                  {rest > 0 && <Pill tone="r">Restant {DT(rest)}</Pill>}
+                  {late > 0 && <Pill tone="r">{late} en retard</Pill>}
+                </Pills>
+                {grid}
+              </Section>
+            );
+          })
         ) : (
           <EmptyState>Aucune tranche ne correspond à ces filtres.</EmptyState>
         )}
@@ -265,6 +367,7 @@ export function PaymentsAdminPage() {
         Un paiement encaissé n’est jamais modifié ni supprimé : remboursement ou écriture corrective (R7). Le coach n’a jamais
         accès à cet écran (403).
       </Note>
+      <DueDateModal installment={dueFor} onClose={() => setDueFor(undefined)} />
       <CashModal installment={cashFor} onClose={() => setCashFor(undefined)} onCashed={setReceiptFor} />
       <ReceiptModal paymentId={receiptFor} onClose={() => setReceiptFor(undefined)} />
     </>

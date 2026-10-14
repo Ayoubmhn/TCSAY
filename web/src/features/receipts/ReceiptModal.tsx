@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
+import { ActionIcon } from '../../components/ui/ActionIcon';
 import { Button } from '../../components/ui/Button';
 import { CardText } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
@@ -31,18 +32,16 @@ export function ReceiptActions({ receipt, onVoided }: { receipt: Receipt; onVoid
   const open = (mode: PrintMode) => window.open(receiptPrintUrl(receipt.id, mode), '_blank');
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        <Button variant="primary" onClick={() => open('carnet')} disabled={Boolean(receipt.voidedAt)}>
-          {receipt.printCount ? 'Réimprimer sur le carnet' : 'Imprimer sur le carnet'}
-        </Button>
-        <Button onClick={() => open('pdf')} disabled={Boolean(receipt.voidedAt)}>
-          Reçu PDF
-        </Button>
-        {!receipt.voidedAt && (
-          <Button variant="danger" onClick={() => setVoiding(true)}>
-            Annuler le reçu
-          </Button>
-        )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <ActionIcon
+          kind="print"
+          primary
+          label={receipt.printCount ? 'Réimprimer sur le carnet' : 'Imprimer sur le carnet'}
+          onClick={() => open('carnet')}
+          disabled={Boolean(receipt.voidedAt)}
+        />
+        <ActionIcon kind="pdf" onClick={() => open('pdf')} disabled={Boolean(receipt.voidedAt)} />
+        {!receipt.voidedAt && <ActionIcon kind="cancel" label="Annuler le reçu" onClick={() => setVoiding(true)} />}
       </div>
       <ConfirmModal
         open={voiding}

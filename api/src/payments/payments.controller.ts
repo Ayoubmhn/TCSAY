@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DiscountKind, PaymentMethod, PaymentPlan, Role } from '@prisma/client';
-import { IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
 import { AuthUser, can, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { rule } from '../common/rules';
 import { PaymentsService } from './payments.service';
@@ -102,6 +102,16 @@ class DiscountDto {
   reason?: string;
 }
 
+class DueDateDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Date limite invalide.' })
+  dueDate: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Le motif est obligatoire.' })
+  @MaxLength(300)
+  reason: string;
+}
+
 class MissingDto {
   @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
   paymentPlan: PaymentPlan;
@@ -127,6 +137,12 @@ export class PaymentsController {
   @Perm('payments.collect')
   cash(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CashDto) {
     return this.payments.cash(user, id, dto.amount, dto.note, dto.method, dto.chequeNumber);
+  }
+
+  @Patch('installments/:id/due-date')
+  @Perm('payments.collect')
+  dueDate(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: DueDateDto) {
+    return this.payments.changeDueDate(user, id, dto.dueDate, dto.reason.trim());
   }
 
   @Post('installments/:id/remind')

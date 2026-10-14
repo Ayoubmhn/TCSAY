@@ -554,6 +554,7 @@ model Installment {
   dueDate      DateTime @db.Date
   amount       Decimal  @db.Decimal(10, 3)
   version      Int      @default(1)
+  lateNotifiedAt DateTime? // famille prévenue du retard (une seule fois par échéance)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
