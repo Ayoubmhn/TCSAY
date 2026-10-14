@@ -11,18 +11,31 @@ import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
-import type { Broadcast, BroadcastTarget, Group, Recipient } from '../../lib/types';
+import type { Broadcast, Group, Recipient } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
-const TARGETS: [BroadcastTarget, string][] = [
-  ['PARENTS', 'Tous les parents'],
-  ['PLAYERS', 'Tous les joueurs (avec compte)'],
-  ['COACHES', 'Tous les entraîneurs'],
-  ['ALL', 'Parents, joueurs et entraîneurs'],
-  ['GROUP', 'Un groupe (joueurs, parents, entraîneurs)'],
-  ['USERS', 'Des personnes choisies'],
+type Kind = 'PARENTS' | 'PLAYERS' | 'COACHES';
+const KINDS: [Kind, string][] = [
+  ['PARENTS', 'Parents'],
+  ['PLAYERS', 'Joueurs (avec compte)'],
+  ['COACHES', 'Entraîneurs'],
 ];
+
+/** Puce à cocher (choix multiple). */
+function Chip({ on, onClick, children, danger = false }: { on: boolean; onClick: () => void; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={`rounded-full px-[14px] py-[7px] text-sm ${on ? (danger ? 'bg-pr text-ink' : 'bg-sel text-white') : 'bg-fld text-fg'}`}
+    >
+      {children}
+    </button>
+  );
+}
+const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
 
 /** Écran ouvert depuis la notification (côté parent, joueur ou entraîneur). */
 const LINKS: [string, string][] = [
@@ -38,7 +51,7 @@ const LINKS: [string, string][] = [
 const ROLE: Record<Recipient['roles'][number], string> = { PARENT: 'Parent', PLAYER: 'Joueur', COACH: 'Entraîneur' };
 
 /** Recherche de personnes : nom, email, téléphone ; un parent est aussi trouvé par le nom ou le code de son joueur. */
-function RecipientPicker({ value, onChange }: { value: Recipient[]; onChange: (v: Recipient[]) => void }) {
+function RecipientPicker({ value, onChange, label = 'Destinataires (nom du parent, du joueur, code TCSAY, téléphone…)', tone = 'b' }: { value: Recipient[]; onChange: (v: Recipient[]) => void; label?: string; tone?: 'b' | 'r' }) {
   const [q, setQ] = useState('');
   const found = useQuery({
     queryKey: ['broadcast-recipients', q.trim()],
@@ -52,7 +65,7 @@ function RecipientPicker({ value, onChange }: { value: Recipient[]; onChange: (v
   return (
     <div className="col-span-full flex flex-col gap-2">
       <TextField
-        label="Destinataires (nom du parent, du joueur, code TCSAY, téléphone…)"
+        label={label}
         full
         value={q}
         onChange={(e) => setQ(e.target.value)}
@@ -84,7 +97,7 @@ function RecipientPicker({ value, onChange }: { value: Recipient[]; onChange: (v
         <Pills>
           {value.map((r) => (
             <button key={r.id} type="button" onClick={() => onChange(value.filter((x) => x.id !== r.id))} aria-label={`Retirer ${r.name}`}>
-              <Pill tone="b">{r.name} ✕</Pill>
+              <Pill tone={tone}>{r.name} ✕</Pill>
             </button>
           ))}
         </Pills>
@@ -103,13 +116,28 @@ export function BroadcastsPage() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [link, setLink] = useState('');
-  const [target, setTarget] = useState<BroadcastTarget>('PARENTS');
-  const [groupId, setGroupId] = useState('');
+  const [roles, setRoles] = useState<Kind[]>(['PARENTS']);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [groupScope, setGroupScope] = useState<Kind[]>(['PARENTS', 'PLAYERS', 'COACHES']);
   const [people, setPeople] = useState<Recipient[]>([]);
+  const [excludeGroupIds, setExcludeGroupIds] = useState<string[]>([]);
+  const [excluded, setExcluded] = useState<Recipient[]>([]);
+  const audience = {
+    roles,
+    groupIds,
+    groupScope,
+    userIds: people.map((p) => p.id),
+    excludeGroupIds,
+    excludeUserIds: excluded.map((p) => p.id),
+  };
+  const preview = useQuery({
+    queryKey: ['broadcast-preview', audience],
+    queryFn: () => api.post<{ recipients: number; audience: string }>('/notifications/broadcasts/preview', audience),
+  });
   const [byEmail, setByEmail] = useState(false);
 
   const history = useQuery({ queryKey: ['broadcasts'], queryFn: () => api.get<Broadcast[]>('/notifications/broadcasts') });
-  const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups'), enabled: target === 'GROUP' });
+  const groups = useQuery({ queryKey: ['groups'], queryFn: () => api.get<Group[]>('/groups') });
 
   const send = useAction(
     () =>
@@ -117,9 +145,7 @@ export function BroadcastsPage() {
         title: title.trim(),
         body: body.trim(),
         link: link || undefined,
-        target,
-        groupId: target === 'GROUP' ? groupId : undefined,
-        userIds: target === 'USERS' ? people.map((p) => p.id) : undefined,
+        ...audience,
         byEmail,
       }),
     {
@@ -130,6 +156,7 @@ export function BroadcastsPage() {
         setBody('');
         setLink('');
         setPeople([]);
+        setExcluded([]);
       },
     },
   );
@@ -138,8 +165,7 @@ export function BroadcastsPage() {
     e.preventDefault();
     if (!title.trim()) return toast('Titre obligatoire.');
     if (!body.trim()) return toast('Message obligatoire.');
-    if (target === 'GROUP' && !groupId) return toast('Choisissez le groupe.');
-    if (target === 'USERS' && !people.length) return toast('Choisissez au moins une personne.');
+    if (!preview.data?.recipients) return toast('Aucun destinataire : choisissez des parents, joueurs, entraîneurs, groupes ou personnes.');
     send.mutate();
   };
 
@@ -149,32 +175,63 @@ export function BroadcastsPage() {
       <Section title="Nouveau message">
         <Card className="max-w-[760px]">
           <FormGrid onSubmit={submit} noValidate>
-            <SelectField label="Destinataires *" value={target} onChange={(e) => setTarget(e.target.value as BroadcastTarget)}>
-              {TARGETS.map(([v, l]) => (
+            <div className="col-span-full flex flex-col gap-2">
+              <span className="text-xs font-medium text-mut">Destinataires * (plusieurs choix possibles)</span>
+              <div className="flex flex-wrap gap-2">
+                {KINDS.map(([k, l]) => (
+                  <Chip key={k} on={roles.includes(k)} onClick={() => setRoles(toggle(roles, k))}>
+                    Tous les {l.toLowerCase()}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+            <div className="col-span-full flex flex-col gap-2">
+              <span className="text-xs font-medium text-mut">Groupes</span>
+              <div className="flex flex-wrap gap-2">
+                {groups.data?.map((g) => (
+                  <Chip key={g.id} on={groupIds.includes(g.id)} onClick={() => (setGroupIds(toggle(groupIds, g.id)), setExcludeGroupIds(excludeGroupIds.filter((x) => x !== g.id)))}>
+                    {g.name}
+                  </Chip>
+                ))}
+              </div>
+              {groupIds.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-mut">Dans ces groupes :</span>
+                  {KINDS.map(([k, l]) => (
+                    <Chip key={k} on={groupScope.includes(k)} onClick={() => setGroupScope(toggle(groupScope, k))}>
+                      {l}
+                    </Chip>
+                  ))}
+                </div>
+              )}
+            </div>
+            <RecipientPicker value={people} onChange={setPeople} label="Ajouter des personnes (nom du parent, du joueur, code TCSAY, téléphone…)" />
+            <div className="col-span-full flex flex-col gap-2">
+              <span className="text-xs font-medium text-mut">Sauf ces groupes</span>
+              <div className="flex flex-wrap gap-2">
+                {groups.data
+                  ?.filter((g) => !groupIds.includes(g.id))
+                  .map((g) => (
+                    <Chip key={g.id} danger on={excludeGroupIds.includes(g.id)} onClick={() => setExcludeGroupIds(toggle(excludeGroupIds, g.id))}>
+                      {g.name}
+                    </Chip>
+                  ))}
+              </div>
+            </div>
+            <RecipientPicker value={excluded} onChange={setExcluded} tone="r" label="Sauf ces personnes" />
+            <div className="col-span-full">
+              <Pills>
+                <Pill tone={preview.data?.recipients ? 'g' : 'r'}>{preview.data ? `${preview.data.recipients} destinataire(s)` : '…'}</Pill>
+                {preview.data && <Pill tone="s">{preview.data.audience}</Pill>}
+              </Pills>
+            </div>
+            <SelectField label="Écran à ouvrir (facultatif)" value={link} onChange={(e) => setLink(e.target.value)}>
+              {LINKS.map(([v, l]) => (
                 <option key={v} value={v}>
                   {l}
                 </option>
               ))}
             </SelectField>
-            {target === 'GROUP' ? (
-              <SelectField label="Groupe *" value={groupId} onChange={(e) => setGroupId(e.target.value)}>
-                <option value="">— Choisir —</option>
-                {groups.data?.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name} ({g.members.length} joueur{g.members.length > 1 ? 's' : ''})
-                  </option>
-                ))}
-              </SelectField>
-            ) : (
-              <SelectField label="Écran à ouvrir (facultatif)" value={link} onChange={(e) => setLink(e.target.value)}>
-                {LINKS.map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
-                  </option>
-                ))}
-              </SelectField>
-            )}
-            {target === 'USERS' && <RecipientPicker value={people} onChange={setPeople} />}
             <TextField label="Titre *" full maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="ex. Terrains fermés samedi matin" />
             <TextArea label="Message *" full rows={4} maxLength={2000} value={body} onChange={(e) => setBody(e.target.value)} />
             <label className="col-span-full inline-flex cursor-pointer items-center gap-2 text-sm text-fg">
