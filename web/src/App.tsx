@@ -52,6 +52,7 @@ import { SessionsPage } from './pages/player/SessionsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { FederationAccountsPage } from './pages/admin/FederationAccountsPage';
+import { ReenrollmentPage } from './pages/admin/ReenrollmentPage';
 import { PermissionsGate } from './components/PermissionsGate';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
@@ -154,6 +155,7 @@ export function App() {
         <Route path="admin/entraineurs/:id" element={admin(['coaches.manage', 'salaries.manage', 'groups.manage', 'absences.manage'], <CoachProfilePage />)} />
         <Route path="admin/personnel" element={admin(['staff.manage'], <StaffPage />)} />
         <Route path="admin/ijin" element={admin(['federation.manage'], <FederationAccountsPage />)} />
+        <Route path="admin/reinscriptions" element={admin(['players.manage'], <ReenrollmentPage />)} />
         <Route path="admin/personnel/:id" element={admin(['staff.manage'], <StaffProfilePage />)} />
         <Route path="admin/fiche-inscription" element={admin(['players.manage'], <RegistrationFormPage />)} />
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />

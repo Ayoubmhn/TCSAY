@@ -74,6 +74,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Entraîneurs', path: '/admin/entraineurs', perm: ['coaches.manage'] },
       { label: 'Personnel', path: '/admin/personnel', perm: ['staff.manage'] },
       { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },
+      { label: 'Réinscriptions', path: '/admin/reinscriptions', perm: ['players.manage'] },
       { label: 'Fiche d’inscription (A4)', path: '/admin/fiche-inscription', perm: ['players.manage'] },
     ],
   },

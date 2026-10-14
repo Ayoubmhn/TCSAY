@@ -75,6 +75,9 @@ function SeasonCard({ season, onAction, onEdit, onArchive, canManage }: CardProp
               primary={action.kind === 'activate'}
               onClick={() => onAction(action)}
             />
+            {(season.status === 'DRAFT' || season.status === 'ACTIVE') && (
+              <ActionIcon kind="add" label="Réinscrire les joueurs" to={`/admin/reinscriptions?saison=${season.id}`} />
+            )}
             {editable && <ActionIcon kind="edit" onClick={onEdit} />}
             {editable && season.status !== 'ACTIVE' && <ActionIcon kind="archive" onClick={onArchive} />}
           </>
