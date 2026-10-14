@@ -1,6 +1,9 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCode, Ip, Post, UnauthorizedException } from '@nestjs/common';
+import { EmailKind } from '@prisma/client';
+import { createHash, randomInt } from 'node:crypto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllowPendingPassword, AuthUser, CurrentUser, Public } from './auth-user';
@@ -32,6 +35,34 @@ class ChangePasswordDto {
   newPassword: string;
 }
 
+class ForgotDto {
+  /** Email du compte. */
+  @IsString()
+  @IsNotEmpty({ message: 'Email obligatoire.' })
+  @MaxLength(120)
+  email: string;
+}
+
+class ResetDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Email obligatoire.' })
+  @MaxLength(120)
+  email: string;
+
+  @Matches(/^\d{6}$/, { message: 'Le code reçu par email contient 6 chiffres.' })
+  code: string;
+
+  @IsString()
+  @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères.' })
+  @MaxLength(100)
+  newPassword: string;
+}
+
+/** Code de réinitialisation : valable 15 minutes, 5 essais au plus. */
+const RESET_MINUTES = 15;
+const RESET_ATTEMPTS = 5;
+const codeHash = (userId: string, code: string) => createHash('sha256').update(`${userId}:${code}`).digest('hex');
+
 /** Empreinte factice (mot de passe aléatoire) pour les identifiants inconnus : même temps de calcul qu'un vrai compte. */
 const DUMMY_HASH = 'scrypt$0f1e2d3c4b5a69788796a5b4c3d2e1f0$' + 'ab'.repeat(64);
 
@@ -42,7 +73,78 @@ export class AuthController {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly throttle: LoginThrottle,
+    private readonly mail: MailService,
   ) {}
+
+  /**
+   * Mot de passe oublié : envoie un code à 6 chiffres à l'email du compte. Réponse identique que le compte existe ou non
+   * (impossible de deviner les adresses inscrites). Un compte sans email réel (CIN seule, adresse provisoire) passe par l'admin.
+   */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(200)
+  async forgotPassword(@Body() dto: ForgotDto, @Ip() ip: string) {
+    const email = dto.email.trim().toLowerCase();
+    const key = `reset:${email}`;
+    this.throttle.check(ip, key);
+    this.throttle.fail(ip, key); // chaque demande compte : 5 demandes par adresse / 15 min au plus
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (user?.isActive && !/@a-completer\.invalid$/i.test(email)) {
+      const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+      await this.prisma.$transaction([
+        this.prisma.passwordReset.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: new Date() } }),
+        this.prisma.passwordReset.create({
+          data: { userId: user.id, codeHash: codeHash(user.id, code), expiresAt: new Date(Date.now() + RESET_MINUTES * 60_000) },
+        }),
+      ]);
+      await this.mail.send(
+        email,
+        'TCSAY · code pour changer votre mot de passe',
+        `Bonjour ${user.firstName},\n\nVotre code : ${code}\n\nSaisissez-le dans l’écran « Mot de passe oublié » avec votre nouveau mot de passe. Il est valable ${RESET_MINUTES} minutes.\nSi vous n’avez rien demandé, ignorez cet email : votre mot de passe ne change pas.\n\nLe bureau du TCSAY`,
+        EmailKind.CREDENTIALS,
+      );
+      await this.audit.log(user.id, { action: 'Code de réinitialisation envoyé', entity: 'User', entityId: user.id, target: email });
+    }
+    return { ok: true, message: `Si un compte correspond à cette adresse, un code vient d’y être envoyé (valable ${RESET_MINUTES} minutes).` };
+  }
+
+  /** Nouveau mot de passe avec le code reçu par email ; les autres sessions sont déconnectées. */
+  @Public()
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetDto, @Ip() ip: string) {
+    const email = dto.email.trim().toLowerCase();
+    const key = `resetcode:${email}`;
+    this.throttle.check(ip, key);
+    const invalid = () => {
+      this.throttle.fail(ip, key);
+      return new BadRequestException('Code incorrect ou expiré : demandez un nouveau code.');
+    };
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user?.isActive) throw invalid();
+    const reset = await this.prisma.passwordReset.findFirst({
+      where: { userId: user.id, usedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!reset || reset.attempts >= RESET_ATTEMPTS) throw invalid();
+    if (reset.codeHash !== codeHash(user.id, dto.code)) {
+      await this.prisma.passwordReset.update({ where: { id: reset.id }, data: { attempts: { increment: 1 } } });
+      throw invalid();
+    }
+    const problem = passwordProblem(dto.newPassword, user);
+    if (problem) throw new BadRequestException(problem);
+    await this.prisma.$transaction([
+      this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash: await hashPassword(dto.newPassword), mustChangePassword: false, version: { increment: 1 } },
+      }),
+    ]);
+    this.throttle.success(ip, key);
+    this.throttle.success(ip, email);
+    await this.audit.log(user.id, { action: 'Mot de passe réinitialisé (code email)', entity: 'User', entityId: user.id, target: `${user.firstName} ${user.lastName}` });
+    return { ok: true };
+  }
 
   @Public()
   @Post('login')

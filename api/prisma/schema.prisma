@@ -217,6 +217,7 @@ model User {
   absenceDecisions   CoachAbsence[]          @relation("AbsenceDecidedBy")
   notifications      Notification[]
   broadcastsSent     NotificationBroadcast[]
+  passwordResets     PasswordReset[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -985,4 +986,19 @@ model NotificationBroadcast {
   notifications Notification[]
 
   @@index([createdAt])
+}
+
+/// Mot de passe oublié : code à 6 chiffres envoyé par email (empreinte seulement), valable 15 minutes, 5 essais.
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int       @default(0)
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
 }

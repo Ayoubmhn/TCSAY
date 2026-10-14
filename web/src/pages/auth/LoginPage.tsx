@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { homeOf, useAuth } from '../../auth/AuthContext';
+import { ForgotPasswordModal } from '../../components/ForgotPassword';
 import { Brand } from '../../components/ui/Brand';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -30,6 +31,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
+  const [forgot, setForgot] = useState(false);
 
   if (me) return <Navigate to={me.mustChangePassword ? '/mot-de-passe' : homeOf(me)} replace />;
 
@@ -80,8 +82,12 @@ export function LoginPage() {
             <Button variant="primary" type="submit" disabled={pending}>
               Se connecter
             </Button>
+            <button type="button" className="self-center text-sm font-medium text-pri hover:underline" onClick={() => setForgot(true)}>
+              {t('Mot de passe oublié ?')}
+            </button>
           </form>
         </Card>
+        <ForgotPasswordModal open={forgot} email={email.includes('@') ? email.trim() : ''} onClose={() => setForgot(false)} />
 
         {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && (
           <>

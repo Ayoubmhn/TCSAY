@@ -6,6 +6,7 @@ import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
 import { KeyValue } from '../components/ui/KeyValue';
 import { PageHeader } from '../components/ui/PageHeader';
+import { ForgotPasswordModal } from '../components/ForgotPassword';
 import { Section } from '../components/ui/Section';
 import { Segmented } from '../components/ui/Segmented';
 import { setTheme, useTheme, type Theme } from '../components/ui/ThemeToggle';
@@ -21,6 +22,7 @@ import { useAction } from '../lib/useAction';
  * changement de mot de passe, langue (FR / EN / AR, l'arabe passe de droite à gauche) et thème.
  */
 export function SettingsPage() {
+  const [forgot, setForgot] = useState(false);
   const me = useMe();
   const { refresh } = useAuth();
   const { lang, setLang, t } = useI18n();
@@ -91,7 +93,13 @@ export function SettingsPage() {
                 <Button variant="primary" type="submit" disabled={change.isPending}>
                   Changer le mot de passe
                 </Button>
+                {me.email && !me.email.endsWith('@a-completer.invalid') && (
+                  <button type="button" className="self-start text-sm font-medium text-pri hover:underline" onClick={() => setForgot(true)}>
+                    {t('Mot de passe actuel oublié ? Recevoir un code par email')}
+                  </button>
+                )}
               </form>
+              <ForgotPasswordModal open={forgot} email={me.email ?? ''} onClose={() => setForgot(false)} onDone={() => void refresh()} />
             </Card>
           </Section>
 
