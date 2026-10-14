@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { homeOf, useAuth } from './auth/AuthContext';
+import { Button } from './components/ui/Button';
+import { useI18n } from './lib/i18n';
 import { EmptyState } from './components/ui/Card';
 import { SeasonDetailPage } from './features/seasons/SeasonDetailPage';
 import { FinanceStatsPage } from './features/stats/FinanceStatsPage';
@@ -69,8 +71,22 @@ import { ReceiptPrintPage } from './features/receipts/ReceiptPrintPage';
  * et dans l'espace administration au moins une des autorisations demandées.
  */
 function Protected({ roles, perm, children }: { roles?: Role[]; perm?: string[]; children: ReactNode }) {
-  const { me, loading } = useAuth();
+  const { me, loading, offline, retry } = useAuth();
+  const { t } = useI18n();
   const location = useLocation();
+  if (offline) {
+    return (
+      <div className="grid min-h-full place-items-center p-6">
+        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+          <h1 className="text-[23px] font-semibold">{t('Pas de connexion')}</h1>
+          <p className="text-mut">{t('Vérifiez le réseau (Wi-Fi ou données mobiles) : votre session est gardée.')}</p>
+          <Button variant="primary" onClick={retry}>
+            Réessayer
+          </Button>
+        </div>
+      </div>
+    );
+  }
   if (loading) {
     return (
       <div className="grid min-h-full place-items-center p-6">

@@ -1,14 +1,18 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { firstPath, menuFor } from '../layouts/menus';
-import { api, getSpace, getToken, setStoredSpace, setToken, setUnauthorizedHandler } from '../lib/api';
+import { unsubscribeOnLogout } from '../lib/push';
+import { ApiError, api, getSpace, getToken, setStoredSpace, setToken, setUnauthorizedHandler } from '../lib/api';
 import type { Actor, Me, Space } from '../lib/types';
 
 type AuthState = {
   me: Me | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<Me>;
+  login: (email: string, password: string, remember?: boolean) => Promise<Me>;
   logout: () => void;
+  /** Session gardée mais serveur injoignable (hors connexion) : on n'envoie pas vers la connexion. */
+  offline: boolean;
+  retry: () => void;
   refresh: () => Promise<void>;
   /** Parent : joueur choisi dans la liste en haut de chaque module ; joueur : lui-même. */
   playerId: string | undefined;
@@ -34,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [kid, setKid] = useState<string | undefined>(readKid());
   const [space, setSpace] = useState<Space | null>(getSpace());
 
-  const { data: me, isPending } = useQuery({
+  const { data: me, isPending, error, refetch } = useQuery({
     queryKey: ['me', token, space],
     queryFn: () => api.get<Me>('/auth/me'),
     enabled: Boolean(token),
@@ -51,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [me, space]);
 
   const logout = useCallback(() => {
+    void unsubscribeOnLogout();
     setToken(null);
     setTokenState(null);
     setStoredSpace(null);
@@ -61,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => setUnauthorizedHandler(logout), [logout]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const { accessToken } = await api.post<{ accessToken: string }>('/auth/login', { email, password });
+    async (email: string, password: string, remember = false) => {
+      const { accessToken } = await api.post<{ accessToken: string }>('/auth/login', { email, password, remember });
       setToken(accessToken);
       setStoredSpace(null);
       const profile = await api.get<Me>('/auth/me');
@@ -103,6 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       me: token ? (me ?? null) : null,
       loading: Boolean(token) && isPending,
+      offline: Boolean(token) && !me && error instanceof ApiError && error.status === 0,
+      retry: () => void refetch(),
       login,
       logout,
       refresh,
@@ -110,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPlayerId,
       switchSpace,
     };
-  }, [me, token, isPending, login, logout, refresh, kid, setPlayerId, switchSpace]);
+  }, [me, token, isPending, error, refetch, login, logout, refresh, kid, setPlayerId, switchSpace]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

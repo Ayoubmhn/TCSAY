@@ -22,7 +22,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed bottom-[calc(24px+env(safe-area-inset-bottom,0px))] left-1/2 z-[80] flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 flex-col gap-2"
+        className="pointer-events-none fixed bottom-[calc(92px+env(safe-area-inset-bottom,0px))] nav:bottom-[calc(24px+env(safe-area-inset-bottom,0px))] left-1/2 z-[80] flex w-max max-w-[calc(100%-32px)] -translate-x-1/2 flex-col gap-2"
       >
         {toasts.map((t) => (
           <div key={t.id} role="status" className="toast-in rounded-full bg-fg px-5 py-3 text-sm font-medium text-bg">

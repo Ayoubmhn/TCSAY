@@ -1,0 +1,26 @@
+{
+  "name": "TCSAY · Tennis Club de Sayada",
+  "short_name": "TCSAY",
+  "description": "Séances, paiements, réservations, matchs et tournois du Tennis Club de Sayada.",
+  "lang": "fr",
+  "dir": "auto",
+  "start_url": "/?source=app",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fafafa",
+  "theme_color": "#5a5acd",
+  "categories": ["sports", "lifestyle"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Mes séances", "url": "/seances", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mes paiements", "url": "/paiements", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Réserver un terrain", "url": "/reserver", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Matchs", "url": "/matchs", "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}

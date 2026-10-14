@@ -11,6 +11,7 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
 import { LANGS, useI18n } from '../../lib/i18n';
+import { isStandalone } from '../../lib/pwa';
 
 /** Comptes du seed de démonstration (affichés en développement et sur la démo en ligne, VITE_DEMO=1). */
 const DEMO = [
@@ -32,6 +33,7 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const [forgot, setForgot] = useState(false);
+  const [remember, setRemember] = useState(isStandalone());
 
   if (me) return <Navigate to={me.mustChangePassword ? '/mot-de-passe' : homeOf(me)} replace />;
 
@@ -43,7 +45,7 @@ export function LoginPage() {
     }
     setPending(true);
     try {
-      const profile = await login(credentials.email.trim(), credentials.password);
+      const profile = await login(credentials.email.trim(), credentials.password, remember);
       navigate(profile.mustChangePassword ? '/mot-de-passe' : homeOf(profile), { replace: true });
     } catch (err) {
       toast(errorMessage(err));
@@ -79,6 +81,12 @@ export function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            <label className="flex items-start gap-2.5 text-sm text-fg">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-pri" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+              <span>
+                {t('Rester connecté')} <span className="text-mut">({t('30 jours, appareil personnel')})</span>
+              </span>
+            </label>
             <Button variant="primary" type="submit" disabled={pending}>
               Se connecter
             </Button>

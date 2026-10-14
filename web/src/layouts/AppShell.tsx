@@ -10,6 +10,7 @@ import { Badge } from '../components/ui/Pill';
 import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
+import { BottomTabs } from './BottomTabs';
 import { firstPath, isGroup, menuFor, type MenuItem } from './menus';
 
 const CLOSED_KEY = 'tcsay-menu-closed';
@@ -259,7 +260,7 @@ export function AppShell() {
         <SideContent onNavigate={() => setDrawerOpen(false)} />
       </aside>
 
-      <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-[22px] pb-[60px]">
+      <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-[calc(22px+env(safe-area-inset-top,0px))] pb-[calc(96px+env(safe-area-inset-bottom,0px))] nav:pb-[60px]">
         <div className="no-print mb-[22px] flex items-center gap-3">
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
           <span className="flex-1" />
@@ -268,6 +269,7 @@ export function AppShell() {
         </div>
         <Outlet />
       </main>
+      <BottomTabs menuOpen={drawerOpen} onMenu={() => setDrawerOpen((v) => !v)} />
     </div>
   );
 }

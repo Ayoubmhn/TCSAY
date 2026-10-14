@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCod
 import { EmailKind } from '@prisma/client';
 import { createHash, randomInt } from 'node:crypto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsNotEmpty, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,7 +22,16 @@ class LoginDto {
   @MinLength(1, { message: 'Mot de passe obligatoire.' })
   @MaxLength(200)
   password: string;
+
+  /** « Rester connecté » (téléphone personnel, application installée) : session de 30 jours au lieu de 12 heures. */
+  @IsOptional()
+  @IsBoolean()
+  remember?: boolean;
 }
+
+/** Durée de session : 12 h par défaut, 30 jours avec « Rester connecté ». Un changement de mot de passe coupe toutes les sessions. */
+const SESSION_SHORT = 12 * 3600;
+const SESSION_LONG = 30 * 24 * 3600;
 
 class ChangePasswordDto {
   @IsString()
@@ -165,7 +174,8 @@ export class AuthController {
     }
     this.throttle.success(ip, login);
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    return { accessToken: signToken(user.id, user.roles.join(','), user.passwordHash), mustChangePassword: user.mustChangePassword };
+    const ttl = dto.remember ? SESSION_LONG : SESSION_SHORT;
+    return { accessToken: signToken(user.id, user.roles.join(','), user.passwordHash, ttl), mustChangePassword: user.mustChangePassword, expiresIn: ttl };
   }
 
   @ApiBearerAuth()

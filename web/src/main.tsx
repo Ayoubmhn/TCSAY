@@ -7,10 +7,12 @@ import { AuthProvider } from './auth/AuthContext';
 import { applyStoredTheme } from './components/ui/ThemeToggle';
 import { ToastProvider } from './components/ui/Toast';
 import { applyLang, I18nProvider } from './lib/i18n';
+import { registerServiceWorker } from './lib/pwa';
 import './index.css';
 
 applyStoredTheme();
 applyLang();
+registerServiceWorker();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },

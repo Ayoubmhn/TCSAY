@@ -3,6 +3,8 @@ import { useState, type FormEvent } from 'react';
 import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { FederationCard } from '../components/FederationCard';
 import { KidsFederation } from '../components/KidsFederation';
+import { InstallApp } from '../components/InstallApp';
+import { PushSettings } from '../components/PushSettings';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
@@ -116,6 +118,11 @@ export function SettingsPage() {
               </form>
               <ForgotPasswordModal open={forgot} email={me.email ?? ''} onClose={() => setForgot(false)} onDone={() => void refresh()} />
             </Card>
+          </Section>
+
+          <Section title="Application mobile">
+            <InstallApp />
+            <PushSettings />
           </Section>
 
           <Section title="Préférences">

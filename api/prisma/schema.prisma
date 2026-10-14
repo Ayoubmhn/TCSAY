@@ -219,6 +219,7 @@ model User {
   notifications      Notification[]
   broadcastsSent     NotificationBroadcast[]
   passwordResets     PasswordReset[]
+  pushSubscriptions  PushSubscription[]
   expensesCreated    Expense[]
   tournamentsCreated Tournament[]
 }
@@ -981,6 +982,7 @@ model Notification {
   body        String
   link        String?
   readAt      DateTime?
+  pushedAt    DateTime? // envoyée en notification push (ou rien à envoyer)
   createdAt   DateTime  @default(now())
   broadcastId String?   @db.Uuid // message envoyé par le club (admin ou agent)
 
@@ -1184,4 +1186,20 @@ model SessionChange {
   tournament Tournament? @relation(fields: [tournamentId], references: [id])
 
   @@unique([slotId, date])
+}
+
+/// Abonnement aux notifications push d'un appareil (navigateur ou application installée).
+model PushSubscription {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

@@ -43,6 +43,8 @@ import { ReenrollmentController } from './seasons/reenrollment.controller';
 import { ExpensesController } from './expenses/expenses.controller';
 import { AvailabilityController } from './availability/availability.controller';
 import { TournamentsController } from './tournaments/tournaments.controller';
+import { PushController } from './push/push.controller';
+import { PushService } from './push/push.service';
 import { TournamentsService } from './tournaments/tournaments.service';
 import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
@@ -92,6 +94,7 @@ import { StaffController } from './staff/staff.controller';
     ExpensesController,
     AvailabilityController,
     TournamentsController,
+    PushController,
     PlayersImportController,
     AttendanceController,
     SessionReviewController,
@@ -115,6 +118,7 @@ import { StaffController } from './staff/staff.controller';
     PaymentsService,
     LateInstallmentsService,
     TournamentsService,
+    PushService,
     ReceiptsService,
     PlayersImportService,
     ReservationsService,
