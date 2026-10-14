@@ -54,6 +54,8 @@ import { SettingsPage } from './pages/SettingsPage';
 import { FederationAccountsPage } from './pages/admin/FederationAccountsPage';
 import { ReenrollmentPage } from './pages/admin/ReenrollmentPage';
 import { ExpensesPage } from './pages/admin/ExpensesPage';
+import { AvailabilityAdminPage } from './pages/admin/AvailabilityAdminPage';
+import { AvailabilityPage } from './pages/AvailabilityPage';
 import { PermissionsGate } from './components/PermissionsGate';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
@@ -139,6 +141,8 @@ export function App() {
         <Route path="coach/presences" element={<Protected roles={['COACH']}><CoachAttendancePage /></Protected>} />
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
         <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
+        <Route path="coach/disponibilites" element={<Protected roles={['COACH']}><AvailabilityPage /></Protected>} />
+        <Route path="disponibilites" element={<Protected roles={PLAYER}><AvailabilityPage /></Protected>} />
         <Route path="coach/bilans" element={<Protected roles={['COACH']}><EvaluationsPage /></Protected>} />
         <Route path="coach/exercices" element={<Protected roles={['COACH']}><ExercisesCoachPage /></Protected>} />
         <Route path="coach/reserver" element={<Protected roles={['COACH']}><BookPage /></Protected>} />
@@ -158,6 +162,7 @@ export function App() {
         <Route path="admin/ijin" element={admin(['federation.manage'], <FederationAccountsPage />)} />
         <Route path="admin/reinscriptions" element={admin(['players.manage'], <ReenrollmentPage />)} />
         <Route path="admin/depenses" element={admin(['expenses.manage'], <ExpensesPage />)} />
+        <Route path="admin/disponibilites" element={admin(['groups.manage'], <AvailabilityAdminPage />)} />
         <Route path="admin/personnel/:id" element={admin(['staff.manage'], <StaffProfilePage />)} />
         <Route path="admin/fiche-inscription" element={admin(['players.manage'], <RegistrationFormPage />)} />
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />

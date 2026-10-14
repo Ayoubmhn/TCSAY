@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import {
   IconCalendar,
+  IconClock,
   IconCard,
   IconChart,
   IconClipboard,
@@ -43,6 +44,7 @@ const PLAYER_MENU: MenuItem[] = [
       { label: 'Matchs', path: '/matchs' },
       { label: 'Mes séances', path: '/seances' },
       { label: 'Mes absences', path: '/absences' },
+      { label: 'Disponibilités', path: '/disponibilites' },
     ],
   },
   { label: 'Mes paiements', path: '/paiements', icon: IconCard },
@@ -57,6 +59,7 @@ const COACH_MENU: MenuItem[] = [
   { label: 'Exercices', path: '/coach/exercices', icon: IconRacket },
   { label: 'Matchs', path: '/matchs', icon: IconTrophy },
   { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
+  { label: 'Mes disponibilités', path: '/coach/disponibilites', icon: IconClock },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
 ];
@@ -83,6 +86,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconRacket,
     children: [
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
+      { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
       { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'] },
       { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },

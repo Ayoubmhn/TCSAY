@@ -41,6 +41,7 @@ import { FederationAdminController } from './federation/federation-admin.control
 import { FederationController } from './federation/federation.controller';
 import { ReenrollmentController } from './seasons/reenrollment.controller';
 import { ExpensesController } from './expenses/expenses.controller';
+import { AvailabilityController } from './availability/availability.controller';
 import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReceiptsController } from './receipts/receipts.controller';
@@ -87,6 +88,7 @@ import { StaffController } from './staff/staff.controller';
     FederationAdminController,
     ReenrollmentController,
     ExpensesController,
+    AvailabilityController,
     PlayersImportController,
     AttendanceController,
     SessionReviewController,

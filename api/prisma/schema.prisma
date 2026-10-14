@@ -280,6 +280,8 @@ model Player {
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
+  availability          Availability?
+  availabilityExceptions AvailabilityException[]
 }
 
 model ParentLink {
@@ -306,6 +308,8 @@ model Coach {
   absences     CoachAbsence[]
   replacements CoachAbsence[] @relation("AbsenceReplacement")
   reservations Reservation[]
+  availability Availability?
+  availabilityExceptions AvailabilityException[]
 }
 
 // ───────────────────────── Saisons et catégories ─────────────────────────
@@ -1046,4 +1050,34 @@ model Expense {
   createdBy User @relation(fields: [createdById], references: [id])
 
   @@index([date])
+}
+
+/// Disponibilités de la semaine type (entraîneur ou joueur) : grille { "jour-heure": "D" | "P" | "I" } (jour 0 = dimanche,
+/// heure de début de l'heure, ex. « 3-17 » = mercredi 17h–18h). D disponible, P préféré, I indisponible ; absent = non renseigné.
+model Availability {
+  id          String   @id @default(uuid()) @db.Uuid
+  coachId     String?  @unique @db.Uuid
+  playerId    String?  @unique @db.Uuid
+  grid        Json
+  updatedById String?  @db.Uuid
+  updatedAt   DateTime @updatedAt
+
+  coach  Coach?  @relation(fields: [coachId], references: [id])
+  player Player? @relation(fields: [playerId], references: [id])
+}
+
+/// Indisponibilité datée (congé, examen, formation) d'un entraîneur ou d'un joueur.
+model AvailabilityException {
+  id        String   @id @default(uuid()) @db.Uuid
+  coachId   String?  @db.Uuid
+  playerId  String?  @db.Uuid
+  fromDate  DateTime @db.Date
+  toDate    DateTime @db.Date
+  reason    String
+  createdAt DateTime @default(now())
+
+  coach  Coach?  @relation(fields: [coachId], references: [id])
+  player Player? @relation(fields: [playerId], references: [id])
+
+  @@index([fromDate])
 }
