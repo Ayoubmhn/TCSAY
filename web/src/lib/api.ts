@@ -63,6 +63,12 @@ export function setUnauthorizedHandler(handler: () => void): void {
   onUnauthorized = handler;
 }
 
+/** Code du module Autorisations, gardé en mémoire seulement (jamais stocké) le temps de la visite. */
+let permissionsCode: string | null = null;
+export function setPermissionsCode(code: string | null): void {
+  permissionsCode = code;
+}
+
 type Query = Record<string, string | number | boolean | undefined | null>;
 
 async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
@@ -77,6 +83,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   if (token) headers.Authorization = `Bearer ${token}`;
   const space = getSpace();
   if (space) headers['X-Espace'] = space;
+  if (permissionsCode && path.startsWith('/permissions')) headers['X-Code-Autorisations'] = permissionsCode;
 
   let res: Response;
   try {

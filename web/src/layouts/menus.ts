@@ -7,7 +7,6 @@ import {
   IconCourt,
   IconHome,
   IconRacket,
-  IconSettings,
   IconTrophy,
   IconUserOff,
   IconUsers,
@@ -124,7 +123,6 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Import historique', path: '/admin/import', soon: true, perm: ['import.manage'] },
     ],
   },
-  { label: 'Autorisations', path: '/admin/autorisations', icon: IconSettings, perm: ['permissions.manage'] },
 ];
 
 export const MENUS: Record<Space, MenuItem[]> = {

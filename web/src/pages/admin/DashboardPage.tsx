@@ -80,7 +80,7 @@ export function DashboardPage() {
                       attribuez les rôles des comptes.
                     </CardText>
                     <CardActions>
-                      <Link className={LINK_BTN} to="/admin/autorisations">
+                      <Link className={LINK_BTN} to="/parametres/autorisations">
                         Gérer les autorisations
                       </Link>
                     </CardActions>

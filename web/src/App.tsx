@@ -51,6 +51,7 @@ import { PaymentsPage } from './pages/player/PaymentsPage';
 import { SessionsPage } from './pages/player/SessionsPage';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { PermissionsGate } from './components/PermissionsGate';
 import { NotFoundPage, SoonPage } from './pages/SoonPage';
 import { PlanningPage } from './pages/staff/PlanningPage';
 import { ReceiptsPage } from './pages/admin/ReceiptsPage';
@@ -108,6 +109,7 @@ export function App() {
       >
         {/* Tous les rôles */}
         <Route path="parametres" element={<SettingsPage />} />
+        <Route path="parametres/autorisations" element={admin(['permissions.manage'], <PermissionsGate><PermissionsPage /></PermissionsGate>)} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="matchs" element={<MatchesPage />} />
         <Route path="matchs/:id" element={<MatchPage />} />
@@ -174,7 +176,7 @@ export function App() {
         <Route path="admin/notifications" element={admin(['notifications.send'], <BroadcastsPage />)} />
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />
-        <Route path="admin/autorisations" element={admin(['permissions.manage'], <PermissionsPage />)} />
+        <Route path="admin/autorisations" element={<Navigate to="/parametres/autorisations" replace />} />
         <Route
           path="admin/import"
           element={admin(

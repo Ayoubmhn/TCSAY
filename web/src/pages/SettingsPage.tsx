@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { useState, type FormEvent } from 'react';
 import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { FederationCard } from '../components/FederationCard';
@@ -72,6 +73,18 @@ export function SettingsPage() {
               <CardText>{t('Informations personnelles modifiables par le club seulement.')}</CardText>
             </Card>
           </Section>
+          {me.permissions.includes('permissions.manage') && (
+            <Section title="Autorisations">
+              <Card>
+                <CardText keep>{t('Droits de chaque rôle et rôles des comptes : module protégé par votre code de sécurité.')}</CardText>
+                <div>
+                  <Link to="/parametres/autorisations" className="inline-flex items-center rounded-full bg-pri px-[18px] py-[10px] text-sm font-semibold text-white">
+                    {t('Ouvrir les autorisations')}
+                  </Link>
+                </div>
+              </Card>
+            </Section>
+          )}
           <Section title="Compte fédération (IJIN)">
             <FederationCard />
           </Section>

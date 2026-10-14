@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, ParseEnumPipe, ParseUUIDPipe, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Ip, Param, ParseEnumPipe, ParseUUIDPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Gender, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -9,6 +9,9 @@ import { assertVersion, notFound, rule } from '../common/rules';
 import { PlayersService } from '../players/players.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EDITABLE_ROLES, PERMISSION_KEYS, PERMISSIONS, ROLE_LABEL } from './permissions';
+import { verifyPassword } from '../auth/password';
+import { LoginThrottle } from '../security/login-throttle';
+import { PermissionsCodeGuard, PermissionsCodeService } from './permissions-code';
 import { PermissionsService } from './permissions.service';
 
 /** Rôles attribuables à un compte depuis ce module (joueur : via la fiche joueur, qui crée son dossier). */
@@ -45,6 +48,16 @@ class SetRolesDto {
   player?: NewPlayerDto;
 }
 
+class CodeDto {
+  /** Mot de passe du compte du président (confirme qu'il s'agit bien de lui). */
+  @IsString()
+  @MaxLength(200)
+  password: string;
+
+  @Matches(/^\d{4,8}$/, { message: 'Le code contient 4 à 8 chiffres.' })
+  code: string;
+}
+
 class UsersQuery {
   @IsOptional()
   @IsString()
@@ -58,6 +71,7 @@ const label = (roles: Role[]) => roles.map((r) => ROLE_LABEL[r]).join(', ') || '
 @ApiTags('Autorisations')
 @ApiBearerAuth()
 @Perm('permissions.manage')
+@UseGuards(PermissionsCodeGuard)
 @Controller('permissions')
 export class PermissionsController {
   constructor(
@@ -65,7 +79,33 @@ export class PermissionsController {
     private readonly permissions: PermissionsService,
     private readonly audit: AuditService,
     private readonly players: PlayersService,
+    private readonly codes: PermissionsCodeService,
+    private readonly throttle: LoginThrottle,
   ) {}
+
+  /** Le code des autorisations est-il défini ? (sans code : à créer avant d'ouvrir le module) */
+  @Get('code-status')
+  async codeStatus() {
+    return { hasCode: await this.codes.hasCode() };
+  }
+
+  /** Définit ou remplace le code (4 à 8 chiffres), avec le mot de passe du compte connecté. Audit sans le code. */
+  @Post('code')
+  @HttpCode(200)
+  async setCode(@CurrentUser() user: AuthUser, @Body() dto: CodeDto, @Ip() ip: string) {
+    const key = `pw:${user.id}`;
+    this.throttle.check(ip, key);
+    const account = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+    if (!(await verifyPassword(dto.password, account.passwordHash))) {
+      this.throttle.fail(ip, key);
+      throw new BadRequestException('Mot de passe incorrect.');
+    }
+    this.throttle.success(ip, key);
+    const had = await this.codes.hasCode();
+    await this.codes.set(dto.code);
+    await this.audit.log(user.id, { action: had ? 'Code des autorisations changé' : 'Code des autorisations créé', entity: 'Setting', entityId: 'permissions.code', target: 'Autorisations' });
+    return { ok: true };
+  }
 
   @Get()
   async overview() {

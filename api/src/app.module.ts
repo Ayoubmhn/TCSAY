@@ -1,6 +1,7 @@
 import { UpdatesController } from './imports/updates.controller';
 import { UpdatesService } from './imports/updates.service';
 import { LoginThrottle } from './security/login-throttle';
+import { PermissionsCodeGuard, PermissionsCodeService } from './permissions/permissions-code';
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { CoachAbsencesController } from './absences/coach-absences.controller';
@@ -97,6 +98,8 @@ import { StaffController } from './staff/staff.controller';
   providers: [
     UpdatesService,
     LoginThrottle,
+    PermissionsCodeService,
+    PermissionsCodeGuard,
     PlayersService,
     PaymentsService,
     LateInstallmentsService,
