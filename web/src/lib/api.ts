@@ -102,6 +102,26 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   return data as T;
 }
 
+/** Fichier protégé (justificatif…) : téléchargé avec le jeton, puis ouvert dans un nouvel onglet. */
+export async function openFile(path: string): Promise<void> {
+  const tab = window.open('', '_blank');
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const space = getSpace();
+  if (space) headers['X-Espace'] = space;
+  const res = await fetch(new URL(`${BASE_URL}${path}`, window.location.origin), { headers });
+  if (!res.ok) {
+    tab?.close();
+    const data = (await res.json().catch(() => undefined)) as { message?: string } | undefined;
+    throw new ApiError(res.status, data?.message ?? `Erreur ${res.status}`);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  if (tab) tab.location.href = url;
+  else window.location.href = url;
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 export const api = {
   get: <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body ?? {}),

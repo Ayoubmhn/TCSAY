@@ -40,6 +40,7 @@ import { PlayersImportService } from './players/import/players-import.service';
 import { FederationAdminController } from './federation/federation-admin.controller';
 import { FederationController } from './federation/federation.controller';
 import { ReenrollmentController } from './seasons/reenrollment.controller';
+import { ExpensesController } from './expenses/expenses.controller';
 import { BroadcastsController } from './notifications/broadcasts.controller';
 import { NotificationsController } from './notifications/notifications.controller';
 import { ReceiptsController } from './receipts/receipts.controller';
@@ -85,6 +86,7 @@ import { StaffController } from './staff/staff.controller';
     FederationController,
     FederationAdminController,
     ReenrollmentController,
+    ExpensesController,
     PlayersImportController,
     AttendanceController,
     SessionReviewController,

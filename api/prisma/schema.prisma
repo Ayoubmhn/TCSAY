@@ -218,6 +218,7 @@ model User {
   notifications      Notification[]
   broadcastsSent     NotificationBroadcast[]
   passwordResets     PasswordReset[]
+  expensesCreated    Expense[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -1003,4 +1004,46 @@ model PasswordReset {
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt])
+}
+
+enum ExpenseCategory {
+  UTILITIES // Factures STEG, SONEDE, internet, téléphone
+  EQUIPMENT // Balles, raquettes, matériel
+  MAINTENANCE // Entretien des terrains et des locaux
+  TAX // Déclarations fiscales, impôts, taxes
+  SOCIAL // Déclarations sociales (CNSS)
+  INSURANCE // Assurances
+  FEDERATION // Licences, engagements, affiliations
+  TRAVEL // Déplacements, tournois
+  SERVICES // Prestataires (comptable, nettoyage…)
+  OTHER
+}
+
+/// Dépense du club (facture, déclaration…) : saisie par l'administration (droit « expenses.manage »).
+/// Suppression = archivage (R8) ; justificatif facultatif (PDF ou image, 5 Mo au plus) stocké en base.
+model Expense {
+  id          String          @id @default(uuid()) @db.Uuid
+  category    ExpenseCategory
+  label       String
+  supplier    String?
+  reference   String? // n° de facture, de déclaration
+  amount      Decimal         @db.Decimal(10, 3)
+  date        DateTime        @db.Date // date de la facture / de la déclaration
+  dueDate     DateTime?       @db.Date // date limite de paiement
+  paidAt      DateTime?       @db.Date
+  method      String? // CASH, CHEQUE, TRANSFER
+  note        String?
+  fileName    String?
+  fileType    String?
+  fileData    Bytes?
+  archivedAt  DateTime?
+  archiveReason String?
+  version     Int             @default(1)
+  createdById String          @db.Uuid
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([date])
 }

@@ -41,7 +41,7 @@ type FinanceStats = {
   methods: { CASH: Bucket; CHEQUE: Bucket; ONLINE: Bucket };
   refunds: number;
   plans: { FULL: number; SEMESTER: number; MONTHLY: number };
-  balance: { cotisations: number; reservations: number; salariesPaid: number; salariesDue: number; net: number };
+  balance: { cotisations: number; reservations: number; salariesPaid: number; salariesDue: number; expensesPaid: number; expensesDue: number; net: number };
 };
 
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
@@ -203,7 +203,7 @@ export function FinanceStatsPage() {
                 <Card>
                   <CardSubtitle>Bilan de la saison</CardSubtitle>
                   <Kpi>{DT(d.balance.net)}</Kpi>
-                  <CardText>recettes − salaires versés</CardText>
+                  <CardText>recettes − salaires et dépenses payés</CardText>
                 </Card>
               </CardGrid>
 
@@ -339,6 +339,10 @@ export function FinanceStatsPage() {
                       <span>Salaires versés</span>
                       <b className="font-semibold tabular-nums">− {DT(d.balance.salariesPaid)}</b>
                     </CardRow>
+                    <CardRow>
+                      <span>Dépenses payées (factures, déclarations)</span>
+                      <b className="font-semibold tabular-nums">− {DT(d.balance.expensesPaid)}</b>
+                    </CardRow>
                     <div className="border-t-[1.5px] border-line pt-2">
                       <CardRow>
                         <b className="font-semibold">Solde</b>
@@ -346,15 +350,16 @@ export function FinanceStatsPage() {
                       </CardRow>
                     </div>
                   </div>
-                  {d.balance.salariesDue > 0 && (
+                  {(d.balance.salariesDue > 0 || d.balance.expensesDue > 0) && (
                     <Pills className="mt-3">
-                      <Pill tone="s">{DT(d.balance.salariesDue)} de salaires à verser</Pill>
+                      {d.balance.salariesDue > 0 && <Pill tone="s">{DT(d.balance.salariesDue)} de salaires à verser</Pill>}
+                      {d.balance.expensesDue > 0 && <Pill tone="s">{DT(d.balance.expensesDue)} de dépenses à payer</Pill>}
                     </Pills>
                   )}
                 </Card>
                 <Note>
                   Les réservations sont comptées au montant réservé (non annulées) : leur encaissement n’est pas encore saisi dans
-                  l’application. Les dépenses (STEG, SONEDE, achats) s’ajouteront au bilan avec le module dépenses.
+                  l’application. Les dépenses sont celles datées dans la saison (Finances › Dépenses).
                 </Note>
               </Section>
             </>

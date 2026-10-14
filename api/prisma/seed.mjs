@@ -43,7 +43,7 @@ async function wipe() {
   for (const model of [
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
     'matchPoint', 'match', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
-    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'passwordReset', 'user', 'courtRate', 'court',
+    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'passwordReset', 'expense', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
     await prisma[model].deleteMany();

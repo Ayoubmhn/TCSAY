@@ -111,6 +111,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Accès après paiement', path: '/admin/acces-paiement', perm: ['permissions.manage', 'payments.collect'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
       { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
+      { label: 'Dépenses', path: '/admin/depenses', perm: ['expenses.manage'] },
       { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
     ],
   },

@@ -216,6 +216,13 @@ export class FinanceStatsController {
     const reservationsTotal = reservations.reduce((t, r) => t + num(r.price), 0);
     const salariesPaid = salaries.filter((s) => s.paidAt).reduce((t, s) => t + num(s.amount), 0);
     const salariesDue = salaries.filter((s) => !s.paidAt).reduce((t, s) => t + num(s.amount), 0);
+    // Dépenses (factures, déclarations) payées ou à payer dans la période de la saison.
+    const expenses = await this.prisma.expense.findMany({
+      where: { archivedAt: null, date: { gte: season.startDate, lte: season.endDate } },
+      select: { amount: true, paidAt: true },
+    });
+    const expensesPaid = expenses.filter((e) => e.paidAt).reduce((t, e) => t + num(e.amount), 0);
+    const expensesDue = expenses.filter((e) => !e.paidAt).reduce((t, e) => t + num(e.amount), 0);
     const roundAll = <T extends Record<string, { count: number; amount: number }>>(o: T) =>
       Object.fromEntries(Object.entries(o).map(([k, v]) => [k, { count: v.count, amount: round(v.amount) }])) as T;
 
@@ -245,7 +252,9 @@ export class FinanceStatsController {
         reservations: round(reservationsTotal),
         salariesPaid: round(salariesPaid),
         salariesDue: round(salariesDue),
-        net: round(cashed + reservationsTotal - salariesPaid),
+        expensesPaid: round(expensesPaid),
+        expensesDue: round(expensesDue),
+        net: round(cashed + reservationsTotal - salariesPaid - expensesPaid),
       },
     };
   }
