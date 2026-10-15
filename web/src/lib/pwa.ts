@@ -25,8 +25,12 @@ export function registerServiceWorker(): void {
   });
 }
 
-/** L'application tourne-t-elle installée (écran d'accueil) ? */
+/** Site ouvert dans l'application Android TCSAY (APK : user-agent « TCSAYApp »). */
+export const isInApp = (): boolean => /TCSAYApp\//.test(navigator.userAgent);
+
+/** L'application tourne-t-elle installée (écran d'accueil ou APK) ? */
 export function isStandalone(): boolean {
+  if (isInApp()) return true;
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 }
 

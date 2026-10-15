@@ -3,16 +3,18 @@
 Application Android / iPhone du club, dans `mobile/`, qui parle à la même API que le site (`api/`).
 Expo SDK 57 · expo-router (écrans dans `src/app/`) · TanStack Query · composants faits main (`src/components/ui.tsx`, aucune bibliothèque d'interface) · police Montserrat.
 
-## Écrans livrés (lot 1)
+## Fonctionnement (version 0.2)
 
-| Espace | Écrans |
-|---|---|
-| Tous | Connexion (adresse du serveur réglable, mot de passe oublié), changement de mot de passe obligatoire, Notifications, Menu (changer d'espace), Paramètres (thème Auto / Clair / Sombre) |
-| Joueur, parent | Accueil, Mes séances (14 jours), Mes paiements (tranches, reçus), Mes absences ; choix de l'enfant en haut |
-| Entraîneur | Mes séances, Présences (pointage de la séance en cours), Mes salaires |
-| Administration | Dashboard (le reste reste sur le site pour l'instant) |
+L'application affiche **le site TCSAY complet** (tous les modules, identiques au web et toujours à jour) dans une vue
+plein écran (`react-native-webview`, `src/app/index.tsx`) : bouton retour Android, écran « Pas de connexion »,
+liens externes (téléphone, email, WhatsApp, vidéos) ouverts dans l'application correspondante, bandes système
+à la couleur du thème du site. Le site reconnaît l'application (user-agent `TCSAYApp/…`) : « Rester connecté »
+coché d'office, carte « Installer l'application » masquée.
 
-À venir : lot 2 (réservation, matchs, tournois, suivi, exercices, bilans, disponibilités), lot 3 (gestion admin).
+- Adresse du site : `EXPO_PUBLIC_WEB_URL` (dans `eas.json`), par défaut `https://tcsay.vercel.app`.
+- Limites : impression et téléchargement de fichiers (reçus PDF) à faire depuis un navigateur ; notifications push
+  du navigateur indisponibles dans l'application (les notifications restent dans la cloche).
+- Les écrans natifs commencés (lot 1, lots 2–3 partiels) sont gardés dans `src/natif/` et `src/wip/` (hors routes).
 
 ## 1. Préparer (une fois)
 
@@ -50,9 +52,9 @@ L'API doit tourner sur le PC : `cd api && npm run start:dev` (port 3000).
 - Sur le PC (Android Studio installé) :
   ```bash
   cd mobile
-  npx expo prebuild --platform android
+  npx expo prebuild --platform android --clean     # obligatoire après l'ajout d'un module natif (WebView)
   cd android
-  ./gradlew assembleRelease        # Windows : gradlew.bat assembleRelease
+  EXPO_PUBLIC_WEB_URL=https://tcsay.vercel.app ./gradlew assembleRelease
   ```
   APK : `mobile/android/app/build/outputs/apk/release/app-release.apk` (signé avec la clé de débogage : pour tester seulement).
 - Ou dans le cloud Expo (compte gratuit sur expo.dev, sans Android Studio) :

@@ -5,6 +5,7 @@ import { FederationCard } from '../components/FederationCard';
 import { KidsFederation } from '../components/KidsFederation';
 import { InstallApp } from '../components/InstallApp';
 import { PushSettings } from '../components/PushSettings';
+import { isInApp } from '../lib/pwa';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
 import { TextField } from '../components/ui/Field';
@@ -120,10 +121,12 @@ export function SettingsPage() {
             </Card>
           </Section>
 
-          <Section title="Application mobile">
-            <InstallApp />
-            <PushSettings />
-          </Section>
+          {!isInApp() && (
+            <Section title="Application mobile">
+              <InstallApp />
+              <PushSettings />
+            </Section>
+          )}
 
           <Section title="Préférences">
             <Card>
