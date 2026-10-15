@@ -42,5 +42,11 @@ Limites de l'offre gratuite (conditions Render, à vérifier sur leur site) :
 
 **Emails :** pas envoyés pendant les tests (ils apparaissent « Échec » dans *Emails envoyés*). Pour un test réel, ajoutez `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` dans *Environment*.
 
+## Option C : base et API sur Render, site sur Vercel (configuration actuelle)
+1. Render : base `tcsay-db` + service `tcsay-demo` (API seule : `SERVE_WEB=false`, `TRUST_PROXY_HOPS=2`, build `cd api && npm ci --include=dev && npm run build`).
+2. Vercel : projet importé depuis GitHub, **Root Directory `web`**, variable `VITE_DEMO=1`, branche de production `claude/tcsay-platform-dev-p3t75p`. `web/vercel.json` renvoie `/api/*` vers `https://tcsay-demo.onrender.com` (même adresse pour le navigateur : pas de CORS).
+3. Render › tcsay-demo › Environment : `APP_URL` = l'adresse Vercel (liens des emails).
+4. Application mobile : `mobile/eas.json` (profil `preview`) pointe sur l'adresse Render.
+
 ## Plus tard : le vrai domaine
 Avec `tennisclubdesayada.tn` : Render › Settings › Custom Domains, ou un VPS (voir le sprint S12).

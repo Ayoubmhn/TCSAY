@@ -1,5 +1,5 @@
-# Démo en ligne provisoire (tests par les collègues) sur Render : une base PostgreSQL et un service
-# qui sert à la fois l'API (/api/v1) et le site web compilé, sur une seule adresse https://….onrender.com.
+# Démo en ligne provisoire (tests par les collègues) sur Render : une base PostgreSQL et l'API (/api/v1).
+# Le site web est sur Vercel (web/vercel.json) ; l'application mobile appelle directement https://….onrender.com.
 # Données de DÉMONSTRATION uniquement (aucune donnée réelle de joueurs ou de mineurs).
 # Mise en route : voir docs/DEMO_EN_LIGNE.md (Render › New › Blueprint › ce dépôt).
 databases:
@@ -19,9 +19,8 @@ services:
     branch: claude/tcsay-platform-dev-p3t75p
     # Pas de déploiement automatique à chaque push : déploiement manuel seulement (Render › Manual Deploy).
     autoDeploy: false
-    buildCommand: >-
-      cd web && npm ci --include=dev && npm run build &&
-      cd ../api && npm ci --include=dev && npm run build
+    # API seule : le site web est hébergé sur Vercel (web/vercel.json renvoie /api vers ce service).
+    buildCommand: cd api && npm ci --include=dev && npm run build
     startCommand: cd api && npm run start:demo
     healthCheckPath: /api/v1/health
     envVars:
@@ -37,12 +36,12 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      # Le site web est servi par l'API (même adresse, pas de CORS)
+      # Le site web est sur Vercel : l'API ne le sert pas.
       - key: SERVE_WEB
-        value: "true"
-      # Boutons des comptes de démo sur la page de connexion
-      - key: VITE_DEMO
-        value: "1"
+        value: "false"
+      # Requêtes du site : navigateur → Vercel → Render (2 intermédiaires) pour lire l'IP réelle.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
       # Comptes de démo partagés : mot de passe figé, pas de changement obligatoire
       - key: DEMO_MODE
         value: "true"

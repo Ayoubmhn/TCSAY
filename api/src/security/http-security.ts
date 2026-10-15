@@ -30,7 +30,8 @@ const CSP = [
  */
 export function applyHttpSecurity(app: NestExpressApplication) {
   const prod = production();
-  if (process.env.TRUST_PROXY === 'true' || process.env.RENDER) app.set('trust proxy', 1);
+  // Nombre d'intermédiaires de confiance : 1 = Render seul ; 2 = Vercel (renvoi /api) puis Render. Sert à lire l'IP réelle (limites d'essais).
+  if (process.env.TRUST_PROXY === 'true' || process.env.RENDER) app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS ?? 1));
   app.disable('x-powered-by');
 
   app.use((req: Request, res: Response, next: NextFunction) => {
