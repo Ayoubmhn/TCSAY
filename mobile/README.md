@@ -12,9 +12,38 @@ liens externes (téléphone, email, WhatsApp, vidéos) ouverts dans l'applicatio
 coché d'office, carte « Installer l'application » masquée.
 
 - Adresse du site : `EXPO_PUBLIC_WEB_URL` (dans `eas.json`), par défaut `https://tcsay.vercel.app`.
-- Limites : impression et téléchargement de fichiers (reçus PDF) à faire depuis un navigateur ; notifications push
-  du navigateur indisponibles dans l'application (les notifications restent dans la cloche).
+- Limites : impression et téléchargement de fichiers (reçus PDF) à faire depuis un navigateur.
+- **Notifications du téléphone** (version 0.3, `expo-notifications`, `src/push.ts`) : au premier lancement,
+  l'application demande l'autorisation, obtient le jeton push de l'appareil et le donne au site, qui le rattache au
+  compte connecté (`POST /push/native`, retiré à la déconnexion). Chaque notification de la cloche part aussi sur le
+  téléphone par le service push d'Expo (`api/src/push/expo-push.ts`), même application fermée ; la toucher ouvre la
+  page concernée. Paramètres › « Notifications du téléphone » : état, essai, réglages Android.
 - Les écrans natifs commencés (lot 1, lots 2–3 partiels) sont gardés dans `src/natif/` et `src/wip/` (hors routes).
+
+## Notifications du téléphone : mise en place (une fois)
+
+Android remet les notifications par **Firebase Cloud Messaging** (gratuit). Sans ces réglages, l'application marche
+mais affiche « Notifications indisponibles ».
+
+1. **Firebase** : https://console.firebase.google.com › *Ajouter un projet* (`TCSAY`, Analytics inutile).
+2. Dans le projet : icône Android › *nom du package* **`tn.tcsay.app`** › *Enregistrer* › **télécharger
+   `google-services.json`**, le poser dans `mobile/` (ignoré par Git, ne jamais le committer).
+3. Le donner au build EAS (variable de fichier) :
+   ```bash
+   cd mobile
+   npx eas-cli@latest env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json --environment preview
+   ```
+4. **Clé d'envoi FCM pour Expo** : Firebase › ⚙ *Paramètres du projet* › *Comptes de service* › *Générer une
+   nouvelle clé privée* (fichier JSON, secret : ne jamais le committer). Puis :
+   ```bash
+   npx eas-cli@latest credentials -p android
+   ```
+   › *preview* (puis *production*) › *Google Service Account* › *Manage your Google Service Account Key for Push
+   Notifications (FCM V1)* › *Upload a new service account key* › choisir le fichier JSON.
+5. Construire le nouvel APK : `npx eas-cli@latest build -p android --profile preview`, l'installer, accepter
+   « Autoriser les notifications », puis Paramètres › Notifications du téléphone › *Envoyer un essai*.
+
+L'API (Render) n'a besoin d'aucune clé : elle envoie au service push d'Expo (`EXPO_ACCESS_TOKEN` facultatif).
 
 ## 1. Préparer (une fois)
 
@@ -78,6 +107,6 @@ npx expo export --platform android        # le bundle Android se compile
 - **Adresse du serveur** : par défaut `EXPO_PUBLIC_API_URL`, sinon `http://10.0.2.2:3000` (émulateur Android). Modifiable sur l'écran de connexion, mémorisée sur le téléphone.
 - **Session** : jeton gardé chiffré (expo-secure-store, Keystore Android) ; « Rester connecté » = 30 jours.
 - **HTTP en clair** autorisé (`expo-build-properties`, `usesCleartextTraffic`) pour tester sur le Wi-Fi local ; en production, utiliser l'adresse `https`.
-- **Notifications push** sur le téléphone : à brancher plus tard (Firebase Cloud Messaging, compte Google du club). En attendant : onglet Alertes, relu toutes les 60 s.
+- **Notifications push** sur le téléphone : voir « Notifications du téléphone » ci-dessus (Firebase Cloud Messaging par Expo).
 - **Icônes** : le logo source ne fait que 128 px ; fournir un logo haute définition (1024 px, fond transparent) pour des icônes nettes.
 - Ne jamais modifier `android/` ou `ios/` à la main (dossiers générés, ignorés par git) : régler `app.json`.

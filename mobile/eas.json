@@ -11,7 +11,8 @@
       },
       "env": {
         "EXPO_PUBLIC_WEB_URL": "https://tcsay.vercel.app"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "android": {
@@ -19,7 +20,8 @@
       },
       "env": {
         "EXPO_PUBLIC_WEB_URL": "https://tcsay.vercel.app"
-      }
+      },
+      "environment": "production"
     }
   }
 }

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { firstPath, menuFor } from '../layouts/menus';
+import { onNativePush, registerNativePush, removeNativePush } from '../lib/native-push';
 import { unsubscribeOnLogout } from '../lib/push';
 import { ApiError, api, getSpace, getToken, setStoredSpace, setToken, setUnauthorizedHandler } from '../lib/api';
 import type { Actor, Me, Space } from '../lib/types';
@@ -54,8 +55,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [me, space]);
 
+  // Application mobile : le jeton push du téléphone suit le compte connecté.
+  const meId = me?.id;
+  useEffect(() => {
+    if (!meId) return;
+    void registerNativePush();
+    return onNativePush(() => void registerNativePush());
+  }, [meId]);
+
   const logout = useCallback(() => {
     void unsubscribeOnLogout();
+    removeNativePush();
     setToken(null);
     setTokenState(null);
     setStoredSpace(null);

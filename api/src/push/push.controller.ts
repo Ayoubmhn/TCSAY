@@ -1,10 +1,11 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EmailKind } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsOptional, IsString, IsUrl, Matches, MaxLength, ValidateNested } from 'class-validator';
-import { AllowPendingPassword, AuthUser, CurrentUser } from '../auth/auth-user';
+import { IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { AllowPendingPassword, AuthUser, CurrentUser, Public } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
+import { isExpoToken } from './expo-push';
 import { PushService } from './push.service';
 
 class KeysDto {
@@ -20,6 +21,11 @@ class SubscribeDto {
 
 class EndpointDto {
   @IsString() @MaxLength(1000) endpoint: string;
+}
+
+class NativeTokenDto {
+  @IsString() @MaxLength(250) token: string;
+  @IsOptional() @IsIn(['android', 'ios']) platform?: string;
 }
 
 /** Abonnement de l'appareil aux notifications push (chaque compte, sur chacun de ses appareils). */
@@ -54,6 +60,30 @@ export class PushController {
   @HttpCode(200)
   async unsubscribe(@CurrentUser() user: AuthUser, @Body() dto: EndpointDto) {
     await this.prisma.pushSubscription.deleteMany({ where: { userId: user.id, endpoint: dto.endpoint } });
+    return { ok: true };
+  }
+
+  /** Application mobile (APK) : jeton push de l'appareil, rattaché au compte connecté (il passe au nouveau compte après un changement). */
+  @Post('native')
+  @HttpCode(200)
+  @AllowPendingPassword()
+  async native(@CurrentUser() user: AuthUser, @Body() dto: NativeTokenDto) {
+    if (!isExpoToken(dto.token)) throw new BadRequestException('Jeton de notification invalide.');
+    const platform = dto.platform ?? 'android';
+    await this.prisma.nativePushToken.upsert({
+      where: { token: dto.token },
+      create: { userId: user.id, token: dto.token, platform },
+      update: { userId: user.id, platform },
+    });
+    return { ok: true };
+  }
+
+  /** Déconnexion dans l'application : l'appareil ne reçoit plus les notifications du compte (le jeton suffit, la session est déjà fermée). */
+  @Public()
+  @Post('native/remove')
+  @HttpCode(200)
+  async nativeRemove(@Body() dto: NativeTokenDto) {
+    if (isExpoToken(dto.token)) await this.prisma.nativePushToken.deleteMany({ where: { token: dto.token } });
     return { ok: true };
   }
 

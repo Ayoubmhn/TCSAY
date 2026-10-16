@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { sendExpoPush, type ExpoMessage } from './expo-push';
 import { generateVapidKeys, sendWebPush, type VapidKeys } from './web-push';
 
 const SETTING_KEY = 'push.vapid';
@@ -10,6 +11,7 @@ const EVERY_MS = 15_000;
  * Notifications push : chaque notification créée dans l'application (paiement en retard, séance déplacée, match,
  * message du club…) est aussi envoyée aux appareils abonnés de son destinataire. Clés VAPID : VAPID_PUBLIC_KEY,
  * VAPID_PRIVATE_KEY, VAPID_SUBJECT dans api/.env ; à défaut, générées une fois et gardées en base (développement).
+ * L'application mobile (APK) reçoit les mêmes notifications par le service push d'Expo (`expo-push.ts`).
  */
 @Injectable()
 export class PushService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -71,6 +73,7 @@ export class PushService implements OnApplicationBootstrap, OnModuleDestroy {
           }
         }
       }
+      sent += await this.flushNative(rows);
       await this.prisma.notification.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { pushedAt: new Date() } });
       return sent;
     } catch (e) {
@@ -78,6 +81,36 @@ export class PushService implements OnApplicationBootstrap, OnModuleDestroy {
       return 0;
     } finally {
       this.running = false;
+    }
+  }
+
+  /** Appareils de l'application mobile : un message par notification fraîche et par appareil du destinataire. */
+  private async flushNative(rows: { id: string; userId: string; title: string; body: string; link: string | null; createdAt: Date }[]): Promise<number> {
+    const fresh = rows.filter((n) => Date.now() - n.createdAt.getTime() < 6 * 3600_000);
+    if (!fresh.length) return 0;
+    const devices = await this.prisma.nativePushToken.findMany({ where: { userId: { in: [...new Set(fresh.map((r) => r.userId))] } } });
+    if (!devices.length) return 0;
+    const targets: { deviceId: string; message: ExpoMessage }[] = [];
+    for (const n of fresh) {
+      for (const d of devices.filter((x) => x.userId === n.userId)) {
+        targets.push({ deviceId: d.id, message: { to: d.token, title: n.title, body: n.body.slice(0, 300), data: { link: n.link ?? '/notifications', id: n.id } } });
+      }
+    }
+    try {
+      const results = await sendExpoPush(targets.map((t) => t.message));
+      const ok = new Set<string>();
+      const gone = new Set<string>();
+      results.forEach((r, i) => {
+        if (r.ok) ok.add(targets[i].deviceId);
+        else if (r.unregistered) gone.add(targets[i].deviceId);
+        else this.log.warn(`Push mobile refusé : ${r.error}`);
+      });
+      if (gone.size) await this.prisma.nativePushToken.deleteMany({ where: { id: { in: [...gone] } } });
+      if (ok.size) await this.prisma.nativePushToken.updateMany({ where: { id: { in: [...ok] } }, data: { lastUsedAt: new Date() } });
+      return results.filter((r) => r.ok).length;
+    } catch (e) {
+      this.log.warn(`Push mobile impossible : ${e instanceof Error ? e.message : e}`);
+      return 0;
     }
   }
 }

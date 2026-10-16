@@ -1,13 +1,15 @@
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Linking, Platform, Pressable, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, AppState, BackHandler, Linking, Platform, Pressable, Text, View, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
+import { linkOf, Notifications, openNotificationSettings, setupPush, type NativePush } from '../push';
 
 /**
  * Application TCSAY : le site web complet (tous les modules, toujours à jour) dans une vue plein écran.
  * Adresse : EXPO_PUBLIC_WEB_URL (eas.json), sinon le site en ligne.
+ * Notifications du téléphone : jeton push donné au site (`window.__TCSAY_PUSH__`), notification touchée = page ouverte.
  */
 const SITE = (process.env.EXPO_PUBLIC_WEB_URL ?? 'https://tcsay.vercel.app').replace(/\/+$/, '');
 const SITE_ORIGIN = SITE.match(/^https?:\/\/[^/]+/)?.[0] ?? SITE;
@@ -28,6 +30,10 @@ const WATCH_THEME = `
 true;
 `;
 
+/** Donne au site l'état des notifications du téléphone (le site rattache le jeton au compte connecté). */
+const pushScript = (push: NativePush) =>
+  `window.__TCSAY_PUSH__ = ${JSON.stringify(push)}; window.dispatchEvent(new Event('tcsay-native-push')); true;`;
+
 /** « rgb(18, 18, 18) » → sombre ? */
 function isDark(color: string) {
   const m = color.match(/\d+/g);
@@ -44,6 +50,34 @@ export default function SiteScreen() {
   const [loading, setLoading] = useState(true);
   const [bg, setBg] = useState(system === 'dark' ? '#121212' : '#fafafa');
   const dark = isDark(bg);
+  // Application lancée en touchant une notification : on ouvre directement la bonne page.
+  const [start] = useState(() => {
+    const link = linkOf(Notifications.getLastNotificationResponse());
+    return link ? SITE + link : SITE;
+  });
+  const [push, setPush] = useState<NativePush | null>(null);
+
+  // Autorisation et jeton au premier lancement ; revérifiés au retour dans l'application (réglages modifiés).
+  useEffect(() => {
+    void setupPush(true).then(setPush);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void setupPush(false).then(setPush);
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    if (push) web.current?.injectJavaScript(pushScript(push));
+  }, [push]);
+
+  // Notification touchée pendant que l'application tourne : page correspondante.
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const link = linkOf(response);
+      if (link) web.current?.injectJavaScript(`window.location.assign(${JSON.stringify(SITE + link)}); true;`);
+    });
+    return () => sub.remove();
+  }, []);
 
   // Bouton retour d'Android : page précédente du site, sinon fermeture normale.
   useEffect(() => {
@@ -69,8 +103,15 @@ export default function SiteScreen() {
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
     try {
-      const msg = JSON.parse(e.nativeEvent.data) as { type: string; value: string };
+      const msg = JSON.parse(e.nativeEvent.data) as { type: string; value?: string };
       if (msg.type === 'bg' && msg.value) setBg(msg.value);
+      // Demandes du site (Paramètres › Notifications du téléphone).
+      if (msg.type === 'push-enable')
+        void setupPush(true).then((p) => {
+          setPush(p);
+          if (p.status === 'denied') openNotificationSettings();
+        });
+      if (msg.type === 'push-settings') openNotificationSettings();
     } catch {
       /* message ignoré */
     }
@@ -98,9 +139,9 @@ export default function SiteScreen() {
       ) : (
         <WebView
           ref={web}
-          source={{ uri: SITE }}
+          source={{ uri: start }}
           style={{ flex: 1, backgroundColor: bg }}
-          applicationNameForUserAgent="TCSAYApp/0.2"
+          applicationNameForUserAgent="TCSAYApp/0.3"
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled
@@ -115,6 +156,7 @@ export default function SiteScreen() {
           onShouldStartLoadWithRequest={onShouldStart}
           onLoadEnd={() => {
             setLoading(false);
+            if (push) web.current?.injectJavaScript(pushScript(push));
             void SplashScreen.hideAsync();
           }}
           onError={() => {

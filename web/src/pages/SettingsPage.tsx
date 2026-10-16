@@ -4,6 +4,7 @@ import { ACTOR_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { FederationCard } from '../components/FederationCard';
 import { KidsFederation } from '../components/KidsFederation';
 import { InstallApp } from '../components/InstallApp';
+import { NativePushSettings } from '../components/NativePushSettings';
 import { PushSettings } from '../components/PushSettings';
 import { isInApp } from '../lib/pwa';
 import { Button } from '../components/ui/Button';
@@ -121,7 +122,11 @@ export function SettingsPage() {
             </Card>
           </Section>
 
-          {!isInApp() && (
+          {isInApp() ? (
+            <Section title="Notifications du téléphone">
+              <NativePushSettings />
+            </Section>
+          ) : (
             <Section title="Application mobile">
               <InstallApp />
               <PushSettings />

@@ -220,6 +220,7 @@ model User {
   broadcastsSent     NotificationBroadcast[]
   passwordResets     PasswordReset[]
   pushSubscriptions  PushSubscription[]
+  nativePushTokens   NativePushToken[]
   expensesCreated    Expense[]
   tournamentsCreated Tournament[]
 }
@@ -1196,6 +1197,20 @@ model PushSubscription {
   p256dh     String
   auth       String
   userAgent  String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Appareil de l'application mobile (APK) : jeton du service push d'Expo (FCM sur Android).
+model NativePushToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @db.Uuid
+  token      String    @unique
+  platform   String
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
 
