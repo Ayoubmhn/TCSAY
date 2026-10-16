@@ -153,6 +153,9 @@ export function SettingsPage() {
                 onChange={setTheme}
               />
               <CardText>{t('Préférences enregistrées sur cet appareil.')}</CardText>
+              <CardText keep>
+                {t('Version du site')} : <span className="tabular-nums">{__APP_VERSION__}</span>
+              </CardText>
             </Card>
           </Section>
         </div>

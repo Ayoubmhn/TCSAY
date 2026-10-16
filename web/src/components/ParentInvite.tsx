@@ -36,12 +36,23 @@ function SendButtons({ invite }: { invite: Invite }) {
   const wa = waNumber(invite.phone);
   const text = encodeURIComponent(inviteMessage(invite));
   const copy = async () => {
+    const text = inviteMessage(invite);
     try {
-      await navigator.clipboard.writeText(inviteMessage(invite));
-      toast('Message copié : collez-le dans WhatsApp ou un SMS.');
+      await navigator.clipboard.writeText(text);
     } catch {
-      toast('Copie impossible : sélectionnez le lien à la main.');
+      // Application mobile (vue web) ou navigateur ancien : copie par une zone de texte temporaire.
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      if (!ok) return toast('Copie impossible : sélectionnez le lien à la main.');
     }
+    toast('Message copié : collez-le dans WhatsApp ou un SMS.');
   };
   return (
     <div className="flex flex-wrap gap-2">
