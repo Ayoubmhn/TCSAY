@@ -164,6 +164,7 @@ export function PlayerFormModal({
   const create = useAction(
     async () => {
       const p = await api.post<Created>('/players', body(f));
+      if (disc.kind && !p.membership) toast('Joueur créé sans cotisation (pas de tarif) : la réduction sera à saisir dans « Modifier ».');
       if (disc.kind && p.membership) {
         try {
           await api.put('/memberships/discount', discountBody(p.id));
@@ -467,7 +468,16 @@ export function PlayerFormModal({
                 </Pill>
               ) : null}
             </div>
-            {fee.data && discountFields}
+            {discountFields}
+            {disc.kind && !fee.data && (
+              <div className="col-span-full">
+                <Pill tone="s" className="whitespace-normal">
+                  {effectiveCategory && fee.isSuccess
+                    ? 'Pas de tarif pour cette catégorie : la réduction sera à saisir dans « Modifier » quand la cotisation sera créée.'
+                    : 'Le montant à payer s’affiche dès que la catégorie est connue (naissance et genre).'}
+                </Pill>
+              </div>
+            )}
           </>
         )}
       </FormGrid>
