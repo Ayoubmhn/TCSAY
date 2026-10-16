@@ -149,6 +149,7 @@ export type PlayerStats = {
   pointsWon: number;
   winners: number;
   unforcedErrors: number;
+  forcedErrors: number;
   longestStreak: number;
 };
 
@@ -180,6 +181,7 @@ export function matchStats(points: AnnotatedPoint[], set?: number): [PlayerStats
       pointsWon: won(P),
       winners: P.filter((p) => p.winner === i && (p.kind === 'WINNER' || p.kind === 'ACE')).length,
       unforcedErrors: P.filter((p) => p.winner !== i && p.kind === 'UNFORCED').length,
+      forcedErrors: P.filter((p) => p.winner !== i && p.kind === 'FORCED').length,
       longestStreak: best,
     };
   };

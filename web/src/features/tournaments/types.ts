@@ -28,6 +28,13 @@ export type TournamentBase = {
   status: TournamentStatus;
   winnerName: string | null;
   notes: string | null;
+  /** Résultats visibles de tous, sinon seulement joueurs concernés, parents et direction. */
+  resultsPublic: boolean;
+  /** Score en direct, sinon résultat à la fin du match. */
+  liveScoring: boolean;
+  /** Tableau et créneaux publiés aux familles. */
+  drawPublished: boolean;
+  referee: { userId: string | null; name: string | null } | null;
   version: number;
 };
 
@@ -46,6 +53,9 @@ export type TMatch = {
   court: string | null;
   scheduledAt: string | null;
   ready: boolean;
+  resultHidden?: boolean;
+  referee?: { userId: string | null; name: string | null } | null;
+  mine?: boolean;
 };
 
 export type TEntry = {
@@ -59,6 +69,8 @@ export type TEntry = {
   level: string | null;
   category: string | null;
   mine: boolean;
+  paid?: boolean;
+  paidAt?: string | null;
 };
 
 export type TournamentDetail = TournamentBase & {
@@ -69,6 +81,8 @@ export type TournamentDetail = TournamentBase & {
   matches: TMatch[];
   standings: { name: string; playerId: string | null; played: number; wins: number; losses: number; setsFor: number; setsAgainst: number }[];
   myPlayers: string[];
+  /** Tableau tiré mais pas encore publié (familles). */
+  drawHidden?: boolean;
 };
 
 export type Conflict = {

@@ -62,6 +62,30 @@ class TournamentDto {
   @Type(() => Number) @IsInt() @Min(30) @Max(240) matchMinutes: number;
   @Type(() => Number) @IsInt() @Min(0) @Max(240) restMinutes: number;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  /** Résultats visibles de tous (sinon : joueurs concernés, leurs parents, la direction). */
+  @IsOptional() @IsBoolean() resultsPublic?: boolean;
+  /** Score en direct (sinon : résultat à la fin du match). */
+  @IsOptional() @IsBoolean() liveScoring?: boolean;
+  /** Arbitre proposé pour tous les matchs : compte du club, ou nom d'une personne hors club. */
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUUID() refereeUserId?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(80) refereeName?: string | null;
+}
+
+class RefereeDto {
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsUUID() userId?: string | null;
+  @IsOptional() @ValidateIf((_o, v) => v !== null) @IsString() @MaxLength(80) name?: string | null;
+}
+
+class PaymentDto {
+  @IsBoolean() paid: boolean;
+}
+
+class PublishDto {
+  @IsBoolean() published: boolean;
+}
+
+class CandidatesQuery {
+  @IsOptional() @IsString() @MaxLength(60) q?: string;
 }
 
 class UpdateDto extends TournamentDto {
@@ -146,6 +170,10 @@ export class TournamentsController {
       status: t.status,
       winnerName: t.winnerName,
       notes: t.notes,
+      resultsPublic: t.resultsPublic,
+      liveScoring: t.liveScoring,
+      drawPublished: t.drawPublished,
+      referee: t.refereeUserId || t.refereeName ? { userId: t.refereeUserId, name: t.refereeName } : null,
       version: t.version,
       ...extra,
     };
@@ -183,6 +211,25 @@ export class TournamentsController {
     return this.tournaments.history(playerId);
   }
 
+  /** Arbitres possibles : tous les comptes actifs du club (joueur, parent, entraîneur, personnel), recherche par nom. */
+  @Get('referee-candidates')
+  @Perm('tournaments.manage')
+  async candidates(@Query() q: CandidatesQuery) {
+    const words = (q.q ?? '').trim().split(/\s+/).filter(Boolean);
+    const rows = await this.prisma.user.findMany({
+      where: {
+        isActive: true,
+        roles: { isEmpty: false },
+        AND: words.map((w) => ({ OR: [{ firstName: { contains: w, mode: 'insensitive' as const } }, { lastName: { contains: w, mode: 'insensitive' as const } }] })),
+      },
+      orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+      take: 30,
+      select: { id: true, firstName: true, lastName: true, roles: true },
+    });
+    const ROLE: Record<string, string> = { PRESIDENT: 'Président', ADMIN_AGENT: 'Agent', SUPERVISOR: 'Superviseur', TECH_DIRECTOR: 'Directeur technique', COACH: 'Entraîneur', PARENT: 'Parent', PLAYER: 'Joueur' };
+    return rows.map((u) => ({ id: u.id, name: fullName(u).trim(), roles: u.roles.map((r) => ROLE[r] ?? r).join(', ') }));
+  }
+
   @Get(':id')
   @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
   async get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
@@ -200,6 +247,10 @@ export class TournamentsController {
     ]);
     const rounds = matches.reduce((r, m) => Math.max(r, m.round ?? 1), 1);
     const own = user.role === Role.PARENT || user.role === Role.PLAYER ? await this.access.ownPlayerIds(user) : [];
+    // Tableau pas encore publié : visible de la direction seulement.
+    const drawHidden = !t.drawPublished && !manage;
+    const mine = (m: { playerAId: string | null; playerBId: string | null }) => Boolean((m.playerAId && own.includes(m.playerAId)) || (m.playerBId && own.includes(m.playerBId)));
+    const shown = (m: (typeof matches)[number]) => this.tournaments.visibility(t, m, { manage, user, own });
     return this.view(t, {
       canManage: manage,
       eligibilityLabel: await this.eligibilityLabel(t.eligibility as Eligibility),
@@ -215,23 +266,38 @@ export class TournamentsController {
         level: e.player?.level ?? null,
         category: e.player?.enrollments[0]?.category.name ?? null,
         mine: Boolean(e.playerId && own.includes(e.playerId)),
+        paid: Boolean(e.paidAt),
+        paidAt: manage || (e.playerId && own.includes(e.playerId)) ? e.paidAt : null,
       })),
+      drawHidden,
       rounds,
-      matches: matches.map((m) => ({
-        id: m.id,
-        round: m.round,
-        position: m.position,
-        roundLabel: roundLabel(t.format, m.round ?? 1, rounds),
-        playerA: { id: m.playerAId, name: m.playerAName },
-        playerB: { id: m.playerBId, name: m.playerBName },
-        status: m.status,
-        winner: m.winner,
-        score: m.score,
-        court: m.court,
-        scheduledAt: m.scheduledAt,
-        ready: !m.playerAName.startsWith(TBD) && !m.playerBName.startsWith(TBD),
-      })),
-      standings: t.format === TournamentFormat.ROUND_ROBIN && t.status !== TournamentStatus.REGISTRATION ? await this.tournaments.standings(id) : [],
+      matches: drawHidden
+        ? []
+        : matches.map((m) => {
+            const v = shown(m);
+            return {
+              id: m.id,
+              round: m.round,
+              position: m.position,
+              roundLabel: roundLabel(t.format, m.round ?? 1, rounds),
+              playerA: { id: m.playerAId, name: m.playerAName },
+              playerB: { id: m.playerBId, name: m.playerBName },
+              status: m.status,
+              winner: v.result ? m.winner : null,
+              score: v.result && (m.status !== MatchStatus.LIVE || v.live) ? m.score : null,
+              resultHidden: !v.result,
+              court: m.court,
+              scheduledAt: m.scheduledAt,
+              ready: !m.playerAName.startsWith(TBD) && !m.playerBName.startsWith(TBD),
+              referee: m.refereeUserId || m.refereeName ? { userId: m.refereeUserId, name: m.refereeName } : null,
+              mine: mine(m),
+            };
+          }),
+      standings:
+        t.format === TournamentFormat.ROUND_ROBIN && t.status !== TournamentStatus.REGISTRATION && !drawHidden && (t.resultsPublic || manage)
+          ? await this.tournaments.standings(id)
+          : [],
+      winnerName: t.resultsPublic || manage ? t.winnerName : null,
       myPlayers: own,
     });
   }
@@ -266,14 +332,28 @@ export class TournamentsController {
       matchMinutes: dto.matchMinutes,
       restMinutes: dto.restMinutes,
       notes: dto.notes?.trim() || null,
+      resultsPublic: dto.resultsPublic ?? true,
+      liveScoring: dto.liveScoring ?? true,
     };
+  }
+
+  /** Arbitre : compte du club (nom repris de la fiche) ou nom libre (hors club) ; null = aucun. */
+  private async referee(userId?: string | null, name?: string | null): Promise<{ refereeUserId: string | null; refereeName: string | null }> {
+    if (userId) {
+      const u = await this.prisma.user.findFirst({ where: { id: userId, isActive: true }, select: { id: true, firstName: true, lastName: true } });
+      if (!u) throw new BadRequestException('Arbitre introuvable ou désactivé.');
+      return { refereeUserId: u.id, refereeName: fullName(u).trim() };
+    }
+    return { refereeUserId: null, refereeName: name?.trim() || null };
   }
 
   @Post()
   @Perm('tournaments.manage')
   async create(@CurrentUser() actor: AuthUser, @Body() dto: TournamentDto) {
     await this.validate(dto);
-    const t = await this.prisma.tournament.create({ data: { ...this.data(dto), status: TournamentStatus.REGISTRATION, createdById: actor.id } });
+    const t = await this.prisma.tournament.create({
+      data: { ...this.data(dto), ...(await this.referee(dto.refereeUserId, dto.refereeName)), status: TournamentStatus.REGISTRATION, createdById: actor.id },
+    });
     await this.audit.log(actor.id, { action: 'Tournoi créé', entity: 'Tournament', entityId: t.id, target: t.name, after: `${dto.startDate} → ${dto.endDate}` });
     return { id: t.id };
   }
@@ -285,7 +365,7 @@ export class TournamentsController {
     assertVersion(t, dto.version, 'Ce tournoi');
     if (t.status !== TournamentStatus.REGISTRATION && t.status !== TournamentStatus.DRAFT) throw new BadRequestException('Tirage fait : le tournoi ne se modifie plus.');
     await this.validate(dto);
-    await this.prisma.tournament.update({ where: { id }, data: { ...this.data(dto), version: { increment: 1 } } });
+    await this.prisma.tournament.update({ where: { id }, data: { ...this.data(dto), ...(await this.referee(dto.refereeUserId, dto.refereeName)), version: { increment: 1 } } });
     await this.audit.log(actor.id, { action: 'Tournoi modifié', entity: 'Tournament', entityId: id, target: dto.name });
     return { ok: true };
   }
@@ -411,6 +491,56 @@ export class TournamentsController {
     });
     await this.audit.log(actor.id, { action: 'Résultat de match saisi', entity: 'Match', entityId: matchId, target: `${m.playerAName} – ${m.playerBName}`, after: `${dto.winner ? m.playerBName : m.playerAName} · ${score}` });
     await this.tournaments.afterMatch(matchId);
+    return { ok: true };
+  }
+
+  /** Publie (ou retire) le tableau et les créneaux : les familles inscrites sont prévenues à la publication. */
+  @Post(':id/publish')
+  @HttpCode(200)
+  @Perm('tournaments.manage')
+  async publish(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PublishDto) {
+    const t = await this.tournaments.find(id);
+    if (t.status === TournamentStatus.REGISTRATION || t.status === TournamentStatus.DRAFT) throw new BadRequestException('Faites d’abord le tirage et le planning.');
+    if (t.drawPublished === dto.published) return { ok: true };
+    await this.prisma.tournament.update({ where: { id }, data: { drawPublished: dto.published, version: { increment: 1 } } });
+    await this.audit.log(actor.id, { action: dto.published ? 'Tableau du tournoi publié' : 'Tableau du tournoi retiré', entity: 'Tournament', entityId: id, target: t.name });
+    if (dto.published) {
+      const entries = await this.prisma.tournamentEntry.findMany({ where: { tournamentId: id, status: 'CONFIRMED' }, select: { playerId: true } });
+      await this.tournaments.notify(await this.tournaments.familyOf(entries.map((e) => e.playerId)), `Tableau du tournoi ${t.name}`, 'Le tableau et l’horaire des matchs sont publiés dans Tournois.', `/tournois/${id}`);
+    }
+    return { ok: true };
+  }
+
+  /** Inscription payante : réglée ou non (direction technique ou encaissement). */
+  @Patch(':id/entries/:entryId/payment')
+  @Perm('tournaments.manage', 'payments.collect')
+  async payment(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Param('entryId', ParseUUIDPipe) entryId: string, @Body() dto: PaymentDto) {
+    const t = await this.tournaments.find(id);
+    if (t.fee === null) throw new BadRequestException('Tournoi gratuit : aucun paiement à suivre.');
+    const e = await this.prisma.tournamentEntry.findFirst({ where: { id: entryId, tournamentId: id } });
+    if (!e) throw new NotFoundException('Inscription introuvable.');
+    await this.prisma.tournamentEntry.update({ where: { id: entryId }, data: dto.paid ? { paidAt: new Date(), paidById: actor.id } : { paidAt: null, paidById: null } });
+    await this.audit.log(actor.id, {
+      action: dto.paid ? 'Inscription au tournoi payée' : 'Paiement d’inscription annulé',
+      entity: 'Tournament',
+      entityId: id,
+      target: `${t.name} · ${e.name}`,
+      after: dto.paid ? `${num(t.fee)} DT` : null,
+    });
+    return { ok: true };
+  }
+
+  /** Arbitre d'un match (avant son début) : compte du club, ou nom d'une personne hors club. */
+  @Patch(':id/matches/:matchId/referee')
+  @Perm('tournaments.manage')
+  async setReferee(@CurrentUser() actor: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Param('matchId', ParseUUIDPipe) matchId: string, @Body() dto: RefereeDto) {
+    const m = await this.prisma.match.findFirst({ where: { id: matchId, tournamentId: id } });
+    if (!m) throw new NotFoundException('Match introuvable.');
+    if (m.status !== MatchStatus.SCHEDULED) throw new BadRequestException('Match commencé : l’arbitre ne change plus.');
+    const ref = await this.referee(dto.userId, dto.name);
+    await this.prisma.match.update({ where: { id: matchId }, data: ref });
+    await this.audit.log(actor.id, { action: 'Arbitre du match', entity: 'Match', entityId: matchId, target: `${m.playerAName} – ${m.playerBName}`, before: m.refereeName, after: ref.refereeName });
+    if (ref.refereeUserId) await this.tournaments.notify([ref.refereeUserId], `Arbitre : ${m.playerAName} – ${m.playerBName}`, `${m.title ?? 'Match'}${m.court ? ` · ${m.court}` : ''}. Vous saisissez les points depuis Matchs.`, `/matchs/${matchId}`);
     return { ok: true };
   }
 

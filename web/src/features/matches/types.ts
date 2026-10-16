@@ -18,6 +18,9 @@ export type MatchSummary = {
   score: string | null;
   live: { point: [string, string]; server: Side; tiebreak: 'TB' | 'SUPER' | null } | null;
   endReason: string | null;
+  /** Tournoi : résultat réservé aux concernés (private) ou affiché à la fin du match (after). */
+  hidden?: 'private' | 'after' | null;
+  referee?: { userId: string | null; name: string | null } | null;
 };
 
 type Ratio = [number, number];
@@ -34,6 +37,7 @@ export type PlayerStats = {
   pointsWon: number;
   winners: number;
   unforcedErrors: number;
+  forcedErrors?: number;
   longestStreak: number;
 };
 

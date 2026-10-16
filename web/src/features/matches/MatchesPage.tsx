@@ -43,6 +43,8 @@ function MatchCard({ m }: { m: MatchSummary }) {
         </h3>
         {m.status === 'LIVE' ? (
           <LivePill />
+        ) : m.status === 'FINISHED' && m.hidden === 'private' ? (
+          <Pill tone="s">Terminé</Pill>
         ) : m.status === 'FINISHED' ? (
           <Pill tone="g">{first(winner ?? '')} gagne</Pill>
         ) : m.status === 'ABANDONED' ? (
@@ -58,9 +60,12 @@ function MatchCard({ m }: { m: MatchSummary }) {
             {m.live ? `${m.score ? ' · ' : ''}${m.live.point[0] || 'AV'}-${m.live.point[1] || 'AV'}` : ''}
           </Pill>
         )}
+        {m.hidden === 'private' && <Pill tone="s">Résultat non public</Pill>}
+        {m.hidden === 'after' && <Pill tone="s">Résultat à la fin du match</Pill>}
         <Pill tone="s">{m.title ?? m.kindLabel}</Pill>
         <Pill tone="b">{fD(m.date, { weekday: 'short', day: 'numeric', month: 'short' })}</Pill>
         {m.court && <Pill tone="g">{m.court}</Pill>}
+        {m.referee?.name && <Pill tone="s">Arbitre : {m.referee.name}</Pill>}
       </Pills>
     </Card>
   );

@@ -20,8 +20,9 @@ import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
 import type { Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { RefereePicker, type Referee } from './RefereePicker';
 import { TournamentForm } from './TournamentForm';
-import { STATUS, type Conflict, type TMatch, type TournamentDetail } from './types';
+import { STATUS, type Conflict, type TEntry, type TMatch, type TournamentDetail } from './types';
 
 const KEYS = [['tournament'], ['tournaments'], ['matches']];
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
@@ -119,13 +120,54 @@ function ResultModal({ tournamentId, match, onClose }: { tournamentId: string; m
   );
 }
 
-function MatchBox({ m, manage, onResult }: { m: TMatch; manage: boolean; onResult: (m: TMatch) => void }) {
+/** Nom affiché d'un joueur pas encore connu : « Vainqueur A / B » d'après le match du tour précédent. */
+function feederName(all: TMatch[], m: TMatch, side: 0 | 1): string | null {
+  const f = all.find((x) => x.round === m.round - 1 && x.position === 2 * m.position + side);
+  if (!f) return null;
+  const known = (n: string) => !n.startsWith('À déterminer');
+  if (known(f.playerA.name) && known(f.playerB.name)) return `Vainqueur ${f.playerA.name} / ${f.playerB.name}`;
+  return `Vainqueur ${f.roundLabel} n° ${f.position + 1}`;
+}
+
+/** Arbitre d'un match, choisi avant son début (compte du club ou nom hors club). */
+function RefereeModal({ tournamentId, match, onClose }: { tournamentId: string; match?: TMatch; onClose: () => void }) {
+  const [ref, setRef] = useState<Referee | null>(null);
+  useEffect(() => setRef(match?.referee ?? null), [match]);
+  const save = useAction(() => api.patch(`/tournaments/${tournamentId}/matches/${match!.id}/referee`, { userId: ref?.userId ?? null, name: ref?.name ?? null }), {
+    invalidate: KEYS,
+    success: 'Arbitre enregistré.',
+    onSuccess: onClose,
+  });
+  return (
+    <Modal
+      open={Boolean(match)}
+      title={match ? `Arbitre · ${match.roundLabel} n° ${match.position + 1}` : ''}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button variant="primary" data-primary onClick={() => save.mutate()} disabled={save.isPending}>
+            Enregistrer
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-3">
+        <RefereePicker value={ref} onChange={setRef} />
+        <Note>Un arbitre membre du club saisit les points depuis Matchs ; il est prévenu par notification.</Note>
+      </div>
+    </Modal>
+  );
+}
+
+function MatchBox({ m, all, manage, onResult, onReferee }: { m: TMatch; all: TMatch[]; manage: boolean; onResult: (m: TMatch) => void; onReferee: (m: TMatch) => void }) {
   const row = (side: 0 | 1) => {
     const p = side ? m.playerB : m.playerA;
+    const name = p.name.startsWith('À déterminer') ? (feederName(all, m, side) ?? p.name) : p.name;
     const won = m.winner === side;
     return (
       <div className={`flex items-center justify-between gap-2 px-3.5 py-2 ${side ? 'border-t-[1.5px] border-line' : ''}`}>
-        <span className={`truncate ${won ? 'font-semibold' : ''} ${p.name.startsWith('À déterminer') ? 'text-mut' : ''}`}>{p.name}</span>
+        <span className={`truncate ${won ? 'font-semibold' : ''} ${p.name.startsWith('À déterminer') ? 'text-mut' : ''}`}>{name}</span>
         {won && <span className="text-pri">✓</span>}
       </div>
     );
@@ -138,8 +180,15 @@ function MatchBox({ m, manage, onResult }: { m: TMatch; manage: boolean; onResul
         <span>
           {m.score ?? (m.scheduledAt ? `${day(m.scheduledAt)} ${time(m.scheduledAt)}${m.court ? ` · ${m.court}` : ''}` : 'Horaire à fixer')}
         </span>
-        <span className="flex gap-1">
+        <span className="flex flex-wrap items-center gap-1.5">
           {m.status === 'LIVE' && <Pill tone="r">En direct</Pill>}
+          {m.resultHidden && m.status !== 'SCHEDULED' && <span>Résultat non public</span>}
+          {m.referee?.name && <span title="Arbitre">Arbitre : {m.referee.name}</span>}
+          {manage && m.status === 'SCHEDULED' && (
+            <button type="button" className="font-medium text-pri hover:underline" onClick={() => onReferee(m)}>
+              {m.referee?.name ? 'Changer l’arbitre' : 'Arbitre'}
+            </button>
+          )}
           {m.ready && (
             <Link to={`/matchs/${m.id}`} className="font-medium text-pri hover:underline">
               Match
@@ -156,6 +205,10 @@ function MatchBox({ m, manage, onResult }: { m: TMatch; manage: boolean; onResul
   );
 }
 
+function PaidPill({ e }: { e: TEntry }) {
+  return e.paid ? <Pill tone="g">Inscription payée</Pill> : <Pill tone="r">Inscription à payer</Pill>;
+}
+
 /** Fiche d'un tournoi : inscrits, tableau ou classement, planning des terrains et entraînements touchés. */
 export function TournamentPage() {
   const { id = '' } = useParams();
@@ -170,13 +223,22 @@ export function TournamentPage() {
   }, [t?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editing, setEditing] = useState(false);
   const [result, setResult] = useState<TMatch>();
+  const [refereeOf, setRefereeOf] = useState<TMatch>();
   const [cancelling, setCancelling] = useState(false);
   const manage = Boolean(t?.canManage);
   const conflicts = useQuery({ queryKey: ['tournament', id, 'conflicts'], queryFn: () => api.get<Conflict[]>(`/tournaments/${id}/conflicts`), enabled: manage && tab === 'conflicts' });
   const draw = useAction(() => api.post<{ matches: number; unplaced: string[] }>(`/tournaments/${id}/draw`), {
     invalidate: KEYS,
-    success: (r) => `Tirage fait : ${r.matches} match(s) planifié(s)${r.unplaced.length ? ` · sans horaire : ${r.unplaced.join(', ')} (ajoutez des jours ou des terrains)` : ''}. Familles prévenues.`,
+    success: (r) => `Tirage fait : ${r.matches} match(s) planifié(s)${r.unplaced.length ? ` · sans horaire : ${r.unplaced.join(', ')} (ajoutez des jours ou des terrains)` : ''}. Vérifiez puis publiez le tableau.`,
     onSuccess: () => setTab('board'),
+  });
+  const publish = useAction((published: boolean) => api.post(`/tournaments/${id}/publish`, { published }), {
+    invalidate: KEYS,
+    success: (_r, published) => (published ? 'Tableau publié : les familles sont prévenues.' : 'Tableau retiré : seule la direction le voit.'),
+  });
+  const pay = useAction(({ entryId, paid }: { entryId: string; paid: boolean }) => api.patch(`/tournaments/${id}/entries/${entryId}/payment`, { paid }), {
+    invalidate: KEYS,
+    success: (_r, v) => (v.paid ? 'Inscription marquée payée.' : 'Paiement annulé.'),
   });
   const seed = useAction(({ entryId, value }: { entryId: string; value: number | null }) => api.patch(`/tournaments/${id}/entries/${entryId}`, { seed: value }), { invalidate: KEYS });
   const withdraw = useAction((entryId: string) => api.delete(`/tournaments/${id}/entries/${entryId}`), { invalidate: KEYS, success: 'Inscription retirée.' });
@@ -215,10 +277,19 @@ export function TournamentPage() {
         <Pill tone="b">
           {t.dayStart}–{t.dayEnd} · matchs de {t.matchMinutes} min
         </Pill>
-        {t.fee !== null && <Pill tone="s">Inscription {DT(t.fee)}</Pill>}
+        {t.fee !== null ? <Pill tone="s">Inscription {DT(t.fee)}</Pill> : <Pill tone="g">Inscription gratuite</Pill>}
+        <Pill tone="s">{t.resultsPublic ? 'Résultats publics' : 'Résultats réservés aux joueurs concernés'}</Pill>
+        <Pill tone="b">{t.liveScoring ? 'Score en direct' : 'Résultat à la fin du match'}</Pill>
+        {t.referee?.name && <Pill tone="b">Arbitre : {t.referee.name}</Pill>}
         {t.winnerName && <Pill tone="g">🏆 {t.winnerName}</Pill>}
       </Pills>
       {t.notes && <Note>{t.notes}</Note>}
+      {manage && !t.drawPublished && t.status !== 'REGISTRATION' && t.status !== 'DRAFT' && t.status !== 'CANCELLED' && (
+        <Note>
+          Tableau et créneaux pas encore publiés : seule la direction les voit. Vérifiez les horaires, choisissez les arbitres, puis
+          publiez (les familles inscrites sont prévenues).
+        </Note>
+      )}
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Segmented label="Vue" value={tab} onChange={setTab} options={tabs} />
         {manage && t.status === 'REGISTRATION' && (
@@ -228,6 +299,11 @@ export function TournamentPage() {
               Fermer les inscriptions et tirer au sort
             </Button>
           </>
+        )}
+        {manage && t.status !== 'REGISTRATION' && t.status !== 'DRAFT' && t.status !== 'CANCELLED' && (
+          <Button variant={t.drawPublished ? undefined : 'primary'} onClick={() => publish.mutate(!t.drawPublished)} disabled={publish.isPending}>
+            {t.drawPublished ? 'Retirer la publication' : 'Publier le tableau'}
+          </Button>
         )}
         {manage && t.status !== 'FINISHED' && t.status !== 'CANCELLED' && <ActionIcon kind="cancel" label="Annuler le tournoi" onClick={() => setCancelling(true)} />}
       </div>
@@ -242,7 +318,10 @@ export function TournamentPage() {
                   Demander l’inscription
                 </Button>
               </div>
-              <CardText keep>La direction technique valide la demande ; vous êtes prévenu par notification.</CardText>
+              <CardText keep>
+                La direction technique valide la demande ; vous êtes prévenu par notification.
+                {t.fee !== null && ` Inscription payante : ${DT(t.fee)}, à régler au club.`}
+              </CardText>
             </Card>
           )}
           {manage && t.status === 'REGISTRATION' && <AddEntry tournamentId={t.id} />}
@@ -280,7 +359,18 @@ export function TournamentPage() {
                     {e.seed && <Pill tone="g">Tête de série {e.seed}</Pill>}
                     {e.derogationReason && <Pill tone="r" className="card-text">Dérogation : {e.derogationReason}</Pill>}
                     {e.mine && <Pill tone="g">Mon joueur</Pill>}
+                    {t.fee !== null && (manage || e.mine) && <PaidPill e={e} />}
                   </Pills>
+                  {manage && t.fee !== null && t.status !== 'CANCELLED' && (
+                    <CardActions>
+                      <ActionIcon
+                        kind={e.paid ? 'cancel' : 'pay'}
+                        primary={!e.paid}
+                        label={e.paid ? 'Annuler le paiement de l’inscription' : `Inscription payée (${DT(t.fee)})`}
+                        onClick={() => pay.mutate({ entryId: e.id, paid: !e.paid })}
+                      />
+                    </CardActions>
+                  )}
                   {manage && t.status === 'REGISTRATION' && (
                     <CardActions>
                       <select
@@ -318,7 +408,7 @@ export function TournamentPage() {
                 <div key={r} className="flex flex-col justify-around gap-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-mut">{ms[0]?.roundLabel ?? `Tour ${r + 1}`}</h3>
                   {ms.map((m) => (
-                    <MatchBox key={m.id} m={m} manage={manage} onResult={setResult} />
+                    <MatchBox key={m.id} m={m} all={t.matches} manage={manage} onResult={setResult} onReferee={setRefereeOf} />
                   ))}
                 </div>
               ))}
@@ -350,7 +440,7 @@ export function TournamentPage() {
                 <Section key={r} title={`Journée ${r + 1}`}>
                   <CardGrid>
                     {ms.map((m) => (
-                      <MatchBox key={m.id} m={m} manage={manage} onResult={setResult} />
+                      <MatchBox key={m.id} m={m} all={t.matches} manage={manage} onResult={setResult} onReferee={setRefereeOf} />
                     ))}
                   </CardGrid>
                 </Section>
@@ -359,7 +449,7 @@ export function TournamentPage() {
           )
         ) : (
           <div className="mt-5">
-            <EmptyState>Le tableau sera publié après le tirage au sort.</EmptyState>
+            <EmptyState>{t.drawHidden ? 'Tableau en préparation : il sera publié par la direction technique.' : 'Le tableau sera publié après le tirage au sort.'}</EmptyState>
           </div>
         ))}
 
@@ -371,7 +461,8 @@ export function TournamentPage() {
                 <Card key={m.id}>
                   <CardRow>
                     <h3>
-                      {m.playerA.name} <span className="text-mut">contre</span> {m.playerB.name}
+                      {m.playerA.name.startsWith('À déterminer') ? (feederName(t.matches, m, 0) ?? m.playerA.name) : m.playerA.name} <span className="text-mut">contre</span>{' '}
+                      {m.playerB.name.startsWith('À déterminer') ? (feederName(t.matches, m, 1) ?? m.playerB.name) : m.playerB.name}
                     </h3>
                   </CardRow>
                   <Pills>
@@ -381,12 +472,14 @@ export function TournamentPage() {
                     <Pill tone="g">{m.court}</Pill>
                     <Pill tone="s">{m.roundLabel}</Pill>
                     {m.score && <Pill tone="g">{m.score}</Pill>}
+                    {m.referee?.name && <Pill tone="b">Arbitre : {m.referee.name}</Pill>}
+                    {m.resultHidden && m.status !== 'SCHEDULED' && <Pill tone="s">Résultat non public</Pill>}
                   </Pills>
                 </Card>
               ))}
             </CardGrid>
           ) : (
-            <EmptyState>Les horaires sont fixés au tirage au sort.</EmptyState>
+            <EmptyState>{t.drawHidden ? 'Horaires en préparation : ils seront publiés avec le tableau.' : 'Les horaires sont fixés au tirage au sort.'}</EmptyState>
           )}
         </Section>
       )}
@@ -432,6 +525,7 @@ export function TournamentPage() {
 
       <TournamentForm open={editing} tournament={t} onClose={() => setEditing(false)} />
       <ResultModal tournamentId={t.id} match={result} onClose={() => setResult(undefined)} />
+      <RefereeModal tournamentId={t.id} match={refereeOf} onClose={() => setRefereeOf(undefined)} />
       <ConfirmModal
         open={cancelling}
         title="Annuler le tournoi ?"

@@ -216,20 +216,30 @@ export class TournamentsService {
             position: m.position,
             scheduledAt: slot?.start ?? null,
             reservationId: reservation?.id ?? null,
+            refereeUserId: t.refereeUserId,
+            refereeName: t.refereeName,
           },
         });
       }
-      await tx.tournament.update({ where: { id }, data: { status: TournamentStatus.RUNNING, version: { increment: 1 } } });
+      // Tableau et créneaux d'abord vérifiés par la direction, puis publiés (familles prévenues à la publication).
+      await tx.tournament.update({ where: { id }, data: { status: TournamentStatus.RUNNING, drawPublished: false, version: { increment: 1 } } });
       await this.audit.log(actorId, { action: 'Tirage du tournoi', entity: 'Tournament', entityId: id, target: t.name, after: `${entries.length} joueurs · ${real.length} matchs` }, tx);
-      await this.notify(
-        await this.familyOf(entries.map((e) => e.playerId)),
-        `Tirage du tournoi ${t.name}`,
-        'Le tableau et l’horaire des matchs sont publiés dans Tournois.',
-        `/tournois/${id}`,
-        tx,
-      );
     });
     return { matches: real.length, unplaced };
+  }
+
+  /**
+   * Ce qu'un acteur voit d'un match de tournoi : résultat (si les résultats sont publics, ou s'il est concerné : joueur,
+   * parent, arbitre, direction) et score en direct (si le direct est choisi, sinon seulement arbitre et direction).
+   */
+  visibility(
+    t: { resultsPublic: boolean; liveScoring: boolean },
+    m: { playerAId: string | null; playerBId: string | null; refereeUserId: string | null },
+    who: { manage: boolean; user: { id: string }; own: string[] },
+  ): { result: boolean; live: boolean } {
+    const referee = m.refereeUserId === who.user.id;
+    const concerned = who.manage || referee || Boolean((m.playerAId && who.own.includes(m.playerAId)) || (m.playerBId && who.own.includes(m.playerBId)));
+    return { result: t.resultsPublic || concerned, live: who.manage || referee || (t.liveScoring && (t.resultsPublic || concerned)) };
   }
 
   /** Match terminé : le vainqueur passe au tour suivant ; finale (ou dernier match du championnat) → tournoi terminé. */

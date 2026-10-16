@@ -103,11 +103,12 @@ export class MatchesController {
    * Saisie des points : le créateur du match (tout acteur, même simple spectateur) ; l'entraîneur de l'un des joueurs ;
    * la direction avec « matches.manage ».
    */
-  private async assertScorer(user: AuthUser, m: { createdById: string; playerAId: string | null; playerBId: string | null }) {
+  private async assertScorer(user: AuthUser, m: { createdById: string; playerAId: string | null; playerBId: string | null; refereeUserId?: string | null }) {
     if (m.createdById === user.id) return;
+    if (m.refereeUserId && m.refereeUserId === user.id) return;
     if (user.role === Role.ADMIN && can(user, 'matches.manage')) return;
     if (user.role === Role.COACH && (await this.coachesOne(user, [m.playerAId, m.playerBId]))) return;
-    throw new ForbiddenException('Seul le créateur du match, l’entraîneur des joueurs ou la direction saisit les points.');
+    throw new ForbiddenException('Seul l’arbitre, le créateur du match, l’entraîneur des joueurs ou la direction saisit les points.');
   }
 
   private async coachesOne(user: AuthUser, ids: (string | null)[]) {
@@ -123,6 +124,22 @@ export class MatchesController {
     return n > 0;
   }
 
+  /**
+   * Matchs de tournoi : résultats publics ou réservés aux concernés, direct ou résultat à la fin (réglages du tournoi).
+   * Les autres matchs restent visibles de tous.
+   */
+  private async seer(user: AuthUser) {
+    const own = user.role === Role.PARENT || user.role === Role.PLAYER ? await this.access.ownPlayerIds(user) : [];
+    const manage = user.role === Role.ADMIN && (can(user, 'matches.manage') || can(user, 'tournaments.manage'));
+    const cache = new Map<string, { resultsPublic: boolean; liveScoring: boolean } | null>();
+    return async (m: { tournamentId: string | null; playerAId: string | null; playerBId: string | null; refereeUserId: string | null }) => {
+      if (!m.tournamentId) return { result: true, live: true };
+      if (!cache.has(m.tournamentId)) cache.set(m.tournamentId, await this.prisma.tournament.findUnique({ where: { id: m.tournamentId }, select: { resultsPublic: true, liveScoring: true } }));
+      const t = cache.get(m.tournamentId);
+      return t ? this.tournaments.visibility(t, m, { manage, user, own }) : { result: true, live: true };
+    };
+  }
+
   private async load(id: string): Promise<MatchRow> {
     const m = await this.prisma.match.findUnique({
       where: { id },
@@ -132,8 +149,9 @@ export class MatchesController {
     return m;
   }
 
-  private summary(m: MatchRow | Prisma.MatchGetPayload<{ include: { points: true } }>) {
+  private summary(m: MatchRow | Prisma.MatchGetPayload<{ include: { points: true } }>, v: { result: boolean; live: boolean } = { result: true, live: true }) {
     const state = m.firstServer === null ? null : computeMatch(formatOf(m), m.firstServer as Side, inputsOf(m as MatchRow));
+    const liveOk = m.status !== MatchStatus.LIVE || (v.live && v.result);
     return {
       id: m.id,
       kind: m.kind,
@@ -145,9 +163,12 @@ export class MatchesController {
       playerB: { id: m.playerBId, name: m.playerBName },
       format: formatOf(m),
       status: m.status,
-      winner: m.winner,
-      score: m.status === MatchStatus.LIVE && state ? scoreLine(state) : m.score,
-      live: m.status === MatchStatus.LIVE && state ? { point: state.point, server: state.server, tiebreak: state.tiebreak } : null,
+      winner: v.result ? m.winner : null,
+      score: !v.result || !liveOk ? null : m.status === MatchStatus.LIVE && state ? scoreLine(state) : m.score,
+      live: liveOk && m.status === MatchStatus.LIVE && state ? { point: state.point, server: state.server, tiebreak: state.tiebreak } : null,
+      // Résultat réservé aux concernés, ou direct désactivé : affiché « Résultat non public » / « Résultat à la fin du match ».
+      hidden: !v.result ? 'private' : !liveOk ? 'after' : null,
+      referee: m.refereeUserId || m.refereeName ? { userId: m.refereeUserId, name: m.refereeName } : null,
       endReason: m.endReason,
     };
   }
@@ -171,7 +192,7 @@ export class MatchesController {
   /** Liste : en cours, à venir et terminés (90 derniers jours), ou les matchs d'un joueur. Tous les acteurs. */
   @Get()
   @Roles(Role.ADMIN, Role.COACH, Role.PARENT, Role.PLAYER)
-  async list(@Query() q: ListQuery) {
+  async list(@CurrentUser() user: AuthUser, @Query() q: ListQuery) {
     const since = new Date(Date.now() - 90 * 86_400_000);
     const rows = await this.prisma.match.findMany({
       where: {
@@ -179,12 +200,17 @@ export class MatchesController {
         ...(q.playerId ? { OR: [{ playerAId: q.playerId }, { playerBId: q.playerId }] } : { OR: [{ status: { in: [MatchStatus.LIVE, MatchStatus.SCHEDULED] } }, { date: { gte: since } }] }),
         // Matchs de tournoi dont les joueurs ne sont pas encore connus : visibles dans le tableau du tournoi seulement.
         NOT: [{ playerAName: { startsWith: TBD } }, { playerBName: { startsWith: TBD } }],
+        // Tableau d'un tournoi pas encore publié : invisible dans la liste.
+        AND: [{ OR: [{ tournamentId: null }, { tournament: { drawPublished: true } }] }],
       },
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       take: 100,
       include: { points: true },
     });
-    return rows.map((m) => this.summary(m));
+    const see = await this.seer(user);
+    const out = [];
+    for (const m of rows) out.push(this.summary(m, await see(m)));
+    return out;
   }
 
   /** Détail : score courant, sets, statistiques (match et par set), points annotés (point par point). */
@@ -201,11 +227,14 @@ export class MatchesController {
       canScore = false;
     }
     const setsPlayed = state ? [...new Set(state.points.map((p) => p.set))] : [];
+    // Arbitre ou marqueur : tout voir ; sinon réglages du tournoi (résultat réservé, pas de direct).
+    const v = canScore ? { result: true, live: true } : await (await this.seer(user))(m);
+    const open = v.result && (m.status !== MatchStatus.LIVE || v.live);
     return {
-      ...this.summary(m),
+      ...this.summary(m, v),
       scorer: `${m.createdBy.firstName} ${m.createdBy.lastName}`.trim(),
       canScore,
-      state: state && {
+      state: open && state && {
         sets: state.sets,
         setsWon: state.setsWon,
         point: state.point,
@@ -214,8 +243,8 @@ export class MatchesController {
         breakPoint: state.breakPoint,
         decisivePoint: state.decisivePoint,
       },
-      stats: state ? { all: matchStats(state.points), sets: setsPlayed.map((s) => ({ set: s, stats: matchStats(state.points, s) })) } : null,
-      points: state?.points ?? [],
+      stats: open && state ? { all: matchStats(state.points), sets: setsPlayed.map((s) => ({ set: s, stats: matchStats(state.points, s) })) } : null,
+      points: open ? (state?.points ?? []) : [],
     };
   }
 

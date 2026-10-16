@@ -857,6 +857,9 @@ model Match {
   position      Int?
   scheduledAt   DateTime?
   reservationId String?     @unique @db.Uuid
+  /// Arbitre : compte du club (saisit les points) ou nom d'une personne hors club.
+  refereeUserId String?     @db.Uuid
+  refereeName   String?
 
   tournament  Tournament?  @relation(fields: [tournamentId], references: [id])
   reservation Reservation? @relation(fields: [reservationId], references: [id])
@@ -1128,6 +1131,15 @@ model Tournament {
   maxPlayers    Int              @default(16)
   fee           Decimal?         @db.Decimal(10, 3) // frais d'inscription saisis par le club (facultatif)
   familyRequest Boolean          @default(false) // les familles peuvent demander l'inscription (validée par le DT)
+  /// Résultats visibles de tous ; sinon seulement des joueurs concernés, de leurs parents et de la direction.
+  resultsPublic Boolean          @default(true)
+  /// Score en direct pendant le match ; sinon résultat affiché à la fin seulement.
+  liveScoring   Boolean          @default(true)
+  /// Tableau et créneaux publiés aux familles (après le tirage, la direction vérifie puis publie).
+  drawPublished Boolean          @default(true)
+  /// Arbitre proposé pour tous les matchs (compte du club ou nom saisi, hors club) ; modifiable par match.
+  refereeUserId String?          @db.Uuid
+  refereeName   String?
   setsToWin     Int              @default(2)
   games         Int              @default(6)
   tiebreak      Boolean          @default(true)
@@ -1156,15 +1168,18 @@ model Tournament {
 
 /// Inscription à un tournoi : joueur du club (playerId) ou joueur extérieur (nom seul).
 model TournamentEntry {
-  id               String   @id @default(uuid()) @db.Uuid
-  tournamentId     String   @db.Uuid
-  playerId         String?  @db.Uuid
+  id               String    @id @default(uuid()) @db.Uuid
+  tournamentId     String    @db.Uuid
+  playerId         String?   @db.Uuid
   name             String
   seed             Int? // tête de série (1 = la meilleure)
-  status           String   @default("CONFIRMED") // CONFIRMED, PENDING (demande d'une famille), WITHDRAWN
+  status           String    @default("CONFIRMED") // CONFIRMED, PENDING (demande d'une famille), WITHDRAWN
   derogationReason String? // hors critères d'âge ou de catégorie
-  requestedById    String?  @db.Uuid
-  createdAt        DateTime @default(now())
+  requestedById    String?   @db.Uuid
+  /// Inscription payante : réglée (date, par qui).
+  paidAt           DateTime?
+  paidById         String?   @db.Uuid
+  createdAt        DateTime  @default(now())
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player     Player?    @relation(fields: [playerId], references: [id])

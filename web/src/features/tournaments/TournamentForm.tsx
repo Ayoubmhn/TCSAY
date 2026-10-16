@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import { todayIso } from '../../lib/format';
 import type { Category } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { RefereePicker, type Referee } from './RefereePicker';
 import type { TournamentBase } from './types';
 
 type Court = { id: string; name: string; lit: boolean; active: boolean };
@@ -33,8 +34,12 @@ export function TournamentForm({ open, tournament, onClose }: { open: boolean; t
     gender: '' as '' | 'M' | 'F',
     format: 'KNOCKOUT' as TournamentBase['format'],
     maxPlayers: 16,
+    paid: false,
     fee: '',
-    familyRequest: false,
+    familyRequest: true,
+    resultsPublic: true,
+    liveScoring: true,
+    referee: null as Referee | null,
     setsToWin: 2,
     games: 6,
     superTB: true,
@@ -63,8 +68,12 @@ export function TournamentForm({ open, tournament, onClose }: { open: boolean; t
       gender: e.gender ?? '',
       format: tournament.format,
       maxPlayers: tournament.maxPlayers,
+      paid: tournament.fee !== null,
       fee: tournament.fee === null ? '' : String(tournament.fee),
       familyRequest: tournament.familyRequest,
+      resultsPublic: tournament.resultsPublic,
+      liveScoring: tournament.liveScoring,
+      referee: tournament.referee,
       setsToWin: tournament.setsToWin,
       games: tournament.games,
       superTB: tournament.superTB,
@@ -97,8 +106,12 @@ export function TournamentForm({ open, tournament, onClose }: { open: boolean; t
         },
         format: f.format,
         maxPlayers: f.maxPlayers,
-        fee: f.fee.trim() ? Number(f.fee.replace(',', '.')) : null,
+        fee: f.paid && f.fee.trim() ? Number(f.fee.replace(',', '.')) : null,
         familyRequest: f.familyRequest,
+        resultsPublic: f.resultsPublic,
+        liveScoring: f.liveScoring,
+        refereeUserId: f.referee?.userId ?? null,
+        refereeName: f.referee?.userId ? null : f.referee?.name?.trim() || null,
         setsToWin: f.setsToWin,
         games: f.games,
         tiebreak: true,
@@ -123,6 +136,7 @@ export function TournamentForm({ open, tournament, onClose }: { open: boolean; t
     if (!f.name.trim()) return toast('Nom du tournoi obligatoire.');
     if (f.mode === 'cats' && !f.categoryIds.length) return toast('Choisissez au moins une catégorie.');
     if (!f.courtIds.length) return toast('Choisissez au moins un terrain.');
+    if (f.paid && !(Number(f.fee.replace(',', '.')) > 0)) return toast('Inscription payante : saisissez le tarif.');
     save.mutate();
   };
 
@@ -215,10 +229,30 @@ export function TournamentForm({ open, tournament, onClose }: { open: boolean; t
             <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-pri" checked={f.superTB} onChange={(e) => set({ superTB: e.target.checked })} /> Dernier set en super tie-break à 10</label>
             <label className="flex items-center gap-2"><input type="checkbox" className="h-4 w-4 accent-pri" checked={f.noAd} onChange={(e) => set({ noAd: e.target.checked })} /> Point décisif à 40-40</label>
           </div>
-          <TextField label="Frais d’inscription (facultatif, DT)" inputMode="decimal" value={f.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="Montant fixé par le bureau" />
-          <label className="flex items-end gap-2 pb-3 text-sm">
-            <input type="checkbox" className="h-4 w-4 accent-pri" checked={f.familyRequest} onChange={(e) => set({ familyRequest: e.target.checked })} /> Les familles peuvent demander l’inscription
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 rounded-[20px] border-[1.5px] border-line p-3.5 min-[561px]:grid-cols-2">
+          <span className="col-span-full text-[13px] font-semibold text-mut">Inscriptions et résultats</span>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-pri" checked={f.familyRequest} onChange={(e) => set({ familyRequest: e.target.checked })} /> Les parents et joueurs peuvent s’inscrire (validé par la direction)
           </label>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 accent-pri" checked={f.paid} onChange={(e) => set({ paid: e.target.checked })} /> Inscription payante
+            </label>
+            {f.paid && <TextField label="Tarif de l’inscription (DT) *" inputMode="decimal" value={f.fee} onChange={(e) => set({ fee: e.target.value })} placeholder="Montant fixé par le bureau" />}
+          </div>
+          <SelectField label="Résultats" value={f.resultsPublic ? 'public' : 'private'} onChange={(e) => set({ resultsPublic: e.target.value === 'public' })}>
+            <option value="public">Publics (tout le club)</option>
+            <option value="private">Réservés aux joueurs concernés et à leurs parents</option>
+          </SelectField>
+          <SelectField label="Score" value={f.liveScoring ? 'live' : 'after'} onChange={(e) => set({ liveScoring: e.target.value === 'live' })}>
+            <option value="live">En direct, point par point</option>
+            <option value="after">Après le match seulement</option>
+          </SelectField>
+          <div className="col-span-full">
+            <RefereePicker label="Arbitre proposé pour tous les matchs (modifiable match par match)" value={f.referee} onChange={(referee) => set({ referee })} />
+          </div>
         </div>
 
         <div className="flex flex-col gap-2">

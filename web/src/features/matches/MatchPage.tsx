@@ -69,11 +69,14 @@ function Board({ m }: { m: MatchDetail }) {
   );
 }
 
-/** Saisie : un toucher par point ; ace, faute de 1re balle, double faute ; mode détaillé (comment, quel coup). */
+/**
+ * Saisie en deux colonnes (une par joueur), pour des statistiques justes :
+ * - sous le serveur : Ace, Faute (1re faute → 2e balle, puis Double faute) ;
+ * - sous chaque joueur : Coup gagnant (point pour lui), Faute provoquée et Faute directe (point pour l'adversaire,
+ *   faute comptée au joueur qui l'a commise) ; « Point » sans détail en dessous.
+ */
 function ScorePad({ m }: { m: MatchDetail }) {
   const [stage, setStage] = useState<1 | 2>(1);
-  const [detailed, setDetailed] = useState(false);
-  const [pending, setPending] = useState<Side | null>(null);
   const [shot, setShot] = useState('');
   const [abandon, setAbandon] = useState(false);
   const inv = [['match', m.id], ['matches']];
@@ -84,83 +87,87 @@ function ScorePad({ m }: { m: MatchDetail }) {
       success: (r) => (r.finished ? `Match terminé ${r.score} : parents prévenus.` : undefined),
       onSuccess: () => {
         setStage(1);
-        setPending(null);
         setShot('');
       },
     },
   );
   const undo = useAction(() => api.delete(`/matches/${m.id}/points/last`), { invalidate: inv, success: 'Dernier point annulé.', onSuccess: () => setStage(1) });
   const stop = useAction((reason: string) => api.post(`/matches/${m.id}/abandon`, { reason }), { invalidate: inv, success: 'Match arrêté.', onSuccess: () => setAbandon(false) });
-  const server = m.state?.server ?? 0;
-  const srv = first(server === 0 ? m.playerA.name : m.playerB.name);
+  const server = (m.state?.server ?? 0) as Side;
   const busy = send.isPending || undo.isPending;
-  const big = 'rounded-[22px] px-3 py-[18px] text-[15px] font-semibold disabled:opacity-45';
-  const point = (w: Side) => (detailed ? setPending(w) : send.mutate({ winner: w, kind: 'NONE' }));
+  const btn = 'min-h-[54px] rounded-[18px] px-2 py-3 text-[14px] font-semibold leading-tight disabled:opacity-45';
+  const other = (i: Side) => (1 - i) as Side;
+  const name = (i: Side) => first(i === 0 ? m.playerA.name : m.playerB.name);
 
-  if (pending !== null) {
-    return (
-      <Card>
-        <h3>Point pour {first(pending === 0 ? m.playerA.name : m.playerB.name)} : comment ?</h3>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Coup">
-          {SHOTS.map((x) => (
-            <button key={x} type="button" aria-pressed={shot === x} onClick={() => setShot(shot === x ? '' : x)} className={`rounded-full px-3.5 py-2 text-sm ${shot === x ? 'bg-sel text-white' : 'bg-fld'}`}>
-              {x}
+  const column = (i: Side) => (
+    <div className={`flex min-w-0 flex-col gap-2 rounded-[22px] border-[1.5px] p-2.5 ${server === i ? 'border-pri' : 'border-line'}`}>
+      <div className="flex items-center justify-center gap-1.5 py-1 text-center font-semibold">
+        {server === i && <span className="inline-block size-2.5 rounded-full border-2 border-ink bg-pg" title="Au service" />}
+        <span className="truncate">{name(i)}</span>
+      </div>
+      {server === i ? (
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" className={`${btn} bg-pg text-ink`} disabled={busy} onClick={() => send.mutate({ winner: i, kind: 'ACE' })}>
+            Ace
+          </button>
+          {stage === 1 ? (
+            <button type="button" className={`${btn} bg-ps text-ink`} disabled={busy} onClick={() => setStage(2)}>
+              Faute
             </button>
-          ))}
+          ) : (
+            <button type="button" className={`${btn} bg-pr text-ink`} disabled={busy} onClick={() => send.mutate({ winner: other(i), kind: 'DF' })}>
+              Double faute
+            </button>
+          )}
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          <button type="button" className={`${big} bg-pg text-ink`} disabled={busy} onClick={() => send.mutate({ winner: pending, kind: 'WINNER' })}>
-            Coup gagnant
-          </button>
-          <button type="button" className={`${big} bg-pr text-ink`} disabled={busy} onClick={() => send.mutate({ winner: pending, kind: 'UNFORCED' })}>
-            Faute directe adverse
-          </button>
-          <button type="button" className={`${big} bg-ps text-ink`} disabled={busy} onClick={() => send.mutate({ winner: pending, kind: 'FORCED' })}>
-            Faute provoquée
-          </button>
-          <button type="button" className={`${big} bg-fld`} disabled={busy} onClick={() => send.mutate({ winner: pending, kind: 'NONE' })}>
-            Autre / passer
-          </button>
-        </div>
-        <Button onClick={() => setPending(null)}>‹ Retour</Button>
-      </Card>
-    );
-  }
+      ) : (
+        <div className="grid min-h-[54px] place-items-center rounded-[18px] bg-fld px-2 text-center text-[12px] text-mut">Retour</div>
+      )}
+      <button type="button" className={`${btn} bg-pri text-white`} disabled={busy} onClick={() => send.mutate({ winner: i, kind: 'WINNER' })}>
+        Coup gagnant
+      </button>
+      <div className="grid grid-cols-1 gap-2">
+        <button type="button" className={`${btn} bg-btn`} disabled={busy} onClick={() => send.mutate({ winner: other(i), kind: 'FORCED' })} title={`Faute provoquée de ${name(i)} : point pour ${name(other(i))}`}>
+          Faute provoquée
+        </button>
+        <button type="button" className={`${btn} bg-btn`} disabled={busy} onClick={() => send.mutate({ winner: other(i), kind: 'UNFORCED' })} title={`Faute directe de ${name(i)} : point pour ${name(other(i))}`}>
+          Faute directe
+        </button>
+      </div>
+      <button type="button" className={`${btn} min-h-[44px] bg-fld text-[13px] font-medium`} disabled={busy} onClick={() => send.mutate({ winner: i, kind: 'NONE' })}>
+        Point (sans détail)
+      </button>
+    </div>
+  );
 
   return (
     <Card>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3>
-          Service : {srv} · {stage === 1 ? '1re balle' : '2e balle'}
+          Service : {name(server)} · {stage === 1 ? '1re balle' : '2e balle'}
         </h3>
-        <label className="flex items-center gap-2 text-sm text-mut">
-          <input type="checkbox" checked={detailed} onChange={(e) => setDetailed(e.target.checked)} /> Mode détaillé
-        </label>
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
-        <button type="button" className={`${big} bg-pri text-white`} disabled={busy} onClick={() => point(0)}>
-          Point {first(m.playerA.name)}
-        </button>
-        <button type="button" className={`${big} bg-toggle text-bg`} disabled={busy} onClick={() => point(1)}>
-          Point {first(m.playerB.name)}
-        </button>
-        <button type="button" className={`${big} bg-pg text-ink`} disabled={busy} onClick={() => send.mutate({ winner: server, kind: 'ACE' })}>
-          Ace {srv}
-        </button>
-        {stage === 1 ? (
-          <button type="button" className={`${big} bg-ps text-ink`} disabled={busy} onClick={() => setStage(2)}>
-            Faute de 1re balle
-          </button>
-        ) : (
-          <button type="button" className={`${big} bg-pr text-ink`} disabled={busy} onClick={() => send.mutate({ winner: (1 - server) as Side, kind: 'DF' })}>
-            Double faute
+        {stage === 2 && (
+          <button type="button" className="text-sm font-medium text-pri hover:underline" onClick={() => setStage(1)}>
+            Annuler la faute
           </button>
         )}
-        <button type="button" className={`${big} col-span-2 bg-fld`} disabled={busy || !m.points.length} onClick={() => undo.mutate()}>
-          ↶ Annuler le dernier point
-        </button>
       </div>
-      <div className="flex justify-end">
+      <div className="grid grid-cols-2 gap-2">
+        {column(0)}
+        {column(1)}
+      </div>
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Coup joué (facultatif)">
+        <span className="self-center text-xs text-mut">Coup (facultatif) :</span>
+        {SHOTS.map((x) => (
+          <button key={x} type="button" aria-pressed={shot === x} onClick={() => setShot(shot === x ? '' : x)} className={`rounded-full px-3 py-1.5 text-[13px] ${shot === x ? 'bg-sel text-white' : 'bg-fld'}`}>
+            {x}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap justify-between gap-2">
+        <Button disabled={busy || !m.points.length} onClick={() => undo.mutate()}>
+          ↶ Annuler le dernier point
+        </Button>
         <Button variant="danger" onClick={() => setAbandon(true)}>
           Arrêter le match (abandon)
         </Button>
@@ -261,6 +268,7 @@ function StatsBlock({ m }: { m: MatchDetail }) {
           <StatRow label="Points gagnés" a={A.pointsWon} b={B.pointsWon} />
           <StatRow label="Coups gagnants (aces compris)" a={A.winners} b={B.winners} />
           <StatRow label="Fautes directes" a={A.unforcedErrors} b={B.unforcedErrors} />
+          <StatRow label="Fautes provoquées" a={A.forcedErrors ?? 0} b={B.forcedErrors ?? 0} />
           <StatRow label="Plus longue série" a={A.longestStreak} b={B.longestStreak} />
         </Card>
       </Section>
@@ -372,11 +380,20 @@ export function MatchPage() {
               <h1 className="text-[23px] font-semibold">
                 {m.playerA.name} – {m.playerB.name}
               </h1>
-              <span className="text-[13px] text-mut">Saisie : {m.scorer}</span>
+              <span className="text-[13px] text-mut">{m.referee ? `Arbitre : ${m.referee.name}` : `Saisie : ${m.scorer}`}</span>
             </div>
             <div className="mt-3">
               <Board m={m} />
             </div>
+            {m.hidden && (
+              <div className="mt-3">
+                <Note>
+                  {m.hidden === 'private'
+                    ? 'Résultat réservé aux joueurs du match, à leurs parents et à la direction.'
+                    : 'Pas de score en direct pour ce tournoi : le résultat s’affiche à la fin du match.'}
+                </Note>
+              </div>
+            )}
             <div className="mt-5">
               <Segmented
                 label="Onglet"
