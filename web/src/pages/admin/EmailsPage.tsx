@@ -60,19 +60,30 @@ function MailServerCard({ config }: { config: MailConfig }) {
           <h3>Serveur d’envoi</h3>
           <Pill tone={config.devCapture ? 's' : 'g'}>{config.devCapture ? 'Mailpit (développement)' : 'Production'}</Pill>
         </CardRow>
-        <Pills>
-          <Pill tone="b">
-            {config.host}:{config.port}
-          </Pill>
-          <Pill tone="b">{SECURITY[config.security]}</Pill>
-          <Pill tone={config.auth ? 'g' : 's'}>{config.auth ? `Compte ${config.user}` : 'Sans authentification'}</Pill>
-        </Pills>
+        {config.transport === 'smtp' ? (
+          <Pills>
+            <Pill tone="b">
+              {config.host}:{config.port}
+            </Pill>
+            <Pill tone="b">{SECURITY[config.security]}</Pill>
+            <Pill tone={config.auth ? 'g' : 's'}>{config.auth ? `Compte ${config.user}` : 'Sans authentification'}</Pill>
+          </Pills>
+        ) : (
+          <Pills>
+            <Pill tone="b">{config.transport === 'gmail-api' ? 'API Gmail (HTTPS)' : 'API Brevo (HTTPS)'}</Pill>
+            {config.missing.map((k) => (
+              <Pill key={k} tone="r">
+                Réglage manquant : {k}
+              </Pill>
+            ))}
+          </Pills>
+        )}
         <CardText>
           Expéditeur : {config.fromName} &lt;{config.from}&gt;
           {config.replyTo ? ` · réponses à ${config.replyTo}` : ''}
         </CardText>
         <CardText>Liens des emails : {config.appUrl}</CardText>
-        {config.auth && !config.passwordSet && <Pill tone="r">Mot de passe SMTP manquant (SMTP_PASS)</Pill>}
+        {config.transport === 'smtp' && config.auth && !config.passwordSet && <Pill tone="r">Mot de passe SMTP manquant (SMTP_PASS)</Pill>}
       </Card>
       <Card>
         <CardSubtitle>File d’envoi</CardSubtitle>

@@ -213,7 +213,7 @@ function assertAddress(address: string): void {
 }
 
 /** Message MIME : texte seul, ou texte + HTML (multipart/alternative). */
-export function buildMessage(config: SmtpConfig, msg: MailMessage): string {
+export function buildMessage(config: SmtpConfig, msg: MailMessage, options: { dotStuffing?: boolean } = {}): string {
   const boundary = `tcsay-${randomUUID()}`;
   const headers = [
     `From: ${encodeWord(config.fromName.replace(/["\r\n]/g, ''))} <${config.from}>`,
@@ -237,8 +237,9 @@ export function buildMessage(config: SmtpConfig, msg: MailMessage): string {
         `--${boundary}--`,
       ].join('\r\n')
     : part('text/plain', msg.text);
-  // Transparence SMTP : une ligne commençant par « . » est doublée.
-  return `${headers.join('\r\n')}\r\n${body}`.replace(/^\./gm, '..');
+  const message = `${headers.join('\r\n')}\r\n${body}`;
+  // Transparence SMTP : une ligne commençant par « . » est doublée (inutile pour une API HTTPS).
+  return options.dotStuffing === false ? message : message.replace(/^\./gm, '..');
 }
 
 /** Envoie un email ; lève une erreur lisible (en français) en cas d'échec. */

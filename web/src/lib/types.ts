@@ -567,6 +567,10 @@ export type EmailStatus = 'PENDING' | 'SENT' | 'FAILED';
 
 /** Serveur SMTP en vigueur (sans mot de passe) et état de la file d'envoi. */
 export type MailConfig = {
+  /** smtp, ou API HTTPS quand l'hébergeur bloque les ports SMTP. */
+  transport: 'smtp' | 'gmail-api' | 'brevo';
+  /** Réglages manquants pour l'API choisie. */
+  missing: string[];
   host: string;
   port: number;
   security: 'tls' | 'starttls' | 'none';

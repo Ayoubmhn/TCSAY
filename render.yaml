@@ -49,4 +49,5 @@ services:
       - key: RESET_DEMO_DATA
         value: "false"
       # Emails : non configurés pour les tests (ils restent « Échec » dans Emails envoyés).
-      # Pour envoyer de vrais emails, ajouter SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, MAIL_FROM dans Render › Environment.
+      # Emails : le plan gratuit bloque les ports SMTP (25, 465, 587). Régler MAIL_TRANSPORT=gmail-api (GMAIL_CLIENT_ID,
+      # GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN) ou brevo (BREVO_API_KEY), plus MAIL_FROM : voir docs/MAILING.md.

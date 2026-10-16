@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
 import { EmailKind, EmailStatus, type EmailLog } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { mailTransportFromEnv, missingHttpSettings, sendHttp, type MailTransport } from './http-mail';
 import { sendSmtp, smtpConfigFromEnv, type SmtpConfig } from './smtp';
 import { renderHtml, type MailAction } from './template';
 
@@ -26,6 +27,8 @@ const LIST_SELECT = {
 export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(MailService.name);
   readonly config: SmtpConfig = smtpConfigFromEnv();
+  /** smtp (défaut) ou API HTTPS (gmail-api, brevo) quand l'hébergeur bloque les ports SMTP. */
+  readonly transport: MailTransport = mailTransportFromEnv();
   private readonly appUrl = (process.env.APP_URL || process.env.RENDER_EXTERNAL_URL || process.env.CORS_ORIGIN?.split(',')[0] || 'http://localhost:5173').replace(/\/+$/, '');
   private running = false;
   private dirty = false;
@@ -35,7 +38,8 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
 
   onApplicationBootstrap(): void {
     const c = this.config;
-    this.logger.log(`SMTP ${c.host}:${c.port} (${c.security}${c.user ? ', authentifié' : ''}) · expéditeur ${c.from}`);
+    if (this.transport === 'smtp') this.logger.log(`SMTP ${c.host}:${c.port} (${c.security}${c.user ? ', authentifié' : ''}) · expéditeur ${c.from}`);
+    else this.logger.log(`Envoi par API ${this.transport} (HTTPS) · expéditeur ${c.from}`);
     this.kick();
   }
 
@@ -123,6 +127,8 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
     const counts = await this.prisma.emailLog.groupBy({ by: ['status'], _count: true });
     const count = (s: EmailStatus) => counts.find((x) => x.status === s)?._count ?? 0;
     return {
+      transport: this.transport,
+      missing: missingHttpSettings(this.transport),
       host: c.host,
       port: c.port,
       security: c.security,
@@ -133,7 +139,7 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
       fromName: c.fromName,
       replyTo: c.replyTo ?? null,
       appUrl: this.appUrl,
-      devCapture: c.port === 1025 && !c.user,
+      devCapture: this.transport === 'smtp' && c.port === 1025 && !c.user,
       pending: count(EmailStatus.PENDING),
       sent: count(EmailStatus.SENT),
       failed: count(EmailStatus.FAILED),
@@ -147,7 +153,7 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
       'Bonjour,',
       '',
       'Cet email confirme que la plateforme du Tennis Club de Sayada peut envoyer des emails.',
-      `Serveur : ${this.config.host}:${this.config.port} (${this.config.security}).`,
+      this.transport === 'smtp' ? `Serveur : ${this.config.host}:${this.config.port} (${this.config.security}).` : `Envoi par l'API ${this.transport === 'gmail-api' ? 'Gmail' : 'Brevo'} (HTTPS).`,
       '',
       'Le bureau du TCSAY',
     ].join('\n');
@@ -206,12 +212,14 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
   private async deliver(row: EmailLog): Promise<string | null> {
     let error: string | null = null;
     try {
-      await sendSmtp(this.config, {
+      const msg = {
         to: row.to,
         subject: row.subject,
         text: row.body,
         html: renderHtml(row.subject, row.body, this.actionFor(row.kind), this.logoUrl()),
-      });
+      };
+      if (this.transport === 'smtp') await sendSmtp(this.config, msg);
+      else await sendHttp(this.transport, this.config, msg);
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       this.logger.warn(`Email non envoyé à ${row.to} : ${error}`);

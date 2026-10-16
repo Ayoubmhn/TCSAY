@@ -38,6 +38,23 @@ La plateforme envoie ses emails (identifiants, nouveau rôle, inscription, rése
    - créer la boîte `no-reply@` chez l'hébergeur (port 465) ;
    - ajouter dans le DNS les enregistrements **SPF**, **DKIM** et **DMARC** donnés par l'hébergeur ou par Brevo, sinon les emails arrivent en spam.
 
+## Render gratuit : ports SMTP bloqués, envoi par API HTTPS
+Depuis septembre 2025, les services gratuits de Render bloquent les ports SMTP 25, 465 et 587. Les emails partent alors par une **API en HTTPS** (port 443), toujours sans bibliothèque (`api/src/mail/http-mail.ts`) : `MAIL_TRANSPORT=gmail-api` ou `brevo` (défaut `smtp`). L'écran *Emails envoyés* affiche le mode et les réglages manquants.
+
+**API Gmail (même compte Gmail que le SMTP)**
+1. https://console.cloud.google.com › créer un projet « TCSAY ».
+2. *API et services › Bibliothèque* › **Gmail API** › Activer.
+3. *Écran de consentement OAuth* (ou *Google Auth Platform*) : type **Externe**, nom « TCSAY », email d'assistance = l'adresse Gmail ; dans *Audience*, **Publier l'application** (« En production ») : sinon le jeton expire après 7 jours.
+4. *Identifiants › Créer des identifiants › ID client OAuth* : type **Application Web**, URI de redirection autorisé `https://developers.google.com/oauthplayground`. Noter l'ID client et le code secret.
+5. https://developers.google.com/oauthplayground › roue ⚙ › cocher *Use your own OAuth credentials*, coller l'ID client et le secret.
+6. Étape 1 : saisir la portée `https://www.googleapis.com/auth/gmail.send` › *Authorize APIs* › se connecter **avec l'adresse Gmail d'envoi** › « Paramètres avancés › Accéder à TCSAY (non sécurisé) » › Autoriser.
+7. Étape 2 : *Exchange authorization code for tokens* › copier le **Refresh token**.
+8. Render › Environment : `MAIL_TRANSPORT=gmail-api`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN`, `MAIL_FROM` = l'adresse Gmail › *Save, rebuild, and deploy*.
+
+**API Brevo** : *SMTP & API › Clés API* › créer une clé ; `MAIL_TRANSPORT=brevo`, `BREVO_API_KEY`, `MAIL_FROM` = expéditeur validé dans Brevo.
+
+Les variables `SMTP_*` peuvent rester : elles sont ignorées en mode API. Ces secrets ne vont jamais dans Git.
+
 **Vérification :** ouvrir *Emails envoyés*, envoyer un test à sa propre adresse, puis contrôler la réception et le dossier spam.
 
 **Sécurité :** ne jamais committer `api/.env`. Le mot de passe SMTP ne sort jamais de l'API : il n'est ni affiché ni journalisé.
