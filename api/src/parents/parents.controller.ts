@@ -96,6 +96,7 @@ export class ParentsController {
           where: { player: { archivedAt: null } },
           include: { player: { select: { id: true, firstName: true, lastName: true, memberCode: true } } },
         },
+        invitations: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true, expiresAt: true, usedAt: true, pendingEmail: true } },
       },
     });
     return parents.map((p) => ({
@@ -109,6 +110,16 @@ export class ParentsController {
       otherRoles: p.roles.filter((r) => r !== Role.PARENT),
       version: p.version,
       players: p.parentLinks.map((l) => l.player),
+      lastLoginAt: p.lastLoginAt,
+      // Dernière invitation : envoyée, coordonnées reçues (utilisée avec email vérifié), ou expirée.
+      invitation: p.invitations[0]
+        ? {
+            sentAt: p.invitations[0].createdAt,
+            expiresAt: p.invitations[0].expiresAt,
+            completed: Boolean(p.invitations[0].usedAt && p.invitations[0].pendingEmail && p.invitations[0].pendingEmail === p.email),
+            replaced: Boolean(p.invitations[0].usedAt && !(p.invitations[0].pendingEmail && p.invitations[0].pendingEmail === p.email)),
+          }
+        : null,
     }));
   }
 

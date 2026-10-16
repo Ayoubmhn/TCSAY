@@ -118,6 +118,9 @@ export type Parent = {
   isActive: boolean;
   version: number;
   players: (PersonRef & { memberCode?: string | null })[];
+  lastLoginAt?: string | null;
+  /** Dernière invitation (lien WhatsApp / SMS) : envoyée, coordonnées reçues. */
+  invitation?: { sentAt: string; expiresAt: string; completed: boolean; replaced: boolean } | null;
 };
 
 export type CoachRef = { id: string; firstName: string; lastName: string; color: string };

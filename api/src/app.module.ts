@@ -31,6 +31,7 @@ import { HealthController } from './health.controller';
 import { EmailsController } from './mail/emails.controller';
 import { MeController } from './me/me.controller';
 import { ParentsController } from './parents/parents.controller';
+import { InvitationsController, ParentInvitationsController } from './invitations/invitations.controller';
 import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
 import { LateInstallmentsService } from './payments/late-installments.service';
@@ -74,6 +75,8 @@ import { StaffController } from './staff/staff.controller';
     FinanceStatsController,
     PlayersController,
     ParentsController,
+    ParentInvitationsController,
+    InvitationsController,
     CoachesController,
     StaffController,
     CoachAbsencesController,

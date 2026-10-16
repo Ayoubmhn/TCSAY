@@ -41,6 +41,7 @@ const SalariesPage = page(() => import('./pages/admin/SalariesPage'), 'SalariesP
 const StaffPage = page(() => import('./pages/admin/StaffPage'), 'StaffPage');
 const UpdatesPage = page(() => import('./pages/admin/UpdatesPage'), 'UpdatesPage');
 const ChangePasswordPage = page(() => import('./pages/auth/ChangePasswordPage'), 'ChangePasswordPage');
+const InvitationPage = page(() => import('./pages/auth/InvitationPage'), 'InvitationPage');
 const BookPage = page(() => import('./pages/BookPage'), 'BookPage');
 const CoachAbsencesPage = page(() => import('./pages/coach/CoachAbsencesPage'), 'CoachAbsencesPage');
 const EvaluationsPage = page(() => import('./pages/coach/EvaluationsPage'), 'EvaluationsPage');
@@ -136,6 +137,7 @@ export function App() {
       <Routes>
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/mot-de-passe" element={<ChangePasswordPage />} />
+      <Route path="/bienvenue/:token" element={<InvitationPage />} />
       {/* Impression des reçus : onglet séparé, sans menu */}
       <Route path="/impression/recu/:id" element={admin(['payments.collect'], <ReceiptPrintPage />)} />
       <Route path="/impression/recu-test" element={admin(['payments.collect'], <ReceiptPrintPage test />)} />

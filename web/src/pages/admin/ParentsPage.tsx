@@ -20,6 +20,8 @@ import type { Parent, Player } from '../../lib/types';
 import { byNumber, nameSorts, sortRows, type SortOption } from '../../lib/sort';
 import { useAction } from '../../lib/useAction';
 import { PersonFormModal, personPayload, type PersonValues } from './PersonFormModal';
+import { BulkInviteModal, InviteModal } from '../../components/ParentInvite';
+import { formatDate } from '../../lib/format';
 
 const KEYS: string[][] = [['parents'], ['players']];
 
@@ -133,6 +135,8 @@ export function ParentsPage() {
   const [toToggle, setToToggle] = useState<Parent>();
   const [unlink, setUnlink] = useState<{ parent: Parent; player: Parent['players'][number] }>();
   const [toDelete, setToDelete] = useState<Parent>();
+  const [inviteFor, setInviteFor] = useState<Parent>();
+  const [bulkInvite, setBulkInvite] = useState(false);
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState('name');
   const [view, setView] = useViewMode('parents');
@@ -184,6 +188,7 @@ export function ParentsPage() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <ViewToggle value={view} onChange={setView} />
+            <Button onClick={() => setBulkInvite(true)}>Inviter les parents</Button>
             <Button variant="primary" onClick={() => setForm({ open: true })}>
               + Nouveau parent
             </Button>
@@ -222,7 +227,15 @@ export function ParentsPage() {
                       <Avatar first={u.firstName} last={u.lastName} />
                       <h3>{fullName(u)}</h3>
                     </Link>
-                    {!u.isActive && <Pill tone="r">Désactivé</Pill>}
+                    {!u.isActive ? (
+                      <Pill tone="r">Désactivé</Pill>
+                    ) : u.invitation?.completed ? (
+                      <Pill tone="g">Coordonnées reçues ✓</Pill>
+                    ) : u.invitation && !u.invitation.replaced && new Date(u.invitation.expiresAt) > new Date() ? (
+                      <Pill tone="b">Invité le {formatDate(u.invitation.sentAt)}</Pill>
+                    ) : isPlaceholderEmail(u.email) ? (
+                      <Pill tone="s">Email à compléter</Pill>
+                    ) : null}
                   </CardRow>
                   <Pills>
                     {u.players.map((k) => (
@@ -236,6 +249,7 @@ export function ParentsPage() {
                     {isPlaceholderEmail(u.email) ? 'Email à compléter' : u.email} · {u.phone ?? '—'} · CIN {u.cin ?? '—'}
                   </CardText>
                   <CardActions>
+                    {u.isActive && <ActionIcon kind="send" label="Inviter (WhatsApp, SMS)" onClick={() => setInviteFor(u)} />}
                     <ActionIcon kind="link" label="Lier un joueur" onClick={() => setLinkFor(u)} />
                     <ActionIcon kind="edit" onClick={() => setForm({ open: true, parent: u })} />
                     <ActionIcon kind={u.isActive ? 'deactivate' : 'activate'} label={u.isActive ? 'Désactiver le compte' : 'Réactiver'} onClick={() => setToToggle(u)} />
@@ -270,6 +284,8 @@ export function ParentsPage() {
         onClose={() => setForm({ open: false })}
       />
       <LinkModal parent={linkFor} onClose={() => setLinkFor(undefined)} />
+      <InviteModal parent={inviteFor ? { id: inviteFor.id, name: fullName(inviteFor) } : undefined} onClose={() => setInviteFor(undefined)} />
+      <BulkInviteModal open={bulkInvite} onClose={() => setBulkInvite(false)} />
       <ConfirmModal
         open={Boolean(toToggle)}
         title={toToggle?.isActive ? 'Désactiver ce compte ?' : 'Réactiver ce compte ?'}

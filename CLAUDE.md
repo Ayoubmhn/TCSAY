@@ -21,6 +21,7 @@ Plateforme web et mobile qui remplace les cahiers papier et les paiements en esp
 | **Administrateur** | Gère joueurs, parents, entraîneurs, groupes, terrains, catégories, saisons, tarifs, réservations, salaires, paiements, import historique, audit. |
 
 - Les comptes joueur, parent et entraîneur sont **créés par l'admin** (pas d'inscription publique). Un email envoie l'identifiant et un **mot de passe temporaire** ; à la première connexion (`mustChangePassword`), écran « Choisissez votre mot de passe » sans ressaisir le temporaire (session déjà ouverte), ou **« Modifier plus tard »** (`POST /auth/change-password/later` : `temporaryPassword`, rappel dans Paramètres, changement sans l'ancien tant qu'il est temporaire).
+- **Invitation des parents** (`api/src/invitations/`, table `Invitation`, page publique `/bienvenue/:jeton`) : Parents › « Inviter » (ou « Inviter les parents » : sans email réel ou jamais connectés) prépare un lien personnel (14 jours, une seule utilisation, empreinte seule en base, un nouveau lien remplace l'ancien) envoyé par WhatsApp (`wa.me`, indicatif 216), SMS ou copie depuis le téléphone du club ; le parent saisit son **email obligatoire vérifié par un code à 6 chiffres** (15 min, 5 essais, 5 envois), téléphone, CIN, mot de passe → compte activé, session ouverte ; pastilles « Invité le… » / « Coordonnées reçues ✓ » ; audit.
 - Seul l'admin attribue les rôles ; toujours au moins un admin actif.
 
 ## 3. Stack et organisation

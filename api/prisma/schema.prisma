@@ -223,6 +223,7 @@ model User {
   passwordResets     PasswordReset[]
   pushSubscriptions  PushSubscription[]
   nativePushTokens   NativePushToken[]
+  invitations        Invitation[]
   expensesCreated    Expense[]
   tournamentsCreated Tournament[]
 }
@@ -1215,6 +1216,28 @@ model NativePushToken {
   platform   String
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Invitation personnelle d'un parent (lien envoyé par WhatsApp ou SMS) : il complète lui-même email vérifié,
+/// téléphone, CIN et mot de passe. Jeton gardé haché, valable 14 jours, utilisable une fois.
+model Invitation {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  tokenHash     String    @unique
+  createdById   String?   @db.Uuid
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  usedAt        DateTime?
+  /// Email saisi par le parent, en attente du code de vérification.
+  pendingEmail  String?
+  codeHash      String?
+  codeExpiresAt DateTime?
+  codeAttempts  Int       @default(0)
+  codesSent     Int       @default(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
