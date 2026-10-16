@@ -1,3 +1,4 @@
+import { router, useLocalSearchParams } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -50,11 +51,22 @@ export default function SiteScreen() {
   const [loading, setLoading] = useState(true);
   const [bg, setBg] = useState(system === 'dark' ? '#121212' : '#fafafa');
   const dark = isDark(bg);
-  // Application lancée en touchant une notification : on ouvre directement la bonne page.
+  // Lien du site ouvert depuis un email ou un SMS (+native-intent.tsx) : page demandée.
+  const { open } = useLocalSearchParams<{ open?: string }>();
+  const openPath = typeof open === 'string' && open.startsWith('/') && !open.startsWith('//') ? open : null;
+  // Application lancée par une notification touchée ou par un lien : on ouvre directement la bonne page.
   const [start] = useState(() => {
-    const link = linkOf(Notifications.getLastNotificationResponse());
+    const link = linkOf(Notifications.getLastNotificationResponse()) ?? openPath;
     return link ? SITE + link : SITE;
   });
+  const firstOpen = useRef(openPath);
+  useEffect(() => {
+    if (!openPath) return;
+    // Lien suivant, application déjà ouverte : la vue change de page (le premier est déjà dans `start`).
+    if (openPath !== firstOpen.current) web.current?.injectJavaScript(`window.location.assign(${JSON.stringify(SITE + openPath)}); true;`);
+    firstOpen.current = null;
+    router.setParams({ open: undefined });
+  }, [openPath]);
   const [push, setPush] = useState<NativePush | null>(null);
 
   // Autorisation et jeton au premier lancement ; revérifiés au retour dans l'application (réglages modifiés).
@@ -141,7 +153,7 @@ export default function SiteScreen() {
           ref={web}
           source={{ uri: start }}
           style={{ flex: 1, backgroundColor: bg }}
-          applicationNameForUserAgent="TCSAYApp/0.3"
+          applicationNameForUserAgent="TCSAYApp/0.4"
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled

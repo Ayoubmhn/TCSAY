@@ -20,7 +20,18 @@ coché d'office, carte « Installer l'application » masquée.
   page concernée. Paramètres › « Notifications du téléphone » : état, essai, réglages Android.
 - Les écrans natifs commencés (lot 1, lots 2–3 partiels) sont gardés dans `src/natif/` et `src/wip/` (hors routes).
 
-## Notifications du téléphone : mise en place (une fois)
+## Liens ouverts dans l'application (version 0.4)
+
+Un lien du site reçu par email, SMS ou WhatsApp (`https://tcsay.vercel.app/paiements`…) ouvre l'application si elle
+est installée, sinon le navigateur (Android App Links) :
+- `app.config.js` : filtre d'adresse vérifié pour l'hôte de `EXPO_PUBLIC_WEB_URL` ;
+- `src/app/+native-intent.tsx` : la page demandée est ouverte dans la vue ;
+- preuve côté site : `web/public/.well-known/assetlinks.json` (paquet `tn.tcsay.app` + empreinte SHA-256 de la clé de
+  signature EAS, `npx eas-cli credentials -p android`). Publication Google Play : ajouter aussi l'empreinte « App signing »
+  de la Play Console. Nouveau domaine : redéployer le site avec ce fichier, changer `EXPO_PUBLIC_WEB_URL`, reconstruire l'APK.
+- Vérifier sur le téléphone : Paramètres › Applications › TCSAY › Ouvrir par défaut › « tcsay.vercel.app » coché.
+
+
 
 Android remet les notifications par **Firebase Cloud Messaging** (gratuit). Sans ces réglages, l'application marche
 mais affiche « Notifications indisponibles ».
