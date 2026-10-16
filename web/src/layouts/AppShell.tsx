@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { EmptyState } from '../components/ui/Card';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { SPACE_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { NotificationBell } from '../components/NotificationBell';
@@ -267,7 +268,15 @@ export function AppShell() {
           <NotificationBell />
           <ThemeToggle />
         </div>
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="grid min-h-[50vh] place-items-center p-6">
+              <EmptyState>Chargement…</EmptyState>
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
       <BottomTabs menuOpen={drawerOpen} onMenu={() => setDrawerOpen((v) => !v)} />
     </div>

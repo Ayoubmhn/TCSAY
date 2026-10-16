@@ -1,70 +1,77 @@
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { homeOf, useAuth } from './auth/AuthContext';
 import { Button } from './components/ui/Button';
 import { useI18n } from './lib/i18n';
 import { EmptyState } from './components/ui/Card';
-import { SeasonDetailPage } from './features/seasons/SeasonDetailPage';
-import { FinanceStatsPage } from './features/stats/FinanceStatsPage';
-import { SeasonsPage } from './features/seasons/SeasonsPage';
 import { AppShell } from './layouts/AppShell';
 import type { Role } from './lib/types';
-import { AuditPage } from './pages/admin/AuditPage';
-import { BroadcastsPage } from './pages/admin/BroadcastsPage';
-import { CategoriesPage } from './pages/admin/CategoriesPage';
-import { CoachesPage } from './pages/admin/CoachesPage';
-import { CourtRatesPage } from './pages/admin/CourtRatesPage';
-import { CourtsPage } from './pages/admin/CourtsPage';
-import { DashboardPage } from './pages/admin/DashboardPage';
-import { EmailsPage } from './pages/admin/EmailsPage';
-import { FeesPage } from './pages/admin/FeesPage';
-import { GroupDetailPage } from './pages/admin/GroupDetailPage';
-import { GroupsPage } from './pages/admin/GroupsPage';
-import { ParentsPage } from './pages/admin/ParentsPage';
-import { PaymentsAdminPage } from './pages/admin/PaymentsAdminPage';
-import { PermissionsPage } from './pages/admin/PermissionsPage';
-import { PlayersImportPage } from './pages/admin/PlayersImportPage';
-import { PlayersPage } from './pages/admin/PlayersPage';
-import { CoachProfilePage, ParentProfilePage, PlayerProfilePage, StaffProfilePage } from './pages/admin/ProfilePages';
-import { RegistrationFormPage } from './pages/admin/RegistrationFormPage';
-import { ReservationsAdminPage } from './pages/admin/ReservationsAdminPage';
-import { SalariesPage } from './pages/admin/SalariesPage';
-import { StaffPage } from './pages/admin/StaffPage';
-import { UpdatesPage } from './pages/admin/UpdatesPage';
-import { ChangePasswordPage } from './pages/auth/ChangePasswordPage';
 import { LoginPage } from './pages/auth/LoginPage';
-import { BookPage } from './pages/BookPage';
-import { CoachAbsencesPage } from './pages/coach/CoachAbsencesPage';
-import { EvaluationsPage } from './pages/coach/EvaluationsPage';
-import { TechOverviewPage } from './pages/admin/TechOverviewPage';
-import { ExercisesCoachPage } from './features/exercises/ExercisesCoachPage';
-import { ExercisesPage } from './features/exercises/ExercisesPage';
 import { PaymentGate } from './components/PaymentGate';
-import { MatchesPage } from './features/matches/MatchesPage';
-import { MatchPage } from './features/matches/MatchPage';
-import { PaymentAccessPage } from './pages/admin/PaymentAccessPage';
-import { CoachAttendancePage } from './pages/coach/CoachAttendancePage';
-import { CoachSalariesPage } from './pages/coach/CoachSalariesPage';
-import { CoachSessionsPage } from './pages/coach/CoachSessionsPage';
-import { ProgressPage } from './pages/player/ProgressPage';
-import { AbsencesPage } from './pages/player/AbsencesPage';
-import { HomePage } from './pages/player/HomePage';
-import { PaymentsPage } from './pages/player/PaymentsPage';
-import { SessionsPage } from './pages/player/SessionsPage';
-import { NotificationsPage } from './pages/NotificationsPage';
-import { SettingsPage } from './pages/SettingsPage';
-import { TournamentsPage } from './features/tournaments/TournamentsPage';
-import { TournamentPage } from './features/tournaments/TournamentPage';
-import { FederationAccountsPage } from './pages/admin/FederationAccountsPage';
-import { ReenrollmentPage } from './pages/admin/ReenrollmentPage';
-import { ExpensesPage } from './pages/admin/ExpensesPage';
-import { AvailabilityAdminPage } from './pages/admin/AvailabilityAdminPage';
-import { AvailabilityPage } from './pages/AvailabilityPage';
 import { PermissionsGate } from './components/PermissionsGate';
-import { NotFoundPage, SoonPage } from './pages/SoonPage';
-import { PlanningPage } from './pages/staff/PlanningPage';
-import { ReceiptsPage } from './pages/admin/ReceiptsPage';
-import { ReceiptPrintPage } from './features/receipts/ReceiptPrintPage';
+import { page } from './lib/lazy-page';
+
+// Chaque écran est chargé à sa première ouverture (fichiers séparés) : premier affichage plus rapide, surtout sur téléphone.
+const SeasonDetailPage = page(() => import('./features/seasons/SeasonDetailPage'), 'SeasonDetailPage');
+const FinanceStatsPage = page(() => import('./features/stats/FinanceStatsPage'), 'FinanceStatsPage');
+const SeasonsPage = page(() => import('./features/seasons/SeasonsPage'), 'SeasonsPage');
+const AuditPage = page(() => import('./pages/admin/AuditPage'), 'AuditPage');
+const BroadcastsPage = page(() => import('./pages/admin/BroadcastsPage'), 'BroadcastsPage');
+const CategoriesPage = page(() => import('./pages/admin/CategoriesPage'), 'CategoriesPage');
+const CoachesPage = page(() => import('./pages/admin/CoachesPage'), 'CoachesPage');
+const CourtRatesPage = page(() => import('./pages/admin/CourtRatesPage'), 'CourtRatesPage');
+const CourtsPage = page(() => import('./pages/admin/CourtsPage'), 'CourtsPage');
+const DashboardPage = page(() => import('./pages/admin/DashboardPage'), 'DashboardPage');
+const EmailsPage = page(() => import('./pages/admin/EmailsPage'), 'EmailsPage');
+const FeesPage = page(() => import('./pages/admin/FeesPage'), 'FeesPage');
+const GroupDetailPage = page(() => import('./pages/admin/GroupDetailPage'), 'GroupDetailPage');
+const GroupsPage = page(() => import('./pages/admin/GroupsPage'), 'GroupsPage');
+const ParentsPage = page(() => import('./pages/admin/ParentsPage'), 'ParentsPage');
+const PaymentsAdminPage = page(() => import('./pages/admin/PaymentsAdminPage'), 'PaymentsAdminPage');
+const PermissionsPage = page(() => import('./pages/admin/PermissionsPage'), 'PermissionsPage');
+const PlayersImportPage = page(() => import('./pages/admin/PlayersImportPage'), 'PlayersImportPage');
+const PlayersPage = page(() => import('./pages/admin/PlayersPage'), 'PlayersPage');
+const CoachProfilePage = page(() => import('./pages/admin/ProfilePages'), 'CoachProfilePage');
+const ParentProfilePage = page(() => import('./pages/admin/ProfilePages'), 'ParentProfilePage');
+const PlayerProfilePage = page(() => import('./pages/admin/ProfilePages'), 'PlayerProfilePage');
+const StaffProfilePage = page(() => import('./pages/admin/ProfilePages'), 'StaffProfilePage');
+const RegistrationFormPage = page(() => import('./pages/admin/RegistrationFormPage'), 'RegistrationFormPage');
+const ReservationsAdminPage = page(() => import('./pages/admin/ReservationsAdminPage'), 'ReservationsAdminPage');
+const SalariesPage = page(() => import('./pages/admin/SalariesPage'), 'SalariesPage');
+const StaffPage = page(() => import('./pages/admin/StaffPage'), 'StaffPage');
+const UpdatesPage = page(() => import('./pages/admin/UpdatesPage'), 'UpdatesPage');
+const ChangePasswordPage = page(() => import('./pages/auth/ChangePasswordPage'), 'ChangePasswordPage');
+const BookPage = page(() => import('./pages/BookPage'), 'BookPage');
+const CoachAbsencesPage = page(() => import('./pages/coach/CoachAbsencesPage'), 'CoachAbsencesPage');
+const EvaluationsPage = page(() => import('./pages/coach/EvaluationsPage'), 'EvaluationsPage');
+const TechOverviewPage = page(() => import('./pages/admin/TechOverviewPage'), 'TechOverviewPage');
+const ExercisesCoachPage = page(() => import('./features/exercises/ExercisesCoachPage'), 'ExercisesCoachPage');
+const ExercisesPage = page(() => import('./features/exercises/ExercisesPage'), 'ExercisesPage');
+const MatchesPage = page(() => import('./features/matches/MatchesPage'), 'MatchesPage');
+const MatchPage = page(() => import('./features/matches/MatchPage'), 'MatchPage');
+const PaymentAccessPage = page(() => import('./pages/admin/PaymentAccessPage'), 'PaymentAccessPage');
+const CoachAttendancePage = page(() => import('./pages/coach/CoachAttendancePage'), 'CoachAttendancePage');
+const CoachSalariesPage = page(() => import('./pages/coach/CoachSalariesPage'), 'CoachSalariesPage');
+const CoachSessionsPage = page(() => import('./pages/coach/CoachSessionsPage'), 'CoachSessionsPage');
+const ProgressPage = page(() => import('./pages/player/ProgressPage'), 'ProgressPage');
+const AbsencesPage = page(() => import('./pages/player/AbsencesPage'), 'AbsencesPage');
+const HomePage = page(() => import('./pages/player/HomePage'), 'HomePage');
+const PaymentsPage = page(() => import('./pages/player/PaymentsPage'), 'PaymentsPage');
+const SessionsPage = page(() => import('./pages/player/SessionsPage'), 'SessionsPage');
+const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage');
+const SettingsPage = page(() => import('./pages/SettingsPage'), 'SettingsPage');
+const TournamentsPage = page(() => import('./features/tournaments/TournamentsPage'), 'TournamentsPage');
+const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
+const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
+const ReenrollmentPage = page(() => import('./pages/admin/ReenrollmentPage'), 'ReenrollmentPage');
+const ExpensesPage = page(() => import('./pages/admin/ExpensesPage'), 'ExpensesPage');
+const AvailabilityAdminPage = page(() => import('./pages/admin/AvailabilityAdminPage'), 'AvailabilityAdminPage');
+const AvailabilityPage = page(() => import('./pages/AvailabilityPage'), 'AvailabilityPage');
+const NotFoundPage = page(() => import('./pages/SoonPage'), 'NotFoundPage');
+const SoonPage = page(() => import('./pages/SoonPage'), 'SoonPage');
+const PlanningPage = page(() => import('./pages/staff/PlanningPage'), 'PlanningPage');
+const ReceiptsPage = page(() => import('./pages/admin/ReceiptsPage'), 'ReceiptsPage');
+const ReceiptPrintPage = page(() => import('./features/receipts/ReceiptPrintPage'), 'ReceiptPrintPage');
 
 /**
  * Connexion obligatoire, mot de passe temporaire changé, espace (rôle d'action) autorisé,
@@ -104,6 +111,15 @@ function Protected({ roles, perm, children }: { roles?: Role[]; perm?: string[];
   return <>{children}</>;
 }
 
+/** Pendant le chargement d'un écran. */
+function Loading() {
+  return (
+    <div className="grid min-h-[50vh] place-items-center p-6">
+      <EmptyState>Chargement…</EmptyState>
+    </div>
+  );
+}
+
 const PLAYER: Role[] = ['PLAYER', 'PARENT'];
 const ADMIN: Role[] = ['ADMIN'];
 
@@ -116,7 +132,8 @@ const admin = (perm: string[] | undefined, page: ReactNode) => (
 
 export function App() {
   return (
-    <Routes>
+    <Suspense fallback={<Loading />}>
+      <Routes>
       <Route path="/connexion" element={<LoginPage />} />
       <Route path="/mot-de-passe" element={<ChangePasswordPage />} />
       {/* Impression des reçus : onglet séparé, sans menu */}
@@ -212,6 +229,7 @@ export function App() {
         />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
