@@ -38,11 +38,11 @@ export function Calendar({ dots, value, onChange }: { dots: Set<string>; value: 
   return (
     <Card>
       <CardRow>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-[1_1_230px] items-center justify-between gap-2">
           <IconButton aria-label="Période précédente" onClick={() => move(-1)}>
             ‹
           </IconButton>
-          <h3 className="min-w-[150px] text-center capitalize">{title}</h3>
+          <h3 className="min-w-0 flex-1 truncate text-center capitalize">{title}</h3>
           <IconButton aria-label="Période suivante" onClick={() => move(1)}>
             ›
           </IconButton>

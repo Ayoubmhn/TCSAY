@@ -13,7 +13,7 @@ export function Card({ className = '', ...props }: HTMLAttributes<HTMLDivElement
 
 /** Ligne titre + pastille (.row). */
 export function CardRow({ children }: { children: ReactNode }) {
-  return <div className="card-row flex items-center justify-between gap-2.5">{children}</div>;
+  return <div className="card-row flex flex-wrap items-center justify-between gap-2.5">{children}</div>;
 }
 
 /** Sous-titre de carte (.cs) : 13px 600 gris. */

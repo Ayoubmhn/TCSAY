@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { FitWidth } from '../../components/ui/FitWidth';
 import { useParams, useSearchParams } from 'react-router';
 import { Button } from '../../components/ui/Button';
 import { QueryState } from '../../components/ui/Loading';
@@ -127,8 +128,10 @@ export function ReceiptPrintPage({ test = false }: { test?: boolean }) {
       </div>
       <QueryState isPending={layoutQ.isPending || (!test && receiptQ.isPending)} error={layoutQ.error ?? receiptQ.error} refetch={() => void layoutQ.refetch()}>
         {layout && values && (
-          <div className="receipt-frame overflow-auto rounded-[24px] border-[1.5px] border-line bg-fld p-4">
-            <ReceiptSheet mode={mode} layout={layout} values={values} guides={guides} className="border border-line" />
+          <div className="receipt-frame w-full max-w-[860px] overflow-auto rounded-[24px] border-[1.5px] border-line bg-fld p-4">
+            <FitWidth>
+              <ReceiptSheet mode={mode} layout={layout} values={values} guides={guides} className="border border-line" />
+            </FitWidth>
           </div>
         )}
       </QueryState>

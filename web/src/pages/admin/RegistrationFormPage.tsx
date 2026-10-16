@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
+import { FitWidth } from '../../components/ui/FitWidth';
 import { Button } from '../../components/ui/Button';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -296,8 +297,10 @@ export function RegistrationFormPage() {
           {FORM_CODE}). La lecture par IA et la validation humaine viendront avec l’import (sprint 9).
         </Note>
       </div>
-      <div className="print-area mt-5 overflow-x-auto rounded-[26px] border-[1.5px] border-line bg-fld p-4">
-        <RegistrationSheet season={season.data?.label} />
+      <div className="print-area mt-5 rounded-[26px] border-[1.5px] border-line bg-fld p-4">
+        <FitWidth>
+          <RegistrationSheet season={season.data?.label} />
+        </FitWidth>
       </div>
     </>
   );

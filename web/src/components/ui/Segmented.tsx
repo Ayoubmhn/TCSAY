@@ -13,14 +13,14 @@ export function Segmented<T extends string>({
 }) {
   const { t } = useI18n();
   return (
-    <div role="group" aria-label={t(label)} className="inline-flex rounded-full bg-btn p-1">
+    <div role="group" aria-label={t(label)} className="inline-flex max-w-full overflow-x-auto rounded-full bg-btn p-1 [scrollbar-width:none]">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           aria-pressed={o.value === value}
           onClick={() => onChange(o.value)}
-          className={`rounded-full px-4 py-[7px] text-sm font-medium ${o.value === value ? 'bg-toggle text-bg' : 'text-fg'}`}
+          className={`flex-none whitespace-nowrap rounded-full px-4 py-[7px] text-sm font-medium ${o.value === value ? 'bg-toggle text-bg' : 'text-fg'}`}
         >
           {t(o.label)}
         </button>

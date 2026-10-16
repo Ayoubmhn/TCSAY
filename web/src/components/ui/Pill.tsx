@@ -11,7 +11,7 @@ export function Pill({ tone, children, className = '' }: { tone: PillTone; child
   const tr = useTr();
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-[13px] py-[5px] text-[13px] font-medium text-ink ${TONES[tone]} ${className}`}
+      className={`inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full break-words [overflow-wrap:anywhere] px-[13px] py-[5px] text-[13px] font-medium text-ink ${TONES[tone]} ${className}`}
     >
       {tr(children)}
     </span>
