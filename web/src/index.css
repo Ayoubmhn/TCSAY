@@ -98,6 +98,17 @@
   #root {
     height: 100%;
   }
+  /* Safari (iPhone) n'applique le blocage du défilement horizontal que posé aussi sur <html>. */
+  html {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  @supports (overflow: clip) {
+    html {
+      overflow-x: clip;
+    }
+  }
   body {
     margin: 0;
     background: var(--bg);
