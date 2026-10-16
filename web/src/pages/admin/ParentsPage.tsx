@@ -6,7 +6,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
-import { FilterSelect, Filters, SelectField } from '../../components/ui/Field';
+import { FilterSelect, Filters, TextField } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
@@ -42,9 +42,25 @@ function matches(p: Parent, q: string) {
 
 function LinkModal({ parent, onClose }: { parent?: Parent; onClose: () => void }) {
   const players = useQuery({ queryKey: ['players', 'all'], queryFn: () => api.get<Player[]>('/players'), enabled: Boolean(parent) });
-  const candidates = (players.data ?? []).filter((p) => !parent?.players.some((x) => x.id === p.id));
   const [playerId, setPlayerId] = useState('');
-  useEffect(() => setPlayerId(''), [parent]);
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    setPlayerId('');
+    setSearch('');
+  }, [parent]);
+  // Recherche par nom, prénom, code TCSAY, catégorie ou année de naissance (sans accents, mots dans n'importe quel ordre).
+  const candidates = useMemo(() => {
+    const words = norm(search).split(/\s+/).filter(Boolean);
+    return (players.data ?? [])
+      .filter((p) => !parent?.players.some((x) => x.id === p.id))
+      .filter((p) => {
+        if (!words.length) return true;
+        const hay = norm([fullName(p), p.lastName, p.firstName, p.memberCode, p.category?.name, p.birthDate?.slice(0, 4)].join(' '));
+        return words.every((w) => hay.includes(w));
+      })
+      .sort((a, b) => fullName(a).localeCompare(fullName(b), 'fr'));
+  }, [players.data, parent, search]);
+  const chosen = (players.data ?? []).find((p) => p.id === playerId);
   const link = useAction(() => api.post(`/parents/${parent!.id}/links`, { playerId }), {
     invalidate: KEYS,
     success: 'Joueur lié.',
@@ -64,14 +80,41 @@ function LinkModal({ parent, onClose }: { parent?: Parent; onClose: () => void }
         </>
       }
     >
-      <SelectField label="Joueur" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
-        <option value="">— Choisir —</option>
-        {candidates.map((p) => (
-          <option key={p.id} value={p.id}>
-            {fullName(p)} · {p.category?.name ?? '—'}
-          </option>
-        ))}
-      </SelectField>
+      <div className="flex flex-col gap-3">
+        <TextField
+          label="Rechercher un joueur"
+          type="search"
+          value={search}
+          autoFocus
+          placeholder="Nom, prénom, code TCSAY, catégorie…"
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {chosen && <Pill tone="g">Choisi : {fullName(chosen)}</Pill>}
+        <div role="listbox" aria-label="Joueurs" className="flex max-h-[min(46vh,360px)] flex-col gap-1.5 overflow-y-auto pe-1">
+          {players.isPending ? (
+            <EmptyState>Chargement…</EmptyState>
+          ) : candidates.length === 0 ? (
+            <EmptyState>Aucun joueur trouvé.</EmptyState>
+          ) : (
+            candidates.slice(0, 60).map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="option"
+                aria-selected={p.id === playerId}
+                onClick={() => setPlayerId(p.id)}
+                className={`flex items-center justify-between gap-2 rounded-[16px] px-3.5 py-2.5 text-start ${p.id === playerId ? 'bg-pri text-white' : 'bg-fld text-fg hover:bg-btn'}`}
+              >
+                <span className="min-w-0 truncate font-medium">{fullName(p)}</span>
+                <span className={`flex-none text-xs ${p.id === playerId ? 'text-white/80' : 'text-mut'}`}>
+                  {[p.memberCode, p.category?.name].filter(Boolean).join(' · ')}
+                </span>
+              </button>
+            ))
+          )}
+          {candidates.length > 60 && <span className="px-1 text-xs text-mut">{candidates.length - 60} autres : précisez la recherche.</span>}
+        </div>
+      </div>
     </Modal>
   );
 }

@@ -142,8 +142,8 @@ export function errorMessage(error: unknown): string {
 }
 
 /** Changement de mot de passe : l'API renvoie un nouveau jeton (les anciennes sessions sont déconnectées). */
-export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
-  const r = await api.post<{ accessToken?: string }>('/auth/change-password', { currentPassword, newPassword });
+export async function changePassword(currentPassword: string | undefined, newPassword: string): Promise<void> {
+  const r = await api.post<{ accessToken?: string }>('/auth/change-password', { currentPassword: currentPassword || undefined, newPassword });
   if (r?.accessToken) setToken(r.accessToken);
 }
 

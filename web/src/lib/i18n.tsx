@@ -34,6 +34,8 @@ const DICT: Record<string, [string, string]> = {
   'Envoyer un essai': ['Send a test', 'إرسال تجربة'],
   'Notification d’essai envoyée.': ['Test notification sent.', 'تم إرسال إشعار تجريبي.'],
   'Notifications du téléphone': ['Phone notifications', 'إشعارات الهاتف'],
+  'Modifier plus tard': ['Change later', 'التغيير لاحقًا'],
+  'Vous utilisez encore le mot de passe temporaire reçu par email : choisissez le vôtre ci-dessous.': ['You are still using the temporary password received by email: choose your own below.', 'ما زلت تستخدم كلمة المرور المؤقتة المرسلة بالبريد: اختر كلمتك أدناه.'],
   'Notifications indisponibles': ['Notifications unavailable', 'الإشعارات غير متاحة'],
   'Autoriser': ['Allow', 'السماح'],
   'Ouvrir les réglages': ['Open settings', 'فتح الإعدادات'],

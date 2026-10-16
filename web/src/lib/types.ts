@@ -44,6 +44,8 @@ export type Me = {
   firstName: string;
   lastName: string;
   mustChangePassword: boolean;
+  /** Mot de passe temporaire gardé (« Modifier plus tard ») : rappel dans Paramètres. */
+  temporaryPassword?: boolean;
   playerId: string | null;
   coachId: string | null;
   players: PersonRef[];

@@ -18,6 +18,7 @@ import { Segmented } from '../components/ui/Segmented';
 import { setTheme, useTheme, type Theme } from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
 import { changePassword, passwordHint } from '../lib/api';
+import { Note } from '../components/ui/Note';
 import { formatDate, formatDateTime } from '../lib/format';
 import { LANGS, useI18n, type Lang } from '../lib/i18n';
 import { useAction } from '../lib/useAction';
@@ -49,7 +50,7 @@ export function SettingsPage() {
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!current) return toast(t('Saisissez votre mot de passe actuel.'));
+    if (!current && !me.temporaryPassword) return toast(t('Saisissez votre mot de passe actuel.'));
     const hint = passwordHint(pw1);
     if (hint) return toast(t(hint));
     if (pw1 !== pw2) return toast(t('Les deux mots de passe ne correspondent pas.'));
@@ -100,7 +101,11 @@ export function SettingsPage() {
           <Section title="Mot de passe">
             <Card>
               <form className="flex flex-col gap-3" onSubmit={submit} noValidate>
-                <TextField label="Mot de passe actuel" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+                {me.temporaryPassword ? (
+                  <Note>{t('Vous utilisez encore le mot de passe temporaire reçu par email : choisissez le vôtre ci-dessous.')}</Note>
+                ) : (
+                  <TextField label="Mot de passe actuel" type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+                )}
                 <TextField
                   label="Nouveau mot de passe (10 caractères, lettres et chiffres)"
                   type="password"

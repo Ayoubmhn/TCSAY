@@ -67,6 +67,7 @@ export class AuthGuard implements CanActivate {
       firstName: user.firstName,
       lastName: user.lastName,
       mustChangePassword: user.mustChangePassword,
+      temporaryPassword: user.temporaryPassword,
       playerId: user.player?.id ?? null,
       coachId: user.coach?.id ?? null,
     };

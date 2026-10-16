@@ -37,6 +37,7 @@ export type AuthUser = {
   firstName: string;
   lastName: string;
   mustChangePassword: boolean;
+  temporaryPassword: boolean;
   playerId: string | null; // compte joueur
   coachId: string | null; // compte coach
 };

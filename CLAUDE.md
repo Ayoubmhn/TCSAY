@@ -20,7 +20,7 @@ Plateforme web et mobile qui remplace les cahiers papier et les paiements en esp
 | **Coach** | Ses séances avec pointage des présences, ses salaires versés, réservation de terrain pour séances privées. **Ne voit jamais les cotisations des joueurs.** |
 | **Administrateur** | Gère joueurs, parents, entraîneurs, groupes, terrains, catégories, saisons, tarifs, réservations, salaires, paiements, import historique, audit. |
 
-- Les comptes joueur, parent et entraîneur sont **créés par l'admin** (pas d'inscription publique). Un email envoie l'identifiant et un **mot de passe temporaire** ; **changement obligatoire à la première connexion** (`mustChangePassword`).
+- Les comptes joueur, parent et entraîneur sont **créés par l'admin** (pas d'inscription publique). Un email envoie l'identifiant et un **mot de passe temporaire** ; à la première connexion (`mustChangePassword`), écran « Choisissez votre mot de passe » sans ressaisir le temporaire (session déjà ouverte), ou **« Modifier plus tard »** (`POST /auth/change-password/later` : `temporaryPassword`, rappel dans Paramètres, changement sans l'ancien tant qu'il est temporaire).
 - Seul l'admin attribue les rôles ; toujours au moins un admin actif.
 
 ## 3. Stack et organisation

@@ -187,6 +187,8 @@ model User {
   payMode            PayMode? // employés : à l'heure ou au mois
   payRate            Decimal?  @db.Decimal(10, 3) // DT par heure ou par mois
   mustChangePassword Boolean   @default(true)
+  /// Mot de passe temporaire gardé (« Modifier plus tard ») : rappel dans Paramètres jusqu'au changement.
+  temporaryPassword  Boolean   @default(false)
   /// Compte fédération (IJIN), facultatif : identifiant en clair, mot de passe chiffré (AES-256-GCM, clé dans api/.env).
   ijinLogin          String?
   ijinPasswordEnc    String?

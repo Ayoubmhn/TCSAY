@@ -34,9 +34,11 @@ const SESSION_SHORT = 12 * 3600;
 const SESSION_LONG = 30 * 24 * 3600;
 
 class ChangePasswordDto {
+  /** Facultatif avec un mot de passe temporaire (session déjà ouverte avec lui). */
+  @IsOptional()
   @IsString()
   @MaxLength(200)
-  currentPassword: string;
+  currentPassword?: string;
 
   @IsString()
   @MinLength(10, { message: 'Le mot de passe doit contenir au moins 10 caractères.' })
@@ -146,7 +148,7 @@ export class AuthController {
       this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } }),
       this.prisma.user.update({
         where: { id: user.id },
-        data: { passwordHash: await hashPassword(dto.newPassword), mustChangePassword: false, version: { increment: 1 } },
+        data: { passwordHash: await hashPassword(dto.newPassword), mustChangePassword: false, temporaryPassword: false, version: { increment: 1 } },
       }),
     ]);
     this.throttle.success(ip, key);
@@ -188,21 +190,25 @@ export class AuthController {
       throw new ForbiddenException('Mode démonstration : le mot de passe des comptes de démo ne se change pas.');
     }
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: current.id } });
-    const key = `pw:${user.id}`;
-    this.throttle.check(ip, key);
-    if (!(await verifyPassword(dto.currentPassword, user.passwordHash))) {
-      this.throttle.fail(ip, key);
-      throw new BadRequestException('Mot de passe actuel incorrect.');
+    // Mot de passe temporaire (première connexion ou « Modifier plus tard ») : la session ouverte avec lui suffit.
+    const temporary = user.mustChangePassword || user.temporaryPassword;
+    if (!temporary || dto.currentPassword) {
+      const key = `pw:${user.id}`;
+      this.throttle.check(ip, key);
+      if (!(await verifyPassword(dto.currentPassword ?? '', user.passwordHash))) {
+        this.throttle.fail(ip, key);
+        throw new BadRequestException('Mot de passe actuel incorrect.');
+      }
+      this.throttle.success(ip, key);
     }
-    this.throttle.success(ip, key);
-    if (dto.currentPassword === dto.newPassword) {
+    if (await verifyPassword(dto.newPassword, user.passwordHash)) {
       throw new BadRequestException('Le nouveau mot de passe doit être différent de l’actuel.');
     }
     const problem = passwordProblem(dto.newPassword, user);
     if (problem) throw new BadRequestException(problem);
     const updated = await this.prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash: await hashPassword(dto.newPassword), mustChangePassword: false, version: { increment: 1 } },
+      data: { passwordHash: await hashPassword(dto.newPassword), mustChangePassword: false, temporaryPassword: false, version: { increment: 1 } },
     });
     await this.audit.log(user.id, {
       action: 'Mot de passe changé',
@@ -212,6 +218,24 @@ export class AuthController {
     });
     // Nouveau jeton pour cette session ; les autres sessions (autres appareils) sont déconnectées.
     return { ok: true, accessToken: signToken(user.id, user.roles.join(','), updated.passwordHash) };
+  }
+
+  /** Première connexion : garder le mot de passe temporaire reçu par email (« Modifier plus tard »), rappel dans Paramètres. */
+  @ApiBearerAuth()
+  @AllowPendingPassword()
+  @Post('change-password/later')
+  @HttpCode(200)
+  async changePasswordLater(@CurrentUser() current: AuthUser) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: current.id }, select: { mustChangePassword: true, firstName: true, lastName: true } });
+    if (!user.mustChangePassword) return { ok: true };
+    await this.prisma.user.update({ where: { id: current.id }, data: { mustChangePassword: false, temporaryPassword: true, version: { increment: 1 } } });
+    await this.audit.log(current.id, {
+      action: 'Changement du mot de passe temporaire reporté',
+      entity: 'User',
+      entityId: current.id,
+      target: `${user.firstName} ${user.lastName}`,
+    });
+    return { ok: true };
   }
 
   /** Profil connecté : rôle, joueur/coach associé, enfants (parent). */
