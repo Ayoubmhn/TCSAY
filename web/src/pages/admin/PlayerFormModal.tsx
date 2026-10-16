@@ -7,7 +7,7 @@ import { KeyValue } from '../../components/ui/KeyValue';
 import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
-import { api } from '../../lib/api';
+import { api, errorMessage } from '../../lib/api';
 import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
 import type { Category, Credentials, DiscountKind, MembershipInfo, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -101,14 +101,7 @@ export function PlayerFormModal({
         : { kind: '', mode: 'percent', value: '', reason: '' },
     );
   }, [open, infoM]);
-  const discValue = Number(disc.value.replace(',', '.'));
-  const discBase = infoM?.base ?? player?.membership?.total ?? 0;
-  const discPreview =
-    disc.kind === 'EXEMPT' ? 0 : disc.kind && discValue > 0 ? Math.max(0, disc.mode === 'percent' ? discBase * (1 - discValue / 100) : discBase - discValue) : discBase;
-  const discChanged =
-    (disc.kind || null) !== (infoM?.discountKind ?? null) ||
-    (disc.kind && disc.kind !== 'EXEMPT' && (disc.mode === 'percent' ? discValue !== (infoM?.discountPercent ?? 0) : discValue !== (infoM?.discountAmount ?? 0))) ||
-    (disc.kind && disc.reason.trim() !== (infoM?.discountReason ?? ''));
+
 
   // Joueur lu à l'ouverture seulement : un rechargement de la liste n'efface pas la saisie.
   const playerRef = useRef(player);
@@ -152,15 +145,44 @@ export function PlayerFormModal({
     enabled: open && !player && Boolean(effectiveCategory),
   });
 
-  const create = useAction(() => api.post<Created>('/players', body(f)), {
-    invalidate: [['players'], ['dashboard'], ['emails'], ['parents'], ['categories'], ['installments']],
+  const discValue = Number(disc.value.replace(',', '.'));
+  const discBase = player ? (infoM?.base ?? player.membership?.total ?? 0) : (fee.data?.amount ?? 0);
+  const discPreview =
+    disc.kind === 'EXEMPT' ? 0 : disc.kind && discValue > 0 ? Math.max(0, disc.mode === 'percent' ? discBase * (1 - discValue / 100) : discBase - discValue) : discBase;
+  const discChanged =
+    (disc.kind || null) !== (infoM?.discountKind ?? null) ||
+    (disc.kind && disc.kind !== 'EXEMPT' && (disc.mode === 'percent' ? discValue !== (infoM?.discountPercent ?? 0) : discValue !== (infoM?.discountAmount ?? 0))) ||
+    (disc.kind && disc.reason.trim() !== (infoM?.discountReason ?? ''));
+
+  const discountBody = (playerId: string) => ({
+    playerId,
+    kind: disc.kind || null,
+    percent: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'percent' ? discValue : undefined,
+    amount: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'amount' ? discValue : undefined,
+    reason: disc.reason.trim() || undefined,
+  });
+  const create = useAction(
+    async () => {
+      const p = await api.post<Created>('/players', body(f));
+      if (disc.kind && p.membership) {
+        try {
+          await api.put('/memberships/discount', discountBody(p.id));
+        } catch (e) {
+          toast(`Joueur créé, mais réduction non enregistrée : ${errorMessage(e)} (à refaire dans « Modifier »).`);
+        }
+      }
+      return p;
+    },
+    {
+    invalidate: [['players'], ['dashboard'], ['emails'], ['parents'], ['categories'], ['installments'], ['membership-info']],
     success: (p) => (p.sentTo ? `Joueur créé. Identifiants et informations envoyés à ${p.sentTo}.` : 'Joueur créé.'),
     onSuccess: (p) => {
       onClose();
       setCreated(p);
       onCreated?.(p);
     },
-  });
+    },
+  );
   const update = useAction(
     async () => {
       const before = player!;
@@ -184,13 +206,7 @@ export function PlayerFormModal({
         await api.put('/memberships/plan', { playerId: before.id, paymentPlan: f.paymentPlan, reason: f.planReason.trim() || undefined });
       }
       if (discChanged) {
-        await api.put('/memberships/discount', {
-          playerId: before.id,
-          kind: disc.kind || null,
-          percent: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'percent' ? discValue : undefined,
-          amount: disc.kind && disc.kind !== 'EXEMPT' && disc.mode === 'amount' ? discValue : undefined,
-          reason: disc.reason.trim() || undefined,
-        });
+        await api.put('/memberships/discount', discountBody(before.id));
       }
       return saved;
     },
@@ -228,9 +244,70 @@ export function PlayerFormModal({
       if (!CIN.test(p.cin.trim())) return toast('Parent : CIN obligatoire (6 à 12 caractères).');
     }
     if (!player && !f.paymentPlan) return toast('Choisissez le mode de paiement : comptant, par semestre ou par mois.');
+    if (disc.kind && (player ? discChanged : true)) {
+      if (disc.kind !== 'EXEMPT' && !(discValue > 0)) return toast('Réduction : saisissez un pourcentage ou un montant.');
+      if (disc.kind !== 'EXEMPT' && disc.mode === 'percent' && discValue > 100) return toast('Réduction : 100 % au plus (sinon choisir l’exonération).');
+      if (!disc.reason.trim()) return toast('Réduction : le motif est obligatoire.');
+    }
     if (player) update.mutate();
     else create.mutate();
   };
+
+  // Réduction : même saisie à la création (tarif de la catégorie) qu'à la modification (cotisation existante).
+  const siblings = player
+    ? (info.data?.siblings.map((x) => x.name) ?? [])
+    : (parents.data?.find((p) => p.id === f.parentId)?.players.map((x) => `${x.firstName} ${x.lastName}`) ?? []);
+  const discountFields = (
+    <fieldset className="col-span-full m-0 grid grid-cols-1 gap-3 rounded-[20px] border-[1.5px] border-line p-3.5 min-[520px]:grid-cols-2">
+      <legend className="px-1.5 text-[13px] font-semibold text-mut">Réduction sur la cotisation</legend>
+      {siblings.length ? (
+        <div className="col-span-full">
+          <Pill tone="b" className="whitespace-normal">
+            Frère / sœur inscrit(e) : {siblings.join(', ')}
+          </Pill>
+        </div>
+      ) : null}
+      <SelectField label="Type" value={disc.kind} onChange={(e) => setDisc((x) => ({ ...x, kind: e.target.value as DiscountKind | '' }))}>
+        <option value="">Aucune réduction</option>
+        <option value="SIBLING">Fratrie (2e enfant…)</option>
+        <option value="SPECIAL">Réduction spéciale</option>
+        <option value="EXEMPT">Exonération totale</option>
+      </SelectField>
+      {disc.kind && disc.kind !== 'EXEMPT' ? (
+        <div className="grid grid-cols-[1fr_auto] items-end gap-2">
+          <TextField
+            label={disc.mode === 'percent' ? 'Pourcentage (%)' : 'Montant (DT)'}
+            inputMode="decimal"
+            value={disc.value}
+            onChange={(e) => setDisc((x) => ({ ...x, value: e.target.value }))}
+          />
+          <SelectField label="En" value={disc.mode} onChange={(e) => setDisc((x) => ({ ...x, mode: e.target.value as 'percent' | 'amount' }))}>
+            <option value="percent">%</option>
+            <option value="amount">DT</option>
+          </SelectField>
+        </div>
+      ) : (
+        <span />
+      )}
+      {disc.kind && (
+        <TextField
+          label="Motif *"
+          full
+          value={disc.reason}
+          onChange={(e) => setDisc((x) => ({ ...x, reason: e.target.value }))}
+          placeholder={disc.kind === 'SIBLING' ? 'Ex. 2e enfant de la famille' : 'Ex. décision du bureau du 10/10'}
+        />
+      )}
+      {discBase > 0 && (
+        <div className="col-span-full">
+          <Pills>
+            <Pill tone="s">Tarif {DT(discBase)}</Pill>
+            <Pill tone={disc.kind ? 'g' : 'b'}>À payer {DT(Math.round(discPreview * 1000) / 1000)}</Pill>
+          </Pills>
+        </div>
+      )}
+    </fieldset>
+  );
 
   const minor = s && 'minor' in s ? s.minor : undefined;
   const adult = minor === false;
@@ -366,57 +443,7 @@ export function PlayerFormModal({
                 placeholder="Ex. le parent préfère payer par mois"
               />
             )}
-            {(player.membership || f.paymentPlan) && (
-              <fieldset className="col-span-full m-0 grid grid-cols-1 gap-3 rounded-[20px] border-[1.5px] border-line p-3.5 min-[520px]:grid-cols-2">
-                <legend className="px-1.5 text-[13px] font-semibold text-mut">Réduction sur la cotisation</legend>
-                {info.data?.siblings.length ? (
-                  <div className="col-span-full">
-                    <Pill tone="b" className="whitespace-normal">
-                      Frère / sœur inscrit(e) : {info.data.siblings.map((x) => x.name).join(', ')}
-                    </Pill>
-                  </div>
-                ) : null}
-                <SelectField label="Type" value={disc.kind} onChange={(e) => setDisc((x) => ({ ...x, kind: e.target.value as DiscountKind | '' }))}>
-                  <option value="">Aucune réduction</option>
-                  <option value="SIBLING">Fratrie (2e enfant…)</option>
-                  <option value="SPECIAL">Réduction spéciale</option>
-                  <option value="EXEMPT">Exonération totale</option>
-                </SelectField>
-                {disc.kind && disc.kind !== 'EXEMPT' ? (
-                  <div className="grid grid-cols-[1fr_auto] items-end gap-2">
-                    <TextField
-                      label={disc.mode === 'percent' ? 'Pourcentage (%)' : 'Montant (DT)'}
-                      inputMode="decimal"
-                      value={disc.value}
-                      onChange={(e) => setDisc((x) => ({ ...x, value: e.target.value }))}
-                    />
-                    <SelectField label="En" value={disc.mode} onChange={(e) => setDisc((x) => ({ ...x, mode: e.target.value as 'percent' | 'amount' }))}>
-                      <option value="percent">%</option>
-                      <option value="amount">DT</option>
-                    </SelectField>
-                  </div>
-                ) : (
-                  <span />
-                )}
-                {disc.kind && (
-                  <TextField
-                    label="Motif *"
-                    full
-                    value={disc.reason}
-                    onChange={(e) => setDisc((x) => ({ ...x, reason: e.target.value }))}
-                    placeholder={disc.kind === 'SIBLING' ? 'Ex. 2e enfant de la famille' : 'Ex. décision du bureau du 10/10'}
-                  />
-                )}
-                {discBase > 0 && (
-                  <div className="col-span-full">
-                    <Pills>
-                      <Pill tone="s">Tarif {DT(discBase)}</Pill>
-                      <Pill tone={disc.kind ? 'g' : 'b'}>À payer {DT(Math.round(discPreview * 1000) / 1000)}</Pill>
-                    </Pills>
-                  </div>
-                )}
-              </fieldset>
-            )}
+            {(player.membership || f.paymentPlan) && discountFields}
           </>
         )}
         {!player && (
@@ -440,6 +467,7 @@ export function PlayerFormModal({
                 </Pill>
               ) : null}
             </div>
+            {fee.data && discountFields}
           </>
         )}
       </FormGrid>
