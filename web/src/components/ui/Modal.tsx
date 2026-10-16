@@ -9,7 +9,7 @@ type Props = {
   children: ReactNode;
   /** Boutons alignés à droite (Annuler + action). */
   footer?: ReactNode;
-  /** Largeur : md 540px (défaut), lg 760px (formulaires joueur, entraîneur), xl 920px (groupes). */
+  /** Largeur : md 540px (défaut), lg 760px (formulaires entraîneur…), xl 920px (joueur, groupes). */
   size?: 'md' | 'lg' | 'xl';
 };
 
@@ -68,17 +68,17 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: P
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full ${WIDTH[size]} flex-col gap-3.5 overflow-y-auto rounded-[28px] bg-card p-6`}
+        className={`flex ${size === 'md' ? 'max-h-[90vh]' : 'max-h-[94dvh]'} w-full ${WIDTH[size]} flex-col gap-3.5 overflow-y-auto rounded-[28px] bg-card p-6`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-2.5">
+        <div className="sticky -top-6 z-[1] -mx-6 -mt-6 flex items-center justify-between gap-2.5 bg-card px-6 pt-6 pb-1">
           <h2 id={titleId}>{t(title)}</h2>
           <IconButton aria-label="Fermer" onClick={onClose}>
             ✕
           </IconButton>
         </div>
         {children}
-        {footer && <div className="flex flex-wrap justify-end gap-1.5">{footer}</div>}
+        {footer && <div className="sticky -bottom-6 z-[1] -mx-6 -mb-6 flex flex-wrap justify-end gap-1.5 bg-card px-6 pt-3 pb-6">{footer}</div>}
       </div>
     </div>
   );

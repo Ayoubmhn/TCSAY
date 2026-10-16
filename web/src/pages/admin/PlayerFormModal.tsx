@@ -317,7 +317,7 @@ export function PlayerFormModal({
     <>
     <Modal
       open={open}
-      size="lg"
+      size="xl"
       title={player ? 'Modifier le joueur' : 'Nouveau joueur'}
       onClose={onClose}
       footer={
