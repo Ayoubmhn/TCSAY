@@ -26,6 +26,7 @@ export const PERMISSIONS = [
   { key: 'payments.collect', label: 'Paiements des joueurs et parents', group: 'Finances' },
   { key: 'salaries.manage', label: 'Salaires des entraîneurs et du personnel', group: 'Finances' },
   { key: 'expenses.manage', label: 'Dépenses (factures, déclarations)', group: 'Finances' },
+  { key: 'budget.manage', label: 'Projets et budget (devis, décisions, trésorerie)', group: 'Finances' },
   { key: 'emails.view', label: 'Emails envoyés', group: 'Suivi' },
   { key: 'notifications.send', label: 'Envoyer des notifications (parents, joueurs, entraîneurs)', group: 'Suivi' },
   { key: 'events.manage', label: 'Événements du club (création, publication, participations)', group: 'Suivi' },

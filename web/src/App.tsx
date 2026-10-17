@@ -75,6 +75,8 @@ const ComplaintsAdminPage = page(() => import('./features/complaints/ComplaintsA
 const TournamentPrintPage = page(() => import('./features/tournaments/TournamentPrintPage'), 'TournamentPrintPage');
 const SeasonReportsPage = page(() => import('./features/reports/SeasonReportsPage'), 'SeasonReportsPage');
 const HistoryPage = page(() => import('./features/history/HistoryPage'), 'HistoryPage');
+const BudgetPage = page(() => import('./features/budget/BudgetPage'), 'BudgetPage');
+const ProjectPage = page(() => import('./features/budget/ProjectPage'), 'ProjectPage');
 const ReportPrintRoute = page(() => import('./features/reports/SeasonReportsPage'), 'ReportPrintRoute');
 const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
 const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
@@ -248,6 +250,8 @@ export function App() {
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />
         <Route path="admin/autorisations" element={<Navigate to="/parametres/autorisations" replace />} />
+        <Route path="admin/budget" element={admin(['budget.manage', 'stats.view'], <BudgetPage />)} />
+        <Route path="admin/projets/:id" element={admin(['budget.manage', 'stats.view'], <ProjectPage />)} />
         <Route path="admin/import" element={admin(['import.manage'], <HistoryPage />)} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

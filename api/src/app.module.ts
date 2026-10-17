@@ -1,4 +1,6 @@
 import { AiImportController } from './ai/ai-import.controller';
+import { BudgetController } from './budget/budget.controller';
+import { ProjectsController } from './budget/projects.controller';
 import { HistoryController } from './history/history.controller';
 import { HistoryService } from './history/history.service';
 import { SeasonReportsController } from './reports/season-reports.controller';
@@ -84,6 +86,8 @@ import { StaffController } from './staff/staff.controller';
     AiImportController,
     SeasonReportsController,
     HistoryController,
+    ProjectsController,
+    BudgetController,
     UpdatesController,
     HealthController,
     AuthController,

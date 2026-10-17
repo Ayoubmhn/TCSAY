@@ -38,6 +38,7 @@ type Expense = {
   archiveReason: string | null;
   version: number;
   createdBy: string;
+  project: { id: string; title: string } | null;
 };
 type List = {
   rows: Expense[];
@@ -250,6 +251,7 @@ export function ExpensesPage() {
                     <Pills>
                       <Pill tone="b">{DT(e.amount)}</Pill>
                       <Pill tone="s">{e.categoryLabel}</Pill>
+                      {e.project && <Pill tone="g">Projet : {e.project.title}</Pill>}
                       <Pill tone="b">{fD(e.date, { day: 'numeric', month: 'short', year: 'numeric' })}</Pill>
                       {e.dueDate && !e.paidAt && <Pill tone={e.state === 'LATE' ? 'r' : 'b'} className="card-text">Avant le {fD(e.dueDate, { day: 'numeric', month: 'short' })}</Pill>}
                       {e.paidAt && <Pill tone="g" className="card-text">Payée le {fD(e.paidAt, { day: 'numeric', month: 'short' })} · {e.methodLabel}</Pill>}

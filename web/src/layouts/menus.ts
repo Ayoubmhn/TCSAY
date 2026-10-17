@@ -103,6 +103,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Dépenses', path: '/admin/depenses', perm: ['expenses.manage'] },
       { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
       { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
+      { label: 'Projets et budget', path: '/admin/budget', perm: ['budget.manage', 'stats.view'] },
       { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
     ],
   },

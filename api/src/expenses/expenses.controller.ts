@@ -99,6 +99,7 @@ const SELECT = {
   version: true,
   createdAt: true,
   createdBy: { select: { firstName: true, lastName: true } },
+  project: { select: { id: true, title: true } },
 } satisfies Prisma.ExpenseSelect;
 
 /**
@@ -138,6 +139,7 @@ export class ExpensesController {
       archiveReason: e.archiveReason,
       version: e.version,
       createdBy: `${e.createdBy.firstName} ${e.createdBy.lastName}`.trim(),
+      project: e.project,
     };
   }
 

@@ -202,44 +202,45 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  player             Player?
-  coach              Coach?
-  parentLinks        ParentLink[]
-  auditLogs          AuditLog[]
-  reservations       Reservation[]           @relation("ReservationBookedBy")
-  cancellations      Reservation[]           @relation("ReservationCancelledBy")
-  payments           Payment[]
-  receiptsIssued     Receipt[]               @relation("ReceiptIssuedBy")
-  receiptsVoided     Receipt[]               @relation("ReceiptVoidedBy")
-  attendances        Attendance[]
-  sessionPlans       SessionPlan[]
-  sessionRatings     SessionRating[]
-  evaluationsWritten Evaluation[]            @relation("EvaluationAuthor")
-  levelsValidated    Evaluation[]            @relation("EvaluationLevelValidator")
-  exercisesCreated   Exercise[]
-  exercisesAssigned  ExerciseAssignment[]
-  matchesCreated     Match[]
-  matchPoints        MatchPoint[]
-  salaries           Salary[]
-  absenceDecisions   CoachAbsence[]          @relation("AbsenceDecidedBy")
-  notifications      Notification[]
-  broadcastsSent     NotificationBroadcast[]
-  passwordResets     PasswordReset[]
-  pushSubscriptions  PushSubscription[]
-  nativePushTokens   NativePushToken[]
-  invitations        Invitation[]
-  expensesCreated    Expense[]
-  tournamentsCreated Tournament[]
-  photo              ProfilePhoto?
-  complaints         Complaint[]             @relation("ComplaintAuthor")
-  complaintsTargeted Complaint[]             @relation("ComplaintTarget")
-  complaintsAssigned Complaint[]             @relation("ComplaintAssignee")
-  complaintMessages  ComplaintMessage[]      @relation("ComplaintMessageAuthor")
-  albumsCreated      Album[]                 @relation("AlbumCreatedBy")
-  albumMembers       AlbumMember[]
-  reservationBlocks  ReservationBlock[]      @relation("ReservationBlocked")
-  eventMembers       EventMember[]
-  eventResponses     EventResponse[]         @relation("EventResponder")
+  player              Player?
+  coach               Coach?
+  parentLinks         ParentLink[]
+  auditLogs           AuditLog[]
+  reservations        Reservation[]           @relation("ReservationBookedBy")
+  cancellations       Reservation[]           @relation("ReservationCancelledBy")
+  payments            Payment[]
+  receiptsIssued      Receipt[]               @relation("ReceiptIssuedBy")
+  receiptsVoided      Receipt[]               @relation("ReceiptVoidedBy")
+  attendances         Attendance[]
+  sessionPlans        SessionPlan[]
+  sessionRatings      SessionRating[]
+  evaluationsWritten  Evaluation[]            @relation("EvaluationAuthor")
+  levelsValidated     Evaluation[]            @relation("EvaluationLevelValidator")
+  exercisesCreated    Exercise[]
+  exercisesAssigned   ExerciseAssignment[]
+  matchesCreated      Match[]
+  matchPoints         MatchPoint[]
+  salaries            Salary[]
+  absenceDecisions    CoachAbsence[]          @relation("AbsenceDecidedBy")
+  notifications       Notification[]
+  broadcastsSent      NotificationBroadcast[]
+  passwordResets      PasswordReset[]
+  pushSubscriptions   PushSubscription[]
+  nativePushTokens    NativePushToken[]
+  invitations         Invitation[]
+  expensesCreated     Expense[]
+  projectsResponsible Project[]               @relation("ProjectResponsible")
+  tournamentsCreated  Tournament[]
+  photo               ProfilePhoto?
+  complaints          Complaint[]             @relation("ComplaintAuthor")
+  complaintsTargeted  Complaint[]             @relation("ComplaintTarget")
+  complaintsAssigned  Complaint[]             @relation("ComplaintAssignee")
+  complaintMessages   ComplaintMessage[]      @relation("ComplaintMessageAuthor")
+  albumsCreated       Album[]                 @relation("AlbumCreatedBy")
+  albumMembers        AlbumMember[]
+  reservationBlocks   ReservationBlock[]      @relation("ReservationBlocked")
+  eventMembers        EventMember[]
+  eventResponses      EventResponse[]         @relation("EventResponder")
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -368,6 +369,8 @@ model Season {
   reportFiles       SeasonReportFile[]
   reportDrafts      SeasonReportDraft[]
   historicalEntries HistoricalEntry[]
+  projects          Project[]
+  budgetLines       BudgetLine[]
 
   @@index([status])
 }
@@ -1279,11 +1282,13 @@ model Expense {
   archivedAt    DateTime?
   archiveReason String?
   version       Int             @default(1)
+  projectId     String?         @db.Uuid // dépense d'un projet du club
   createdById   String          @db.Uuid
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  createdBy User @relation(fields: [createdById], references: [id])
+  createdBy User     @relation(fields: [createdById], references: [id])
+  project   Project? @relation(fields: [projectId], references: [id])
 
   @@index([date])
 }
@@ -1695,4 +1700,84 @@ model SeasonReportDraft {
   season Season @relation(fields: [seasonId], references: [id])
 
   @@unique([seasonId, kind])
+}
+
+// ───────────────────────── Projets et budget ─────────────────────────
+
+enum ProjectStatus {
+  IDEA // Idée
+  QUOTES // Devis en cours
+  APPROVED // Validé par le bureau (devis choisi)
+  IN_PROGRESS // En cours de réalisation
+  DONE // Terminé
+  CANCELLED // Abandonné
+}
+
+/// Projet du club (rénovation, nouveau terrain, éclairage, matériel…) : devis comparés, décision du bureau avec motif,
+/// dépenses rattachées pour suivre le réel face au devis choisi. Archivage avec motif (R8), version (R13), audit.
+model Project {
+  id              String        @id @default(uuid()) @db.Uuid
+  title           String
+  description     String?
+  category        String // COURT, LIGHTING, RENOVATION, BUILDING, EQUIPMENT, OTHER
+  status          ProjectStatus @default(IDEA)
+  priority        Int           @default(2) // 1 haute, 2 normale, 3 basse
+  estimatedAmount Decimal?      @db.Decimal(12, 3)
+  targetDate      DateTime?     @db.Date // réalisation souhaitée (trésorerie)
+  seasonId        String?       @db.Uuid
+  responsibleId   String?       @db.Uuid
+  chosenQuoteId   String?       @unique @db.Uuid
+  decisionReason  String?
+  decidedAt       DateTime?
+  decidedById     String?       @db.Uuid
+  archivedAt      DateTime?
+  archiveReason   String?
+  version         Int           @default(1)
+  createdById     String        @db.Uuid
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  season      Season?        @relation(fields: [seasonId], references: [id])
+  responsible User?          @relation("ProjectResponsible", fields: [responsibleId], references: [id])
+  chosenQuote ProjectQuote?  @relation("ProjectChosenQuote", fields: [chosenQuoteId], references: [id])
+  quotes      ProjectQuote[] @relation("ProjectQuotes")
+  expenses    Expense[]
+
+  @@index([status])
+}
+
+/// Devis d'un fournisseur pour un projet (montant, délai, validité, fichier PDF ou photo, 5 Mo).
+model ProjectQuote {
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @db.Uuid
+  supplier    String
+  amount      Decimal   @db.Decimal(12, 3)
+  delayDays   Int? // délai de réalisation annoncé
+  validUntil  DateTime? @db.Date
+  note        String?
+  fileName    String?
+  fileType    String?
+  fileData    Bytes?
+  archivedAt  DateTime?
+  createdById String    @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  project  Project  @relation("ProjectQuotes", fields: [projectId], references: [id])
+  chosenBy Project? @relation("ProjectChosenQuote")
+}
+
+/// Budget prévisionnel d'une saison : une ligne par sens (recette / dépense) et par poste.
+model BudgetLine {
+  id          String         @id @default(uuid()) @db.Uuid
+  seasonId    String         @db.Uuid
+  kind        HistoricalKind // INCOME ou EXPENSE
+  category    String
+  amount      Decimal        @db.Decimal(12, 3)
+  note        String?
+  updatedById String         @db.Uuid
+  updatedAt   DateTime       @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id])
+
+  @@unique([seasonId, kind, category])
 }
