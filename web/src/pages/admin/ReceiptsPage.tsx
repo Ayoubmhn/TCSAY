@@ -9,7 +9,6 @@ import { QueryState } from '../../components/ui/Loading';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
-import { Section } from '../../components/ui/Section';
 import { ReceiptActions, ReceiptSummary, METHOD_LABEL } from '../../features/receipts/ReceiptModal';
 import { receiptTestUrl, saveLayoutDraft } from '../../features/receipts/receiptPrint';
 import { FIELD_LABEL, ReceiptSheet } from '../../features/receipts/ReceiptSheet';
@@ -125,13 +124,23 @@ export function ReceiptsPage() {
     queryKey: ['receipts', term, status],
     queryFn: () => api.get<Receipt[]>('/receipts', { q: term || undefined, status: status || undefined }),
   });
-  const layout = useQuery({ queryKey: ['receipt-layout'], queryFn: () => api.get<ReceiptLayout>('/receipts/layout') });
   const rows = q.data ?? [];
   const valid = rows.filter((r) => !r.voidedAt);
 
   return (
     <>
-      <PageHeader action={<ViewToggle value={view} onChange={setView} />} title="Reçus" subtitle="Découvrez les reçus émis, leur n° de carnet et leurs impressions." />
+      <PageHeader
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Link to="/admin/recus/reglage" className="inline-flex items-center rounded-full bg-btn px-4 py-[11px] text-sm font-semibold text-fg">
+              Réglage de l’impression
+            </Link>
+          </div>
+        }
+        title="Reçus"
+        subtitle="Découvrez les reçus émis, leur n° de carnet et leurs impressions."
+      />
       <Filters>
         <input
           className="fld w-[260px] text-fg"
@@ -182,15 +191,35 @@ export function ReceiptsPage() {
         )}
       </QueryState>
 
-      <Section title="Réglage de l’impression sur le carnet">
-        <QueryState isPending={layout.isPending} error={layout.error} refetch={layout.refetch}>
-          {layout.data && <LayoutEditor saved={layout.data} />}
-        </QueryState>
-      </Section>
       <Note>
-        Réglage : imprimez la page de test sur une feuille blanche A5, superposez-la à un reçu du carnet devant une fenêtre,
-        puis corrigez le décalage (mm, + vers la droite ou vers le bas). Un reçu n’est jamais supprimé : un reçu raté est
-        annulé avec motif et son n° ne se réutilise pas.
+        Un reçu n’est jamais supprimé : un reçu raté est annulé avec motif et son n° ne se réutilise pas. La position des
+        valeurs sur le carnet se règle dans « Réglage de l’impression ».
+      </Note>
+    </>
+  );
+}
+
+/** Réglage de l'impression sur le carnet (page à part : on ne s'en sert qu'à l'installation ou au changement d'imprimante). */
+export function ReceiptLayoutPage() {
+  const layout = useQuery({ queryKey: ['receipt-layout'], queryFn: () => api.get<ReceiptLayout>('/receipts/layout') });
+  return (
+    <>
+      <PageHeader
+        title="Réglage de l’impression"
+        subtitle="Découvrez la position des valeurs sur le carnet de reçus, au millimètre."
+        action={
+          <Link to="/admin/recus" className="inline-flex items-center rounded-full bg-btn px-4 py-[11px] text-sm font-semibold text-fg">
+            ← Retour aux reçus
+          </Link>
+        }
+      />
+      <QueryState isPending={layout.isPending} error={layout.error} refetch={layout.refetch}>
+        {layout.data && <LayoutEditor saved={layout.data} />}
+      </QueryState>
+      <Note>
+        Imprimez la page de test sur une feuille blanche, superposez-la à un reçu du carnet devant une fenêtre, puis corrigez
+        le décalage (mm, + vers la droite ou vers le bas) ou la position d’un champ. « Revenir aux mesures du carnet »
+        recharge les mesures relevées à la règle (210 × 147 mm).
       </Note>
     </>
   );

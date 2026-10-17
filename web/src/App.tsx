@@ -82,6 +82,7 @@ const NotFoundPage = page(() => import('./pages/SoonPage'), 'NotFoundPage');
 const SoonPage = page(() => import('./pages/SoonPage'), 'SoonPage');
 const PlanningPage = page(() => import('./pages/staff/PlanningPage'), 'PlanningPage');
 const ReceiptsPage = page(() => import('./pages/admin/ReceiptsPage'), 'ReceiptsPage');
+const ReceiptLayoutPage = page(() => import('./pages/admin/ReceiptsPage'), 'ReceiptLayoutPage');
 const ReceiptPrintPage = page(() => import('./features/receipts/ReceiptPrintPage'), 'ReceiptPrintPage');
 
 /**
@@ -231,6 +232,7 @@ export function App() {
         <Route path="admin/tarifs-terrains" element={admin(['courts.manage'], <CourtRatesPage />)} />
         <Route path="admin/paiements" element={admin(['payments.collect'], <PaymentsAdminPage />)} />
         <Route path="admin/recus" element={admin(['payments.collect'], <ReceiptsPage />)} />
+        <Route path="admin/recus/reglage" element={admin(['payments.collect'], <ReceiptLayoutPage />)} />
         <Route path="admin/acces-paiement" element={admin(['permissions.manage', 'payments.collect'], <PaymentAccessPage />)} />
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
