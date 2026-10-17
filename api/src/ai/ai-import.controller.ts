@@ -27,6 +27,13 @@ export class AiImportController {
     return this.ai.status();
   }
 
+  /** Vérifie la clé auprès de Google (aucune photo envoyée). */
+  @Get('test')
+  @Perm('permissions.manage', 'players.manage', 'payments.collect')
+  test() {
+    return this.ai.test();
+  }
+
   /** Président seulement. */
   @Put('config')
   @Perm('permissions.manage')

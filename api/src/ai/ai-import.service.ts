@@ -1,8 +1,8 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
-import { geminiJson, geminiKey, geminiModel, type GeminiImage, type GeminiSchema } from './gemini';
+import { geminiJson, geminiKey, geminiModel, geminiModels, type GeminiImage, type GeminiSchema } from './gemini';
 
 /** Réglage du président : lecture par IA désactivée tant qu'il n'a pas accepté l'avertissement sur les données. */
 const CONFIG_KEY = 'ai.import';
@@ -123,6 +123,22 @@ export class AiImportService {
     };
   }
 
+  /** Test de la clé (aucune photo envoyée) : modèles disponibles et présence du modèle choisi. */
+  async test() {
+    const models = await geminiModels();
+    const model = geminiModel();
+    const found = models.some((m) => m.name === model);
+    return {
+      ok: true,
+      model,
+      found,
+      message: found
+        ? `Clé acceptée par Google. Modèle « ${model} » disponible.`
+        : `Clé acceptée par Google, mais le modèle « ${model} » n’est pas dans la liste : mettez par exemple GEMINI_MODEL=${models.find((m) => /flash/.test(m.name))?.name ?? models[0]?.name ?? '…'} dans api/.env.`,
+      models: models.filter((m) => /flash/i.test(m.name)).slice(0, 12),
+    };
+  }
+
   /** Activation par le président : l'acceptation de l'avertissement est obligatoire et inscrite dans l'historique. */
   async configure(actor: AuthUser, enabled: boolean, accept: boolean) {
     const before = await this.status();
@@ -187,7 +203,8 @@ export class AiImportService {
         // Limite gratuite atteinte : inutile d'essayer les pages suivantes.
         const msg = e instanceof Error ? e.message : String(e);
         pages.push({ page: i + 1, rows: 0, doubts: 0, error: msg });
-        if (/limite gratuite|non configurée|refusée/i.test(msg)) {
+        // Clé refusée ou limite atteinte : les pages suivantes échoueraient de la même façon.
+        if (e instanceof HttpException && [429, 503].includes(e.getStatus())) {
           for (let k = i + 1; k < images.length; k++) pages.push({ page: k + 1, rows: 0, doubts: 0, error: 'non lue' });
           if (!rows.length) throw e;
           break;

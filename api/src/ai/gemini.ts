@@ -27,19 +27,51 @@ type GeminiResponse = {
   candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
   usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
-  error?: { code?: number; message?: string; status?: string };
+  error?: { code?: number; message?: string; status?: string; details?: { reason?: string }[] };
 };
+
+/** Raison donnée par Google → explication et solution en français (la raison de Google est ajoutée à la fin). */
+const HINTS: [RegExp, string][] = [
+  [/API_KEY_INVALID|api key not valid/i, 'Clé Gemini invalide : recopiez-la depuis aistudio.google.com dans GEMINI_API_KEY (api/.env), sans espace ni guillemet, puis redémarrez l’API.'],
+  [/REFERRER|referer/i, 'La clé est limitée à des sites web : dans console.cloud.google.com › API et services › Identifiants, ouvrez la clé et choisissez « Restrictions relatives aux applications : Aucune » (l’appel vient du serveur, pas du navigateur).'],
+  [/IP_ADDRESS|ip address/i, 'La clé est limitée à certaines adresses IP : retirez cette restriction dans Google Cloud › Identifiants, ou ajoutez l’adresse du serveur.'],
+  [/SERVICE_DISABLED|has not been used|is disabled/i, 'L’API Gemini (« Generative Language API ») n’est pas activée sur ce projet Google : activez-la dans console.cloud.google.com, ou créez la clé directement depuis aistudio.google.com › Get API key (elle l’active).'],
+  [/SERVICE_BLOCKED|API_KEY_SERVICE_BLOCKED|blocked/i, 'La clé n’autorise pas l’API Gemini : dans Google Cloud › Identifiants › Restrictions relatives aux API, ajoutez « Generative Language API » (ou choisissez « Ne pas restreindre la clé »).'],
+  [/location is not supported|FAILED_PRECONDITION/i, 'Gemini n’est pas proposé gratuitement depuis le pays du serveur : essayez depuis un serveur hébergé dans un pays pris en charge (ex. Render en Europe) ou activez la facturation du projet.'],
+  [/PERMISSION_DENIED|permission/i, 'Accès refusé par Google pour cette clé : créez une nouvelle clé sur aistudio.google.com (Get API key › Create API key) et remplacez GEMINI_API_KEY.'],
+];
 
 /** Message clair pour l'administrateur selon l'erreur renvoyée par Google. */
 function failure(status: number, body: GeminiResponse | null): HttpException {
   const msg = body?.error?.message ?? '';
+  const reasons = (body?.error?.details ?? []).map((d) => d.reason ?? '').join(' ');
+  const google = ` (Google : ${[body?.error?.status, reasons, msg.slice(0, 200)].filter(Boolean).join(' · ') || `erreur ${status}`})`;
   if (status === 429 || body?.error?.status === 'RESOURCE_EXHAUSTED') {
     return new HttpException('Limite gratuite de Gemini atteinte : réessayez dans quelques minutes (ou demain si la limite du jour est atteinte).', HttpStatus.TOO_MANY_REQUESTS);
   }
-  if (status === 400 && /api key/i.test(msg)) return new ServiceUnavailableException('Clé Gemini refusée : vérifiez GEMINI_API_KEY dans api/.env.');
-  if (status === 403) return new ServiceUnavailableException('Accès à Gemini refusé pour cette clé (projet Google ou pays non autorisé).');
-  if (status === 404) return new ServiceUnavailableException(`Modèle Gemini « ${geminiModel()} » introuvable : changez GEMINI_MODEL dans api/.env.`);
+  if (status === 404) return new ServiceUnavailableException(`Modèle Gemini « ${geminiModel()} » introuvable : changez GEMINI_MODEL dans api/.env (bouton « Tester la clé » pour voir les modèles).${google}`);
+  if (status === 400 || status === 401 || status === 403) {
+    const hint = HINTS.find(([re]) => re.test(`${reasons} ${msg} ${body?.error?.status ?? ''}`))?.[1] ?? 'Accès à Gemini refusé pour cette clé.';
+    return new ServiceUnavailableException(`${hint}${google}`);
+  }
   return new BadGatewayException(`Gemini indisponible (${status}${msg ? ` : ${msg.slice(0, 160)}` : ''}). Réessayez plus tard.`);
+}
+
+/** Test de la clé : liste des modèles disponibles (sans envoyer de photo). */
+export async function geminiModels(): Promise<{ name: string; label: string }[]> {
+  const key = geminiKey();
+  if (!key) throw new ServiceUnavailableException('Lecture par IA non configurée : ajoutez GEMINI_API_KEY dans api/.env puis redémarrez l’API.');
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl()}/v1beta/models?pageSize=200`, { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(20_000) });
+  } catch (e) {
+    throw new BadGatewayException(`Gemini injoignable depuis le serveur : ${e instanceof Error ? e.message : e}`);
+  }
+  const json = (await res.json().catch(() => null)) as (GeminiResponse & { models?: { name?: string; displayName?: string; supportedGenerationMethods?: string[] }[] }) | null;
+  if (!res.ok) throw failure(res.status, json);
+  return (json?.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes('generateContent') && /gemini/i.test(m.name ?? ''))
+    .map((m) => ({ name: String(m.name).replace(/^models\//, ''), label: m.displayName ?? String(m.name) }));
 }
 
 /**

@@ -42,6 +42,10 @@ export function AiPhotoReader({ kind, onRead }: { kind: 'players' | 'payments'; 
     setFiles((cur) => [...cur, ...picked].slice(0, max));
   };
 
+  // Test de la clé auprès de Google (aucune photo envoyée) : résultat affiché sous le bouton, erreur en toast.
+  const [testMsg, setTestMsg] = useState<string>();
+  const test = useAction(() => api.get<{ message: string }>('/ai/test'), { onSuccess: (r) => setTestMsg(r.message) });
+
   const configure = useAction((enabled: boolean) => api.put<AiStatus>('/ai/config', { enabled, accept: enabled ? accepted : undefined }), {
     invalidate: [['ai-status']],
     success: (s) => (s.enabled ? 'Lecture des photos par IA activée.' : 'Lecture des photos par IA désactivée.'),
@@ -98,8 +102,12 @@ export function AiPhotoReader({ kind, onRead }: { kind: 'players' | 'payments'; 
           <Note>
             Lecture désactivée. {president ? 'Vous pouvez l’activer après avoir lu l’avertissement sur les données.' : 'Le président doit l’activer depuis cet écran.'}
           </Note>
+          {testMsg && <Note>{testMsg}</Note>}
           {president && (
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex justify-end gap-2">
+              <Button disabled={test.isPending} onClick={() => test.mutate()}>
+                {test.isPending ? 'Test…' : 'Tester la clé'}
+              </Button>
               <Button variant="primary" onClick={() => setActivate(true)}>
                 Activer la lecture par IA
               </Button>
@@ -149,12 +157,17 @@ export function AiPhotoReader({ kind, onRead }: { kind: 'players' | 'payments'; 
               {max} photos au plus · une page bien à plat, nette et éclairée par photo · {s.provider}
             </span>
             <div className="flex gap-2">
+              <Button disabled={test.isPending} onClick={() => test.mutate()}>
+                {test.isPending ? 'Test…' : 'Tester la clé'}
+              </Button>
               {president && <Button onClick={() => configure.mutate(false)}>Désactiver</Button>}
               <Button variant="primary" disabled={!files.length || read.isPending} onClick={() => read.mutate()}>
                 {read.isPending ? 'Lecture en cours…' : files.length > 1 ? `Lire les ${files.length} pages` : 'Lire la page'}
               </Button>
             </div>
           </div>
+          {testMsg && <Note>{testMsg}</Note>}
+          {read.error && <Note>{read.error instanceof Error ? read.error.message : 'Lecture impossible.'}</Note>}
           <Note>
             Photos réduites sur l’appareil, sans position GPS, envoyées à Google (Gemini) pour la lecture puis non conservées par le club. L’IA peut se
             tromper : chaque case douteuse est signalée et <b>rien n’est enregistré</b> avant votre confirmation.
