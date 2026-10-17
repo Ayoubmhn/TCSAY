@@ -94,6 +94,7 @@ enum PaymentPlan {
   SEMESTER // par semestre
   QUARTER // par trimestre
   MONTHLY // par mois
+  CUSTOM // modèle d'échéancier du club (PaymentTemplate)
 }
 
 enum AbsenceStatus {
@@ -625,13 +626,42 @@ model Membership {
   discountPercent Decimal?      @db.Decimal(5, 2)
   discountAmount  Decimal?      @db.Decimal(10, 3)
   discountReason  String?
+  /// Modèle d'échéancier du club (mode CUSTOM).
+  templateId      String?       @db.Uuid
   version         Int           @default(1)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id])
-  feeSchedule  FeeSchedule?  @relation(fields: [feeScheduleId], references: [id])
+  enrollment   Enrollment       @relation(fields: [enrollmentId], references: [id])
+  feeSchedule  FeeSchedule?     @relation(fields: [feeScheduleId], references: [id])
+  template     PaymentTemplate? @relation(fields: [templateId], references: [id])
   installments Installment[]
+}
+
+/// Modèle d'échéancier créé par le club (Configuration des paiements › Modèles du club) : tranches à dates fixes
+/// (`lines` : date « ENROLL » ou « MM-JJ », part PERCENT / AMOUNT / REST) ou mensuel sur des mois choisis (`months`).
+model PaymentTemplate {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  kind        String // FIXED | MONTHLY
+  lines       Json      @default("[]")
+  monthlyDay  Int       @default(5)
+  months      Int[]     @default([])
+  /// Mensuel : acompte de la configuration (tarif ou %) le jour de l'inscription.
+  deposit     Boolean   @default(false)
+  /// ALL | COMPETITIVE | LEISURE
+  scope       String    @default("ALL")
+  /// Proposé à l'inscription ; sinon « sur accord du bureau ».
+  visible     Boolean   @default(true)
+  /// Tranches déjà passées : MERGE (dans la 1re) | SPREAD (réparties sur les suivantes).
+  lateMode    String    @default("MERGE")
+  version     Int       @default(1)
+  archivedAt  DateTime?
+  createdById String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  memberships Membership[]
 }
 
 model Installment {

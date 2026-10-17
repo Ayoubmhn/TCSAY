@@ -17,8 +17,9 @@ import { DT, fD } from '../../lib/format';
 import { MONTHS, PLAN_LABEL, PLANS } from '../../lib/payment-config';
 import type { Fee, PaymentConfig, PaymentPlan, ScheduleLine } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { TemplatesView } from '../../features/payments/TemplatesView';
 
-type View = 'modes' | 'rappels';
+type View = 'modes' | 'modeles' | 'rappels';
 type Preview = { plan: PaymentPlan; label: string; schedule: ScheduleLine[] }[];
 
 const fld = 'rounded-[20px] bg-fld px-3 py-[9px] text-[14px] text-fg disabled:opacity-60';
@@ -115,7 +116,8 @@ export function PaymentConfigPage() {
   const toast = useToast();
   const canEdit = me.permissions.includes('permissions.manage');
   const [params, setParams] = useSearchParams();
-  const view: View = params.get('vue') === 'rappels' ? 'rappels' : 'modes';
+  const vue = params.get('vue');
+  const view: View = vue === 'rappels' || vue === 'modeles' ? vue : 'modes';
   const q = useQuery({ queryKey: ['payment-config'], queryFn: () => api.get<PaymentConfig>('/payments/config') });
   const fees = useQuery({ queryKey: ['fees', 'config'], queryFn: () => api.get<Fee[]>('/fees') });
   const [cfg, setCfg] = useState<PaymentConfig>();
@@ -163,20 +165,27 @@ export function PaymentConfigPage() {
   return (
     <>
       <PageHeader
-        title={view === 'modes' ? 'Configuration des paiements' : 'Retards et rappels'}
-        subtitle={view === 'modes' ? 'Découvrez les modes de paiement proposés et leurs échéances.' : 'Découvrez quand une tranche passe « En retard » et qui est prévenu.'}
+        title={view === 'rappels' ? 'Retards et rappels' : view === 'modeles' ? 'Modèles du club' : 'Configuration des paiements'}
+        subtitle={
+          view === 'rappels'
+            ? 'Découvrez quand une tranche passe « En retard » et qui est prévenu.'
+            : view === 'modeles'
+              ? 'Découvrez les échéanciers personnalisés du club : dates, tranches et mois choisis.'
+              : 'Découvrez les modes de paiement proposés et leurs échéances.'
+        }
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Segmented<View>
               label="Partie de la configuration"
               value={view}
-              onChange={(v) => setParams(v === 'rappels' ? { vue: 'rappels' } : {}, { replace: true })}
+              onChange={(v) => setParams(v === 'modes' ? {} : { vue: v }, { replace: true })}
               options={[
                 { value: 'modes', label: 'Modes et échéances' },
+                { value: 'modeles', label: 'Modèles du club' },
                 { value: 'rappels', label: 'Retards et rappels' },
               ]}
             />
-            {canEdit && (
+            {canEdit && view !== 'modeles' && (
               <Button variant="primary" onClick={() => save.mutate()} disabled={!dirty || save.isPending}>
                 Enregistrer
               </Button>
@@ -344,6 +353,30 @@ export function PaymentConfigPage() {
               </Card>
             </div>
           </div>
+        )}
+        {cfg && view === 'modeles' && (
+          <>
+            <Card className="mt-4">
+              <label className="flex items-center justify-between gap-3 text-[14.5px]">
+                <span>
+                  Proposer les modèles du club dans la fiche joueur
+                  <small className="block text-[12px] text-mut">Décoché : seuls les 4 modes (les cotisations existantes gardent leurs tranches)</small>
+                </span>
+                <input
+                  type="checkbox"
+                  className="h-5 w-5 accent-[var(--pri)]"
+                  disabled={off}
+                  checked={cfg.plans.CUSTOM}
+                  onChange={(e) => {
+                    const next = { ...cfg, plans: { ...cfg.plans, CUSTOM: e.target.checked } };
+                    setCfg(next);
+                    void api.put<PaymentConfig>('/payments/config', { config: next }).then(() => toast(e.target.checked ? 'Modèles du club proposés.' : 'Modèles du club retirés de la fiche joueur.'));
+                  }}
+                />
+              </label>
+            </Card>
+            <TemplatesView canEdit={canEdit} amount={Number(amount) || 0} />
+          </>
         )}
         {cfg && view === 'rappels' && (
           <div className="mt-4 grid grid-cols-1 gap-4 min-[1100px]:grid-cols-2">

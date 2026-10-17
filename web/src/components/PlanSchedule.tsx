@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { api } from '../lib/api';
 import { DT, fD } from '../lib/format';
-import type { PaymentPlan, ScheduleLine } from '../lib/types';
+import { splitPlan } from '../lib/payment-config';
+import type { ScheduleLine } from '../lib/types';
 import { Pill } from './ui/Pill';
 
 type Preview = { total: number; enabled: boolean; tranches: ScheduleLine[]; newCount: number };
@@ -18,7 +19,8 @@ export function PlanSchedule({
   custom,
   onCustom,
 }: {
-  plan: PaymentPlan;
+  /** Mode ou « CUSTOM:<id> » (modèle du club). */
+  plan: string;
   playerId?: string;
   categoryId?: string;
   /** null = dates de la configuration du club ; sinon dates choisies pour ce joueur. */
@@ -27,7 +29,10 @@ export function PlanSchedule({
 }) {
   const q = useQuery({
     queryKey: ['plan-preview', plan, playerId ?? null, categoryId ?? null],
-    queryFn: () => api.get<Preview>('/memberships/preview', { plan, playerId, categoryId }),
+    queryFn: () => {
+      const { paymentPlan, templateId } = splitPlan(plan);
+      return api.get<Preview>('/memberships/preview', { plan: paymentPlan, templateId, playerId, categoryId });
+    },
     enabled: Boolean(playerId || categoryId),
   });
   const fresh = q.data?.tranches.filter((t) => !t.paid) ?? [];

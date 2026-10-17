@@ -22,7 +22,8 @@ export const PAYMENT_CONFIG_KEY = 'payment.config';
 export const PAYMENT_CONFIG = { refreshMs: 5 * 60 * 1000 };
 
 export const DEFAULT_PAYMENT_CONFIG: PaymentConfig = {
-  plans: { FULL: true, SEMESTER: true, QUARTER: false, MONTHLY: true },
+  /** CUSTOM : modèles du club proposés (Modèles du club). */
+  plans: { FULL: true, SEMESTER: true, QUARTER: false, MONTHLY: true, CUSTOM: true },
   defaultPlan: PaymentPlan.FULL,
   semester: { second: '02-01', firstPercent: 50 },
   quarter: { second: '01-05', third: '04-05' },
@@ -49,8 +50,10 @@ export function normalizePaymentConfig(raw: unknown): PaymentConfig {
   const plansSrc = src.plans ?? {};
   const plans = Object.fromEntries((Object.keys(d.plans) as PaymentPlan[]).map((p) => [p, bool(plansSrc[p], d.plans[p])])) as Record<PaymentPlan, boolean>;
   if (!Object.values(plans).some(Boolean)) plans.FULL = true;
-  let defaultPlan = pick(src.defaultPlan as unknown, Object.keys(d.plans) as PaymentPlan[], d.defaultPlan);
-  if (!plans[defaultPlan]) defaultPlan = (Object.keys(plans) as PaymentPlan[]).find((p) => plans[p])!;
+  const standard = (Object.keys(d.plans) as PaymentPlan[]).filter((p) => p !== PaymentPlan.CUSTOM);
+  if (!standard.some((p) => plans[p])) plans.FULL = true;
+  let defaultPlan = pick(src.defaultPlan as unknown, standard, d.defaultPlan);
+  if (!plans[defaultPlan]) defaultPlan = standard.find((p) => plans[p])!;
   const s = src.semester ?? {};
   const q = src.quarter ?? {};
   const m = src.monthly ?? {};

@@ -153,7 +153,7 @@ export class PlayersService {
         { action: 'Joueur créé', entity: 'Player', entityId: player.id, target: fullName(player), after: enrollment.category.name, reason: derogation },
         tx,
       );
-      const membership = await this.payments.buildMembership(tx, actor.id, { ...enrollment, player }, season, plan);
+      const membership = await this.payments.buildMembership(tx, actor.id, { ...enrollment, player }, season, plan, [], dto.templateId);
       return { player, account, newParent, parent, membership };
     });
 
@@ -535,7 +535,7 @@ export class PlayersService {
           category: { select: { id: true, code: true, name: true } },
           groups: { include: { group: { select: { id: true, name: true, archivedAt: true } } } },
           membership: {
-            select: { paymentPlan: true, totalAmount: true, installments: { select: { payments: { select: { amount: true } } } } },
+            select: { paymentPlan: true, templateId: true, totalAmount: true, installments: { select: { payments: { select: { amount: true } } } } },
           },
         },
       },
@@ -578,6 +578,7 @@ export class PlayersService {
       membership: enrollment?.membership
         ? {
             paymentPlan: enrollment.membership.paymentPlan,
+            templateId: enrollment.membership.templateId,
             total: num(enrollment.membership.totalAmount),
             paid: enrollment.membership.installments.reduce((t, i) => t + i.payments.reduce((u, p) => u + num(p.amount), 0), 0),
           }

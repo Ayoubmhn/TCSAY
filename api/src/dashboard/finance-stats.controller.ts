@@ -204,7 +204,7 @@ export class FinanceStatsController {
       methods[p.method].count++;
       methods[p.method].amount += num(p.amount);
     }
-    const plans: Record<PaymentPlan, number> = { FULL: 0, SEMESTER: 0, QUARTER: 0, MONTHLY: 0 };
+    const plans: Record<PaymentPlan, number> = { FULL: 0, SEMESTER: 0, QUARTER: 0, MONTHLY: 0, CUSTOM: 0 };
     for (const m of memberships) plans[m.paymentPlan]++;
 
     // ── Comparaison : saison active = encaissé l'an passé à la même date ; autre saison = total de la précédente ──

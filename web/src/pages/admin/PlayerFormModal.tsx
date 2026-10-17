@@ -8,7 +8,7 @@ import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { categoryFor, categoryPairs } from '../../lib/categories';
-import { PLAN_LABEL, PlanOptions, usePaymentConfig } from '../../lib/payment-config';
+import { PLAN_LABEL, PlanOptions, planValue, splitPlan, usePaymentConfig, type PlanValue } from '../../lib/payment-config';
 import { PlanSchedule } from '../../components/PlanSchedule';
 import { api, errorMessage } from '../../lib/api';
 import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
@@ -26,7 +26,7 @@ type Form = {
   /** Parent existant, « new » pour le créer dans ce formulaire, ou vide. */
   parentId: string;
   np: { firstName: string; lastName: string; phone: string; email: string; cin: string };
-  paymentPlan: '' | PaymentPlan;
+  paymentPlan: '' | PlanValue;
   planReason: string;
   categoryId: string;
   derogationReason: string;
@@ -127,7 +127,7 @@ export function PlayerFormModal({
             cin: player.cin ?? '',
             parentId: '',
             np: NO_PARENT,
-            paymentPlan: player.membership?.paymentPlan ?? '',
+            paymentPlan: planValue(player.membership),
             planReason: '',
             categoryId: player.category?.id ?? '',
             derogationReason: player.derogationReason ?? '',
@@ -215,10 +215,10 @@ export function PlayerFormModal({
         await api.post(`/players/${before.id}/category`, { categoryId: f.categoryId, derogationReason: f.derogationReason || undefined });
       }
       // Mode de paiement : crée la cotisation si elle manque, sinon refait l'échéancier (R7 : motif après un paiement).
-      if (f.paymentPlan && (f.paymentPlan !== before.membership?.paymentPlan || customDates)) {
+      if (f.paymentPlan && (f.paymentPlan !== planValue(before.membership) || customDates)) {
         await api.put('/memberships/plan', {
           playerId: before.id,
-          paymentPlan: f.paymentPlan,
+          ...splitPlan(f.paymentPlan),
           reason: f.planReason.trim() || undefined,
           dueDates: customDates ?? undefined,
         });
@@ -464,7 +464,7 @@ export function PlayerFormModal({
               onChange={set('paymentPlan')}
             >
               <option value="">{player.membership ? '—' : 'Choisir…'}</option>
-              <PlanOptions current={player?.membership?.paymentPlan} />
+              <PlanOptions templates current={planValue(player?.membership)} family={categories.data?.find((c) => c.id === f.categoryId)?.family} />
             </SelectField>
             <div className="col-span-full">
               {player.membership ? (
@@ -481,7 +481,7 @@ export function PlayerFormModal({
             {player.membership && f.paymentPlan && (
               <PlanSchedule plan={f.paymentPlan} playerId={player.id} custom={customDates} onCustom={setCustomDates} />
             )}
-            {player.membership && ((player.membership.paid > 0 && f.paymentPlan !== player.membership.paymentPlan) || customDates) && (
+            {player.membership && ((player.membership.paid > 0 && f.paymentPlan !== planValue(player.membership)) || customDates) && (
               <TextField
                 label={customDates ? 'Motif des dates choisies *' : 'Motif du changement (paiements déjà encaissés, R7) *'}
                 full
@@ -497,7 +497,7 @@ export function PlayerFormModal({
           <>
             <SelectField label="Mode de paiement *" full value={f.paymentPlan} onChange={set('paymentPlan')}>
               <option value="">Choisir…</option>
-              <PlanOptions />
+              <PlanOptions templates family={categories.data?.find((c) => c.id === effectiveCategory)?.family} />
             </SelectField>
             <div className="col-span-full">
               {fee.data ? (
@@ -587,7 +587,7 @@ function body(f: Form) {
     cin: f.cin.trim() || undefined,
     parentId: f.parentId && f.parentId !== 'new' ? f.parentId : undefined,
     newParent: f.parentId === 'new' ? { ...f.np, email: f.np.email.trim(), cin: f.np.cin.trim() } : undefined,
-    paymentPlan: f.paymentPlan || undefined,
+    ...(f.paymentPlan ? splitPlan(f.paymentPlan) : {}),
     categoryId: f.categoryId || undefined,
     derogationReason: f.derogationReason || undefined,
   };

@@ -11,7 +11,7 @@ import { MailService } from '../mail/mail.service';
 import { Db, PrismaService } from '../prisma/prisma.service';
 import { normalizePaymentConfig, type PaymentConfig } from './payment-config';
 import { PaymentConfigService } from './payment-config.service';
-import { DISCOUNT_LABEL, PLAN_LABEL, planInstallments } from './payment-plan';
+import { DISCOUNT_LABEL, PLAN_LABEL, planInstallments, templateInstallments, type TemplateLine } from './payment-plan';
 
 const METHOD_TEXT: Record<PaymentMethod, string> = { CASH: 'espèces', CHEQUE: 'chèque', TRANSFER: 'virement', ONLINE: 'en ligne' };
 
@@ -56,11 +56,43 @@ export class PaymentsService {
     private readonly config: PaymentConfigService,
   ) {}
 
-  /** Mode proposé par le club (Réglages › Configuration des paiements). */
-  private async assertPlan(plan: PaymentPlan) {
+  /** Mode proposé par le club (Réglages › Configuration des paiements) ; modèle du club actif et adapté à la catégorie. */
+  private async assertPlan(plan: PaymentPlan, templateId?: string | null, family?: string) {
     const cfg = await this.config.get();
+    if (plan === PaymentPlan.CUSTOM) {
+      if (!templateId) throw new BadRequestException('Choisissez le modèle d’échéancier du club.');
+      const t = await this.prisma.paymentTemplate.findUnique({ where: { id: templateId } });
+      if (!t || t.archivedAt) throw new BadRequestException('Modèle d’échéancier introuvable ou archivé.');
+      if (family && t.scope !== 'ALL' && (t.scope === 'LEISURE') !== (family === 'LEISURE')) {
+        throw new BadRequestException(`Le modèle « ${t.name} » est réservé ${t.scope === 'LEISURE' ? 'aux loisirs' : 'à la compétition'}.`);
+      }
+      return cfg;
+    }
     if (!cfg.plans[plan]) throw new BadRequestException(`Mode « ${PLAN_LABEL[plan]} » non proposé par le club (Configuration des paiements).`);
     return cfg;
+  }
+
+  /** Échéancier d'un mode (ou d'un modèle du club) pour un montant. */
+  private async scheduleFor(
+    plan: PaymentPlan,
+    templateId: string | null | undefined,
+    total: number,
+    deposit: number,
+    period: { startDate: Date; endDate: Date },
+    today: string,
+    cfg: PaymentConfig,
+  ) {
+    if (plan !== PaymentPlan.CUSTOM) return planInstallments(plan, total, deposit, period, today, cfg);
+    const t = templateId ? await this.prisma.paymentTemplate.findUnique({ where: { id: templateId } }) : null;
+    if (!t) return planInstallments(PaymentPlan.FULL, total, deposit, period, today, cfg);
+    return templateInstallments({ ...t, lines: t.lines as TemplateLine[] }, total, deposit, period, today, cfg);
+  }
+
+  /** Libellé du mode : nom du modèle pour un modèle du club. */
+  private async planName(plan: PaymentPlan, templateId?: string | null) {
+    if (plan !== PaymentPlan.CUSTOM || !templateId) return PLAN_LABEL[plan];
+    const t = await this.prisma.paymentTemplate.findUnique({ where: { id: templateId }, select: { name: true } });
+    return t ? `Modèle « ${t.name} »` : PLAN_LABEL[plan];
   }
 
   /** Tranches d'une saison (admin : toutes ; joueur/parent : les siennes). Le coach n'y a jamais accès (403 par @Roles). */
@@ -238,20 +270,22 @@ export class PaymentsService {
     season: { id: string; label: string; startDate: Date; endDate: Date; leisureStartDate?: Date | null; leisureEndDate?: Date | null },
     plan: PaymentPlan,
     groupIds: string[] = [],
+    templateId?: string | null,
   ) {
-    const cfg = await this.assertPlan(plan);
+    // Loisirs : échéancier sur la période loisirs (octobre → juin) ; compétitif : toute la saison (jusqu'en août).
+    const category = await db.category.findUnique({ where: { id: enrollment.categoryId }, select: { family: true } });
+    const cfg = await this.assertPlan(plan, templateId, category?.family);
     const fee = await this.findFee(db, season.id, enrollment.categoryId, groupIds);
     if (!fee) return null;
     const total = num(fee.amount);
-    // Loisirs : échéancier sur la période loisirs (octobre → juin) ; compétitif : toute la saison (jusqu'en août).
-    const category = await db.category.findUnique({ where: { id: enrollment.categoryId }, select: { family: true } });
     const period =
       category?.family === 'LEISURE'
         ? { startDate: season.leisureStartDate ?? season.startDate, endDate: season.leisureEndDate ?? season.endDate }
         : season;
-    const schedule = planInstallments(plan, total, num(fee.depositAmount), period, todayIso(), cfg);
+    const tid = plan === PaymentPlan.CUSTOM ? (templateId ?? null) : null;
+    const schedule = await this.scheduleFor(plan, tid, total, num(fee.depositAmount), period, todayIso(), cfg);
     const m = await db.membership.create({
-      data: { enrollmentId: enrollment.id, feeScheduleId: fee.id, paymentPlan: plan, totalAmount: total },
+      data: { enrollmentId: enrollment.id, feeScheduleId: fee.id, paymentPlan: plan, templateId: tid, totalAmount: total },
     });
     for (const [i, inst] of schedule.entries()) {
       await db.installment.create({
@@ -265,7 +299,7 @@ export class PaymentsService {
         entity: 'Membership',
         entityId: m.id,
         target: `${fullName(enrollment.player)} · ${season.label}`,
-        after: `${dt(total)} · ${PLAN_LABEL[plan]} · ${schedule.length} tranche(s)`,
+        after: `${dt(total)} · ${await this.planName(plan, tid)} · ${schedule.length} tranche(s)`,
       },
       db,
     );
@@ -273,7 +307,7 @@ export class PaymentsService {
   }
 
   /** Crée la cotisation d'un joueur déjà inscrit (si elle n'a pas été créée à l'inscription). */
-  async createMembership(actor: AuthUser, playerId: string, plan: PaymentPlan, seasonId?: string) {
+  async createMembership(actor: AuthUser, playerId: string, plan: PaymentPlan, seasonId?: string, templateId?: string | null) {
     const season = await this.access.seasonOrActive(seasonId);
     assertSeasonOpen(season);
     const enrollment = await this.prisma.enrollment.findUnique({
@@ -283,7 +317,7 @@ export class PaymentsService {
     if (!enrollment) throw notFound('Inscription');
     if (enrollment.membership) throw rule.conflict('R7', 'Cotisation déjà créée pour cette saison.');
     const result = await this.prisma.$transaction((tx) =>
-      this.buildMembership(tx, actor.id, enrollment, season, plan, enrollment.groups.map((g) => g.groupId)),
+      this.buildMembership(tx, actor.id, enrollment, season, plan, enrollment.groups.map((g) => g.groupId), templateId),
     );
     if (!result) throw new BadRequestException('Aucun tarif pour la catégorie ou le groupe de ce joueur : créez d’abord le tarif.');
     return result.membership;
@@ -308,12 +342,18 @@ export class PaymentsService {
    */
   private async reschedule(
     tx: Db,
-    m: { id: string; feeScheduleId: string | null; installments: { id: string; amount: Prisma.Decimal; payments: { amount: Prisma.Decimal }[] }[] },
+    m: {
+      id: string;
+      feeScheduleId: string | null;
+      templateId?: string | null;
+      installments: { id: string; amount: Prisma.Decimal; payments: { amount: Prisma.Decimal }[] }[];
+    },
     plan: PaymentPlan,
     total: number,
     period: { startDate: Date; endDate: Date },
     cfg?: PaymentConfig,
     dueDates?: string[],
+    templateId?: string | null,
   ) {
     const config = cfg ?? (await this.config.get());
     const paidOf = (i: (typeof m.installments)[number]) => i.payments.reduce((t, p) => t + num(p.amount), 0);
@@ -322,7 +362,8 @@ export class PaymentsService {
     const fee = m.feeScheduleId ? await tx.feeSchedule.findUnique({ where: { id: m.feeScheduleId } }) : null;
     // Acompte du tarif seulement si rien n'a encore été payé (et jamais au-delà du montant dû).
     const deposit = paidTotal > 0 ? 0 : Math.min(num(fee?.depositAmount ?? 0), total);
-    const schedule = rest > 0 ? planInstallments(plan, rest, deposit, period, todayIso(), config) : [];
+    const tid = templateId !== undefined ? templateId : (m.templateId ?? null);
+    const schedule = rest > 0 ? await this.scheduleFor(plan, tid, rest, deposit, period, todayIso(), config) : [];
     // Dates choisies pour ce joueur (motif obligatoire, vérifié par l'appelant).
     if (dueDates?.length) {
       if (dueDates.length !== schedule.length) throw new BadRequestException(`Indiquez ${schedule.length} date(s), une par tranche.`);
@@ -362,7 +403,16 @@ export class PaymentsService {
    * créée. R7 : avant tout paiement, l'échéancier est simplement refait ; après un paiement, motif obligatoire, les
    * tranches déjà réglées sont gardées et le reste est rééchelonné.
    */
-  async changePlan(actor: AuthUser, playerId: string, plan: PaymentPlan, reason?: string, seasonId?: string, dueDates?: string[]) {
+  async changePlan(
+    actor: AuthUser,
+    playerId: string,
+    plan: PaymentPlan,
+    reason?: string,
+    seasonId?: string,
+    dueDates?: string[],
+    templateId?: string | null,
+  ) {
+    const tid = plan === PaymentPlan.CUSTOM ? (templateId ?? null) : null;
     const season = await this.access.seasonOrActive(seasonId);
     assertSeasonOpen(season);
     const custom = Boolean(dueDates?.length);
@@ -371,18 +421,19 @@ export class PaymentsService {
     let enrollment = await this.loadEnrollment(playerId, season.id);
     if (!enrollment) throw rule.bad('R7', 'Joueur non inscrit sur la saison : complétez sa date de naissance (catégorie) d’abord.');
     if (!enrollment.membership) {
-      const m = await this.createMembership(actor, playerId, plan, season.id);
+      const m = await this.createMembership(actor, playerId, plan, season.id, tid);
       if (!custom) return { created: true, membershipId: m.id };
       enrollment = (await this.loadEnrollment(playerId, season.id))!;
     }
     const m = enrollment.membership!;
-    if (m.paymentPlan === plan && !custom) return { created: false, membershipId: m.id };
-    if (m.paymentPlan !== plan) await this.assertPlan(plan);
+    const samePlan = m.paymentPlan === plan && (m.templateId ?? null) === tid;
+    if (samePlan && !custom) return { created: false, membershipId: m.id };
+    if (!samePlan) await this.assertPlan(plan, tid, enrollment.category.family);
     const paid = m.installments.some((i) => i.payments.length > 0);
     if (paid && !motif) throw rule.bad('R7', 'Des paiements sont déjà encaissés : motif obligatoire pour changer le mode de paiement.');
     await this.prisma.$transaction(async (tx) => {
-      const r = await this.reschedule(tx, m, plan, num(m.totalAmount), this.periodOf(enrollment.category.family, season), undefined, dueDates);
-      await tx.membership.update({ where: { id: m.id }, data: { paymentPlan: plan, version: { increment: 1 } } });
+      const r = await this.reschedule(tx, m, plan, num(m.totalAmount), this.periodOf(enrollment.category.family, season), undefined, dueDates, tid);
+      await tx.membership.update({ where: { id: m.id }, data: { paymentPlan: plan, templateId: tid, version: { increment: 1 } } });
       await this.audit.log(
         actor.id,
         {
@@ -390,8 +441,8 @@ export class PaymentsService {
           entity: 'Membership',
           entityId: m.id,
           target: `${fullName(enrollment.player)} · ${season.label}`,
-          before: PLAN_LABEL[m.paymentPlan],
-          after: `${PLAN_LABEL[plan]} · ${dt(r.rest)} restant en ${r.count} tranche(s)${custom ? ` · dates choisies : ${dueDates!.join(', ')}` : ''}`,
+          before: await this.planName(m.paymentPlan, m.templateId),
+          after: `${await this.planName(plan, tid)} · ${dt(r.rest)} restant en ${r.count} tranche(s)${custom ? ` · dates choisies : ${dueDates!.join(', ')}` : ''}`,
           reason: motif,
         },
         tx,
@@ -491,6 +542,7 @@ export class PaymentsService {
       membership: m
         ? {
             paymentPlan: m.paymentPlan,
+            templateId: m.templateId,
             base: num(m.baseAmount ?? m.totalAmount),
             total: num(m.totalAmount),
             paid: m.installments.reduce((t, i) => t + i.payments.reduce((u, p) => u + num(p.amount), 0), 0),
@@ -557,7 +609,7 @@ export class PaymentsService {
     const season = await this.access.activeSeason();
     const today = todayIso();
     return (Object.keys(cfg.plans) as PaymentPlan[])
-      .filter((p) => cfg.plans[p])
+      .filter((p) => cfg.plans[p] && p !== PaymentPlan.CUSTOM)
       .map((plan) => ({ plan, label: PLAN_LABEL[plan], schedule: planInstallments(plan, amount, deposit, season, today, cfg) }));
   }
 
@@ -565,9 +617,14 @@ export class PaymentsService {
    * Aperçu dans la fiche joueur : tranches déjà payées gardées et nouvelles tranches selon le mode choisi
    * (joueur inscrit), ou échéancier d'une nouvelle inscription d'après le tarif de la catégorie.
    */
-  async previewPlan(plan: PaymentPlan, playerId?: string, categoryId?: string) {
+  async previewPlan(plan: PaymentPlan, playerId?: string, categoryId?: string, templateId?: string) {
     const season = await this.access.activeSeason();
     const cfg = await this.config.get();
+    const enabledOf = async () => {
+      if (plan !== PaymentPlan.CUSTOM) return cfg.plans[plan];
+      const t = templateId ? await this.prisma.paymentTemplate.findUnique({ where: { id: templateId } }) : null;
+      return Boolean(t && !t.archivedAt);
+    };
     const today = todayIso();
     if (playerId) {
       const e = await this.loadEnrollment(playerId, season.id);
@@ -580,17 +637,17 @@ export class PaymentsService {
         const fee = m.feeScheduleId ? await this.prisma.feeSchedule.findUnique({ where: { id: m.feeScheduleId } }) : null;
         const deposit = paidTotal > 0 ? 0 : Math.min(num(fee?.depositAmount ?? 0), total);
         const rest = Math.round((total - paidTotal) * 1000) / 1000;
-        const next = rest > 0 ? planInstallments(plan, rest, deposit, this.periodOf(e.category.family, season), today, cfg) : [];
-        return { total, enabled: cfg.plans[plan], tranches: [...kept, ...next.map((n) => ({ ...n, paid: false }))], newCount: next.length };
+        const next = rest > 0 ? await this.scheduleFor(plan, templateId, rest, deposit, this.periodOf(e.category.family, season), today, cfg) : [];
+        return { total, enabled: await enabledOf(), tranches: [...kept, ...next.map((n) => ({ ...n, paid: false }))], newCount: next.length };
       }
       if (e) categoryId = e.categoryId;
     }
-    if (!categoryId) return { total: 0, enabled: cfg.plans[plan], tranches: [], newCount: 0 };
+    if (!categoryId) return { total: 0, enabled: await enabledOf(), tranches: [], newCount: 0 };
     const fee = await this.findFee(this.prisma, season.id, categoryId);
-    if (!fee) return { total: 0, enabled: cfg.plans[plan], tranches: [], newCount: 0 };
+    if (!fee) return { total: 0, enabled: await enabledOf(), tranches: [], newCount: 0 };
     const category = await this.prisma.category.findUnique({ where: { id: categoryId }, select: { family: true } });
-    const next = planInstallments(plan, num(fee.amount), num(fee.depositAmount), this.periodOf(category?.family ?? '', season), today, cfg);
-    return { total: num(fee.amount), enabled: cfg.plans[plan], tranches: next.map((n) => ({ ...n, paid: false })), newCount: next.length };
+    const next = await this.scheduleFor(plan, templateId, num(fee.amount), num(fee.depositAmount), this.periodOf(category?.family ?? '', season), today, cfg);
+    return { total: num(fee.amount), enabled: await enabledOf(), tranches: next.map((n) => ({ ...n, paid: false })), newCount: next.length };
   }
 
   /**

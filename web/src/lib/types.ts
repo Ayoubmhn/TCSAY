@@ -8,7 +8,7 @@ export type Space = 'admin' | 'coach' | 'parent' | 'player';
 
 export type PayMode = 'HOURLY' | 'MONTHLY';
 export type StaffFunction = 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
-export type PaymentPlan = 'FULL' | 'SEMESTER' | 'QUARTER' | 'MONTHLY';
+export type PaymentPlan = 'FULL' | 'SEMESTER' | 'QUARTER' | 'MONTHLY' | 'CUSTOM';
 export type DiscountKind = 'SIBLING' | 'SPECIAL' | 'EXEMPT';
 
 /** Cotisation d'un joueur (fiche « Modifier ») : montants, réduction, frères et sœurs inscrits. */
@@ -16,6 +16,7 @@ export type MembershipInfo = {
   siblings: { id: string; name: string }[];
   membership: {
     paymentPlan: PaymentPlan;
+    templateId?: string | null;
     base: number;
     total: number;
     paid: number;
@@ -95,7 +96,7 @@ export type Player = {
   /** Inscrit dans la saison active. */
   enrolled: boolean;
   /** Cotisation de la saison active (null : pas encore créée). */
-  membership: { paymentPlan: PaymentPlan; total: number; paid: number } | null;
+  membership: { paymentPlan: PaymentPlan; templateId?: string | null; total: number; paid: number } | null;
   gender: 'M' | 'F';
   email: string | null;
   phone: string | null;
@@ -871,3 +872,21 @@ export type PaymentConfig = {
 };
 
 export type ScheduleLine = { dueDate: string; amount: number; paid?: boolean };
+
+/** Modèle d'échéancier du club (Configuration des paiements › Modèles du club). */
+export type TemplateLine = { date: string; mode: 'PERCENT' | 'AMOUNT' | 'REST'; value: number };
+export type PaymentTemplate = {
+  id: string;
+  name: string;
+  kind: 'FIXED' | 'MONTHLY';
+  lines: TemplateLine[];
+  monthlyDay: number;
+  months: number[];
+  deposit: boolean;
+  scope: 'ALL' | 'COMPETITIVE' | 'LEISURE';
+  visible: boolean;
+  lateMode: 'MERGE' | 'SPREAD';
+  version: number;
+  archivedAt: string | null;
+  used: number;
+};

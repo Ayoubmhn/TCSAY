@@ -97,6 +97,10 @@ class PlanPreviewQuery {
   @IsOptional()
   @IsUUID()
   categoryId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 }
 
 class RescheduleDto {
@@ -110,8 +114,13 @@ class MembershipDto {
   @IsUUID()
   playerId: string;
 
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre, par mois ou modèle du club.' })
   paymentPlan: PaymentPlan;
+
+  /** Modèle d'échéancier du club (mode CUSTOM). */
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 
   @IsOptional()
   @IsUUID()
@@ -122,8 +131,13 @@ class PlanDto {
   @IsUUID()
   playerId: string;
 
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre, par mois ou modèle du club.' })
   paymentPlan: PaymentPlan;
+
+  /** Modèle d'échéancier du club (mode CUSTOM). */
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 
   /** Obligatoire si des paiements sont déjà encaissés ou si des dates sont choisies (R7). */
   @IsOptional()
@@ -175,8 +189,13 @@ class DueDateDto {
 }
 
 class MissingDto {
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre, par mois ou modèle du club.' })
   paymentPlan: PaymentPlan;
+
+  /** Modèle d'échéancier du club (mode CUSTOM). */
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 }
 
 /** Cotisations : C, R, U (pas de D) ; paiements : C (espèces ou chèque) et R seulement (R7). Coach : 403. */
@@ -232,7 +251,7 @@ export class PaymentsController {
   @Get('memberships/preview')
   @Perm('payments.collect', 'players.manage')
   previewPlan(@Query() q: PlanPreviewQuery) {
-    return this.payments.previewPlan(q.plan, q.playerId, q.categoryId);
+    return this.payments.previewPlan(q.plan, q.playerId, q.categoryId, q.templateId);
   }
 
   @Get('installments')
@@ -274,13 +293,13 @@ export class PaymentsController {
   @Post('memberships')
   @Perm('payments.collect', 'players.manage')
   createMembership(@CurrentUser() user: AuthUser, @Body() dto: MembershipDto) {
-    return this.payments.createMembership(user, dto.playerId, dto.paymentPlan, dto.seasonId);
+    return this.payments.createMembership(user, dto.playerId, dto.paymentPlan, dto.seasonId, dto.templateId);
   }
 
   @Put('memberships/plan')
   @Perm('payments.collect', 'players.manage')
   changePlan(@CurrentUser() user: AuthUser, @Body() dto: PlanDto) {
-    return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason, undefined, dto.dueDates);
+    return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason, undefined, dto.dueDates, dto.templateId);
   }
 
   @Put('memberships/discount')

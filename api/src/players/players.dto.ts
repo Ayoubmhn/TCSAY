@@ -92,8 +92,13 @@ export class CreatePlayerDto {
 
   @ApiPropertyOptional({ enum: PaymentPlan, description: 'Mode de paiement de la cotisation' })
   @IsOptional()
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre, par mois ou modèle du club.' })
   paymentPlan?: PaymentPlan;
+
+  @ApiPropertyOptional({ description: 'Modèle d’échéancier du club (mode CUSTOM)' })
+  @IsOptional()
+  @IsUUID()
+  templateId?: string;
 
   @ApiPropertyOptional({ description: 'Catégorie choisie (sinon catégorie proposée)' })
   @IsOptional()
