@@ -14,6 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
+import { usePaymentConfig } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import { DT, fD, fullName } from '../../lib/format';
 import { METHOD_LABEL, ReceiptModal } from '../../features/receipts/ReceiptModal';
@@ -93,47 +94,68 @@ function readGroupBy(): GroupBy {
   }
 }
 
+const METHODS = { CASH: 'Espèces', CHEQUE: 'Chèque', TRANSFER: 'Virement' } as const;
+type Method = keyof typeof METHODS;
+
 function CashModal({
   installment: i,
+  following = 0,
   onClose,
   onCashed,
 }: {
   installment?: Installment;
+  /** Restant des tranches suivantes de la même cotisation (paiement de plusieurs tranches en une fois). */
+  following?: number;
   onClose: () => void;
   /** Encaissement enregistré : ouverture du reçu. */
   onCashed: (paymentId: string) => void;
 }) {
   const toast = useToast();
+  const cfg = usePaymentConfig(Boolean(i));
+  const methods = (cfg.data?.collect.methods ?? ['CASH', 'CHEQUE']) as Method[];
+  const multi = Boolean(cfg.data?.collect.multi) && following > 0;
+  const receiptRequired = Boolean(cfg.data?.collect.receiptRequired);
   const [amount, setAmount] = useState('');
-  const [method, setMethod] = useState<'CASH' | 'CHEQUE'>('CASH');
+  const [method, setMethod] = useState<Method>('CASH');
   const [chequeNumber, setChequeNumber] = useState('');
+  const [receipt, setReceipt] = useState('');
+  const next = useQuery({ queryKey: ['receipt-next'], queryFn: () => api.get<{ next: number | null }>('/receipts/next'), enabled: Boolean(i) && receiptRequired });
   useEffect(() => {
     setAmount(i ? String(i.remaining) : '');
     setMethod('CASH');
     setChequeNumber('');
+    setReceipt('');
   }, [i]);
+  useEffect(() => {
+    if (i && receiptRequired && next.data?.next && !receipt) setReceipt(String(next.data.next));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [i, receiptRequired, next.data]);
+  const max = i ? Math.round((i.remaining + (multi ? following : 0)) * 1000) / 1000 : 0;
   const cash = useAction(
     () =>
-      api.post<Installment>(`/installments/${i!.id}/payments`, {
+      api.post<Installment & { paymentId?: string }>(`/installments/${i!.id}/payments`, {
         amount: Number(amount),
         method,
         chequeNumber: method === 'CHEQUE' ? chequeNumber.trim() || undefined : undefined,
+        spread: multi && Number(amount) > i!.remaining ? true : undefined,
+        receiptNumber: receipt.trim() ? Number(receipt.replace(/\D/g, '')) : undefined,
       }),
     {
-      invalidate: KEYS,
+      invalidate: [...KEYS, ['receipts'], ['receipt-next']],
       success: () => `${DT(Number(amount))} encaissés pour ${i?.player.firstName}.`,
       onSuccess: (r) => {
         onClose();
-        const p = lastPayment(r);
-        if (p) onCashed(p.id);
+        const id = r.paymentId ?? lastPayment(r)?.id;
+        if (id) onCashed(id);
       },
     },
   );
   const confirm = () => {
     const v = Number(amount);
     if (!v || v <= 0) return toast('Saisissez un montant positif.');
-    if (i && v > i.remaining) return toast(`Montant supérieur au restant (${DT(i.remaining)}).`);
+    if (i && v > max + 1e-9) return toast(`Montant supérieur au restant (${DT(max)}).`);
     if (method === 'CHEQUE' && !chequeNumber.trim()) return toast('Saisissez le n° du chèque.');
+    if (receiptRequired && !receipt.trim()) return toast('Saisissez le n° du reçu du carnet.');
     cash.mutate();
   };
   return (
@@ -157,29 +179,35 @@ function CashModal({
             Tranche {i.number}/{i.count}
           </Pill>
           <Pill tone="r">Restant {DT(i.remaining)}</Pill>
+          {multi && <Pill tone="s">Tranches suivantes {DT(following)}</Pill>}
         </Pills>
       )}
       <TextField
-        label="Montant reçu (DT)"
+        label={multi ? `Montant reçu (DT) · jusqu’à ${DT(max)} sur plusieurs tranches` : 'Montant reçu (DT)'}
         type="number"
         min={0.001}
-        max={i?.remaining}
+        max={max}
         step="0.001"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
       />
-      <Segmented
-        label="Mode de paiement"
-        options={[
-          { value: 'CASH', label: 'Espèces' },
-          { value: 'CHEQUE', label: 'Chèque' },
-        ]}
-        value={method}
-        onChange={setMethod}
-      />
+      {methods.length > 1 && (
+        <Segmented label="Mode de paiement" options={methods.map((m) => ({ value: m, label: METHODS[m] }))} value={method} onChange={setMethod} />
+      )}
       {method === 'CHEQUE' && <TextField label="N° du chèque" value={chequeNumber} onChange={(e) => setChequeNumber(e.target.value)} />}
+      {multi && Number(amount) > (i?.remaining ?? 0) && (
+        <Pill tone="b" className="self-start whitespace-normal">
+          Le surplus va sur les tranches suivantes : un seul reçu pour l’ensemble.
+        </Pill>
+      )}
+      <TextField
+        label={receiptRequired ? 'N° du reçu du carnet *' : 'N° du reçu du carnet (facultatif, sinon après)'}
+        inputMode="numeric"
+        value={receipt}
+        onChange={(e) => setReceipt(e.target.value)}
+      />
       <p className="m-0 text-[13px] text-mut">
-        Une fois encaissé, ce paiement ne pourra plus être modifié ni supprimé (R7). Le reçu s’émet ensuite avec le n° du carnet.
+        Une fois encaissé, ce paiement ne pourra plus être modifié ni supprimé (R7). Le reçu s’imprime ensuite depuis la fenêtre du reçu.
       </p>
     </Modal>
   );
@@ -368,7 +396,16 @@ export function PaymentsAdminPage() {
         accès à cet écran (403).
       </Note>
       <DueDateModal installment={dueFor} onClose={() => setDueFor(undefined)} />
-      <CashModal installment={cashFor} onClose={() => setCashFor(undefined)} onCashed={setReceiptFor} />
+      <CashModal
+        installment={cashFor}
+        following={
+          cashFor
+            ? (q.data ?? [])
+                .filter((x) => x.player.id === cashFor.player.id && x.season.id === cashFor.season.id && x.number > cashFor.number)
+                .reduce((t, x) => t + x.remaining, 0)
+            : 0
+        }
+        onClose={() => setCashFor(undefined)} onCashed={setReceiptFor} />
       <ReceiptModal paymentId={receiptFor} onClose={() => setReceiptFor(undefined)} />
     </>
   );

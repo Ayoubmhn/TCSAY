@@ -8,6 +8,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { categoryFor, categoryPairs } from '../../lib/categories';
+import { PLAN_LABEL, PlanOptions, usePaymentConfig } from '../../lib/payment-config';
+import { PlanSchedule } from '../../components/PlanSchedule';
 import { api, errorMessage } from '../../lib/api';
 import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
 import type { Category, Credentials, DiscountKind, MembershipInfo, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
@@ -49,7 +51,7 @@ const EMPTY: Form = {
 const CIN = /^[0-9A-Za-z]{6,12}$/;
 const EMAIL = /^\S+@\S+\.\S+$/;
 
-export const PLAN_LABEL: Record<PaymentPlan, string> = { FULL: 'Comptant', SEMESTER: 'Par semestre', MONTHLY: 'Par mois' };
+export { PLAN_LABEL };
 
 type Created = Player & {
   sentTo: string | null;
@@ -75,6 +77,9 @@ export function PlayerFormModal({
   const set = (k: Exclude<keyof Form, 'np'>) => (e: { target: { value: string } }) => setF((x) => ({ ...x, [k]: e.target.value }));
   const setNp = (k: keyof Form['np']) => (e: { target: { value: string } }) => setF((x) => ({ ...x, np: { ...x.np, [k]: e.target.value } }));
   const [created, setCreated] = useState<Created>();
+  // Dates choisies pour ce joueur (null = dates de la configuration du club).
+  const [customDates, setCustomDates] = useState<string[] | null>(null);
+  const payCfg = usePaymentConfig(open);
   const [changedCreds, setChangedCreds] = useState<(Credentials & { name: string })[]>([]);
   // Réduction sur la cotisation (fiche existante) : fratrie, spéciale ou exonération, en % ou en DT, avec motif.
   const info = useQuery({
@@ -129,7 +134,13 @@ export function PlayerFormModal({
           }
         : EMPTY,
     );
+    setCustomDates(null);
   }, [open]);
+
+  // Nouveau joueur : mode par défaut du club (Configuration des paiements).
+  useEffect(() => {
+    if (open && !playerRef.current && payCfg.data) setF((x) => (x.paymentPlan ? x : { ...x, paymentPlan: payCfg.data!.defaultPlan }));
+  }, [open, payCfg.data]);
 
   const parents = useQuery({ queryKey: ['parents'], queryFn: () => api.get<Parent[]>('/parents'), enabled: open && !player });
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/categories'), enabled: open });
@@ -204,8 +215,13 @@ export function PlayerFormModal({
         await api.post(`/players/${before.id}/category`, { categoryId: f.categoryId, derogationReason: f.derogationReason || undefined });
       }
       // Mode de paiement : crée la cotisation si elle manque, sinon refait l'échéancier (R7 : motif après un paiement).
-      if (f.paymentPlan && f.paymentPlan !== before.membership?.paymentPlan) {
-        await api.put('/memberships/plan', { playerId: before.id, paymentPlan: f.paymentPlan, reason: f.planReason.trim() || undefined });
+      if (f.paymentPlan && (f.paymentPlan !== before.membership?.paymentPlan || customDates)) {
+        await api.put('/memberships/plan', {
+          playerId: before.id,
+          paymentPlan: f.paymentPlan,
+          reason: f.planReason.trim() || undefined,
+          dueDates: customDates ?? undefined,
+        });
       }
       if (discChanged) {
         await api.put('/memberships/discount', discountBody(before.id));
@@ -226,6 +242,8 @@ export function PlayerFormModal({
     e.preventDefault();
     if (!f.firstName.trim() || !f.lastName.trim()) return toast('Prénom et nom sont obligatoires.');
     if (!f.gender) return toast('Le genre est obligatoire.');
+    if (customDates && !f.planReason.trim()) return toast('Motif obligatoire pour les dates choisies.');
+    if (customDates?.some((d) => !d)) return toast('Indiquez la date de chaque tranche.');
     // Joueur importé sans date : modifiable sans la saisir (à compléter plus tard).
     if (!f.birthDate && (!player || player.birthDate)) return toast('La date de naissance est obligatoire.');
     if (s && 'error' in s) return toast(s.error);
@@ -446,9 +464,7 @@ export function PlayerFormModal({
               onChange={set('paymentPlan')}
             >
               <option value="">{player.membership ? '—' : 'Choisir…'}</option>
-              <option value="FULL">Comptant (une seule tranche)</option>
-              <option value="SEMESTER">Par semestre (acompte + 2 tranches)</option>
-              <option value="MONTHLY">Par mois (acompte + une tranche par mois)</option>
+              <PlanOptions current={player?.membership?.paymentPlan} />
             </SelectField>
             <div className="col-span-full">
               {player.membership ? (
@@ -462,9 +478,12 @@ export function PlayerFormModal({
                 </Pill>
               )}
             </div>
-            {player.membership && player.membership.paid > 0 && f.paymentPlan !== player.membership.paymentPlan && (
+            {player.membership && f.paymentPlan && (
+              <PlanSchedule plan={f.paymentPlan} playerId={player.id} custom={customDates} onCustom={setCustomDates} />
+            )}
+            {player.membership && ((player.membership.paid > 0 && f.paymentPlan !== player.membership.paymentPlan) || customDates) && (
               <TextField
-                label="Motif du changement (paiements déjà encaissés, R7) *"
+                label={customDates ? 'Motif des dates choisies *' : 'Motif du changement (paiements déjà encaissés, R7) *'}
                 full
                 value={f.planReason}
                 onChange={set('planReason')}
@@ -478,9 +497,7 @@ export function PlayerFormModal({
           <>
             <SelectField label="Mode de paiement *" full value={f.paymentPlan} onChange={set('paymentPlan')}>
               <option value="">Choisir…</option>
-              <option value="FULL">Comptant (une seule tranche)</option>
-              <option value="SEMESTER">Par semestre (acompte + 2 tranches)</option>
-              <option value="MONTHLY">Par mois (acompte + une tranche par mois)</option>
+              <PlanOptions />
             </SelectField>
             <div className="col-span-full">
               {fee.data ? (
@@ -489,12 +506,13 @@ export function PlayerFormModal({
                   <Pill tone="s">Acompte {DT(fee.data.depositAmount)}</Pill>
                   <Pill tone="s">Saison {fee.data.season}</Pill>
                 </Pills>
-              ) : effectiveCategory && fee.isSuccess ? (
+              ) : effectiveCategory && fee.isSuccess && !fee.data ? (
                 <Pill tone="r" className="whitespace-normal">
                   Aucun tarif d’entraînement pour cette catégorie : la cotisation sera créée plus tard.
                 </Pill>
               ) : null}
             </div>
+            {fee.data && f.paymentPlan && <PlanSchedule plan={f.paymentPlan} categoryId={effectiveCategory} />}
             {discountFields}
             {disc.kind && !fee.data && (
               <div className="col-span-full">

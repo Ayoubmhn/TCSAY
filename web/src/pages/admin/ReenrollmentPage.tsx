@@ -13,7 +13,7 @@ import { api } from '../../lib/api';
 import { useAction } from '../../lib/useAction';
 import type { Season } from '../../features/seasons/api';
 
-type Plan = 'FULL' | 'SEMESTER' | 'MONTHLY';
+type Plan = 'FULL' | 'SEMESTER' | 'QUARTER' | 'MONTHLY';
 type Row = {
   id: string;
   name: string;

@@ -6,6 +6,7 @@ import { SelectField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { Pill } from '../../components/ui/Pill';
+import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import type { PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -66,9 +67,7 @@ export function MissingMemberships() {
         }
       >
         <SelectField label="Mode de paiement pour ces joueurs" value={plan} onChange={(e) => setPlan(e.target.value as PaymentPlan)}>
-          <option value="FULL">Comptant (une seule tranche)</option>
-          <option value="SEMESTER">Par semestre (acompte + 2 tranches)</option>
-          <option value="MONTHLY">Par mois (acompte + une tranche par mois)</option>
+          <PlanOptions />
         </SelectField>
         <Pill tone="s" className="whitespace-normal">
           Montants pris dans les tarifs d’entraînement de la saison (catégorie ou groupe de chaque joueur).

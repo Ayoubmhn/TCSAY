@@ -37,6 +37,7 @@ import { PermissionsController } from './permissions/permissions.controller';
 import { PaymentsController } from './payments/payments.controller';
 import { LateInstallmentsService } from './payments/late-installments.service';
 import { PaymentsService } from './payments/payments.service';
+import { PaymentConfigService } from './payments/payment-config.service';
 import { PlayersImportController } from './players/import/players-import.controller';
 import { PlayersImportService } from './players/import/players-import.service';
 import { FederationAdminController } from './federation/federation-admin.controller';
@@ -130,6 +131,7 @@ import { StaffController } from './staff/staff.controller';
     PermissionsCodeGuard,
     PlayersService,
     PaymentsService,
+    PaymentConfigService,
     LateInstallmentsService,
     TournamentsService,
     PushService,

@@ -154,6 +154,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
       { label: 'Tarifs terrains', path: '/admin/tarifs-terrains', perm: ['courts.manage'] },
+      { label: 'Configuration des paiements', path: '/admin/configuration-paiements', perm: ['permissions.manage', 'payments.collect', 'fees.manage'] },
       { label: 'Accès après paiement', path: '/admin/acces-paiement', perm: ['permissions.manage', 'payments.collect'] },
       { label: 'Personnel', path: '/admin/personnel', perm: ['staff.manage'] },
       { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },

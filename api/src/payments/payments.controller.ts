@@ -1,7 +1,10 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { DiscountKind, PaymentMethod, PaymentPlan, Role } from '@prisma/client';
-import { IsEnum, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matches, MaxLength, Min } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min } from 'class-validator';
+import { AuditService } from '../audit/audit.service';
+import { ReceiptsService } from '../receipts/receipts.service';
+import { PaymentConfigService } from './payment-config.service';
 import { AuthUser, can, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { rule } from '../common/rules';
 import { PaymentsService } from './payments.service';
@@ -40,22 +43,74 @@ class CashDto {
   @MaxLength(200)
   note?: string;
 
-  /** Espèces (par défaut) ou chèque, saisis par l'admin. */
+  /** Espèces (par défaut), chèque ou virement, saisis par l'admin (modes acceptés : configuration des paiements). */
   @IsOptional()
-  @IsIn([PaymentMethod.CASH, PaymentMethod.CHEQUE], { message: 'Mode : espèces ou chèque.' })
-  method?: 'CASH' | 'CHEQUE';
+  @IsIn([PaymentMethod.CASH, PaymentMethod.CHEQUE, PaymentMethod.TRANSFER], { message: 'Mode : espèces, chèque ou virement.' })
+  method?: PaymentMethod;
 
   @IsOptional()
   @IsString()
   @MaxLength(30)
   chequeNumber?: string;
+
+  /** Montant supérieur au restant : réparti sur les tranches suivantes (un seul reçu). */
+  @IsOptional()
+  @IsBoolean()
+  spread?: boolean;
+
+  /** N° pré-imprimé du carnet : le reçu est émis avec l'encaissement (obligatoire si le club l'exige). */
+  @IsOptional()
+  @IsInt({ message: 'N° de reçu invalide.' })
+  @Min(1)
+  @Max(99_999_999)
+  receiptNumber?: number;
+}
+
+class ConfigDto {
+  @IsObject()
+  config: Record<string, unknown>;
+}
+
+class PreviewDto {
+  @IsOptional()
+  @IsObject()
+  config?: Record<string, unknown>;
+
+  @IsNumber()
+  @Min(0)
+  amount: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  deposit?: number;
+}
+
+class PlanPreviewQuery {
+  @IsEnum(PaymentPlan)
+  plan: PaymentPlan;
+
+  @IsOptional()
+  @IsUUID()
+  playerId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  categoryId?: string;
+}
+
+class RescheduleDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Le motif est obligatoire.' })
+  @MaxLength(300)
+  reason: string;
 }
 
 class MembershipDto {
   @IsUUID()
   playerId: string;
 
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
   paymentPlan: PaymentPlan;
 
   @IsOptional()
@@ -67,14 +122,21 @@ class PlanDto {
   @IsUUID()
   playerId: string;
 
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
   paymentPlan: PaymentPlan;
 
-  /** Obligatoire si des paiements sont déjà encaissés (R7). */
+  /** Obligatoire si des paiements sont déjà encaissés ou si des dates sont choisies (R7). */
   @IsOptional()
   @IsString()
   @MaxLength(300)
   reason?: string;
+
+  /** Dates choisies pour ce joueur (une par nouvelle tranche, AAAA-MM-JJ). */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(24)
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { each: true, message: 'Date invalide.' })
+  dueDates?: string[];
 }
 
 class DiscountDto {
@@ -113,7 +175,7 @@ class DueDateDto {
 }
 
 class MissingDto {
-  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre ou par mois.' })
+  @IsEnum(PaymentPlan, { message: 'Mode de paiement : comptant, par semestre, par trimestre ou par mois.' })
   paymentPlan: PaymentPlan;
 }
 
@@ -122,7 +184,56 @@ class MissingDto {
 @ApiBearerAuth()
 @Controller()
 export class PaymentsController {
-  constructor(private readonly payments: PaymentsService) {}
+  constructor(
+    private readonly payments: PaymentsService,
+    private readonly config: PaymentConfigService,
+    private readonly receipts: ReceiptsService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /** Configuration des paiements (modes, échéances, acompte, rappels, encaissement). */
+  @Get('payments/config')
+  @Perm('payments.collect', 'players.manage', 'fees.manage', 'permissions.manage')
+  getConfig() {
+    return this.config.get();
+  }
+
+  @Put('payments/config')
+  @Perm('permissions.manage')
+  async saveConfig(@CurrentUser() user: AuthUser, @Body() dto: ConfigDto) {
+    const before = await this.config.get();
+    const saved = await this.config.save(dto.config);
+    await this.audit.log(user.id, {
+      action: 'Configuration des paiements modifiée',
+      entity: 'Setting',
+      entityId: 'payment.config',
+      target: 'Configuration des paiements',
+      before: JSON.stringify(before),
+      after: JSON.stringify(saved),
+    });
+    return saved;
+  }
+
+  /** Aperçu des échéanciers d'une configuration (en cours de saisie) pour un montant. */
+  @Post('payments/config/preview')
+  @Perm('payments.collect', 'players.manage', 'fees.manage', 'permissions.manage')
+  previewConfig(@Body() dto: PreviewDto) {
+    return this.payments.previewConfig(dto.config, dto.amount, dto.deposit ?? 0);
+  }
+
+  /** Refait les tranches non payées de la saison active selon la configuration (R7 : motif, tranches payées gardées). */
+  @Post('payments/config/reschedule')
+  @Perm('permissions.manage')
+  reschedule(@CurrentUser() user: AuthUser, @Body() dto: RescheduleDto) {
+    return this.payments.rescheduleAll(user, dto.reason.trim());
+  }
+
+  /** Aperçu de l'échéancier dans la fiche joueur (mode choisi). */
+  @Get('memberships/preview')
+  @Perm('payments.collect', 'players.manage')
+  previewPlan(@Query() q: PlanPreviewQuery) {
+    return this.payments.previewPlan(q.plan, q.playerId, q.categoryId);
+  }
 
   @Get('installments')
   @Roles(Role.ADMIN, Role.PLAYER, Role.PARENT)
@@ -135,8 +246,17 @@ export class PaymentsController {
 
   @Post('installments/:id/payments')
   @Perm('payments.collect')
-  cash(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CashDto) {
-    return this.payments.cash(user, id, dto.amount, dto.note, dto.method, dto.chequeNumber);
+  async cash(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CashDto) {
+    const cfg = await this.config.get();
+    if (dto.method && !cfg.collect.methods.includes(dto.method)) throw new BadRequestException('Mode de paiement non accepté par le club (Configuration des paiements).');
+    if (cfg.collect.receiptRequired && !dto.receiptNumber) throw new BadRequestException('Saisissez le n° du reçu du carnet (obligatoire à l’encaissement).');
+    if (dto.receiptNumber) await this.receipts.assertNumberFree(dto.receiptNumber);
+    const result = await this.payments.cash(user, id, dto.amount, dto.note, dto.method, dto.chequeNumber, dto.spread);
+    if (!dto.receiptNumber) return result;
+    // Reçu émis avec l'encaissement, valeurs proposées (payeur, montant en lettres, tranche, date).
+    const { draft } = await this.receipts.forPayment(result.paymentId);
+    const receipt = await this.receipts.create(user, result.paymentId, { ...draft, number: dto.receiptNumber });
+    return { ...result, receiptId: receipt.id };
   }
 
   @Patch('installments/:id/due-date')
@@ -160,7 +280,7 @@ export class PaymentsController {
   @Put('memberships/plan')
   @Perm('payments.collect', 'players.manage')
   changePlan(@CurrentUser() user: AuthUser, @Body() dto: PlanDto) {
-    return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason);
+    return this.payments.changePlan(user, dto.playerId, dto.paymentPlan, dto.reason, undefined, dto.dueDates);
   }
 
   @Put('memberships/discount')

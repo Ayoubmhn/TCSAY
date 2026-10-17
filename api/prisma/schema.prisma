@@ -92,6 +92,7 @@ enum PayMode {
 enum PaymentPlan {
   FULL // comptant
   SEMESTER // par semestre
+  QUARTER // par trimestre
   MONTHLY // par mois
 }
 
@@ -144,6 +145,7 @@ enum PaymentKind {
 enum PaymentMethod {
   CASH // Espèces (saisies par l'admin)
   CHEQUE // Chèque (saisi par l'admin)
+  TRANSFER // Virement bancaire (saisi par l'admin)
   ONLINE // En ligne (passerelle à choisir, S6)
 }
 
@@ -641,6 +643,9 @@ model Installment {
   amount         Decimal   @db.Decimal(10, 3)
   version        Int       @default(1)
   lateNotifiedAt DateTime? // famille prévenue du retard (une seule fois par échéance)
+  remindedAt     DateTime? // rappel envoyé avant l'échéance
+  relanceCount   Int       @default(0) // relances envoyées après le retard
+  relanceAt      DateTime? // dernière relance
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -661,6 +666,8 @@ model Payment {
   recordedById  String        @db.Uuid
   note          String?
   chequeNumber  String?
+  /// Encaissement réparti sur plusieurs tranches en une fois (un seul reçu pour le lot).
+  batchId       String?       @db.Uuid
   origin        Origin        @default(MANUAL)
   createdAt     DateTime      @default(now())
 

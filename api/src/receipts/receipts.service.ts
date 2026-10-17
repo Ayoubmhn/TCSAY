@@ -109,12 +109,12 @@ export class ReceiptsService {
   }
 
   /** Reçus d'un paiement + valeurs proposées pour un nouveau reçu. */
-  async forPayment(paymentId: string) {
-    const payment = await this.findPayment(paymentId);
+  async forPayment(id: string) {
+    const { primary: payment, amount, label } = await this.findBatch(id);
+    const paymentId = payment.id;
     const receipts = await this.prisma.receipt.findMany({ where: { paymentId }, include: receiptInclude, orderBy: { createdAt: 'desc' } });
     const enrollment = payment.installment.membership.enrollment;
     const parent = enrollment.player.parentLinks.find((l) => l.parent.isActive)?.parent;
-    const amount = num(payment.amount);
     return {
       payment: {
         id: payment.id,
@@ -131,7 +131,7 @@ export class ReceiptsService {
       draft: {
         payerName: fullName(parent ?? enrollment.player),
         amountWords: amountInArabicWords(amount),
-        label: trancheLabel(payment.installment.number, payment.installment.count),
+        label,
         chequeNumber: payment.chequeNumber ?? '',
         issuedOn: localDayOf(payment.paidAt),
         seasonLabel: enrollment.season.label,
@@ -140,8 +140,9 @@ export class ReceiptsService {
     };
   }
 
-  async create(actor: AuthUser, paymentId: string, input: ReceiptInput) {
-    const payment = await this.findPayment(paymentId);
+  async create(actor: AuthUser, id: string, input: ReceiptInput) {
+    const { primary: payment, amount } = await this.findBatch(id);
+    const paymentId = payment.id;
     if (payment.kind !== PaymentKind.PAYMENT) throw new BadRequestException('Un reçu ne s’émet que pour un encaissement.');
     const active = await this.prisma.receipt.findFirst({ where: { paymentId, voidedAt: null }, select: { number: true } });
     if (active) {
@@ -155,7 +156,7 @@ export class ReceiptsService {
           number: input.number,
           paymentId,
           payerName: input.payerName.trim(),
-          amount: payment.amount,
+          amount,
           amountWords: input.amountWords.trim(),
           label: input.label.trim(),
           method: payment.method,
@@ -172,7 +173,7 @@ export class ReceiptsService {
           entity: 'Receipt',
           entityId: r.id,
           target: `Reçu n° ${receiptNo(r.number)} · ${fullName(enrollment.player)} · Tranche ${payment.installment.number}/${payment.installment.count}`,
-          after: `${dt(payment.amount)} · reçu de ${r.payerName}`,
+          after: `${dt(amount)} · reçu de ${r.payerName}`,
         },
         tx,
       );
@@ -238,7 +239,7 @@ export class ReceiptsService {
     return layout;
   }
 
-  private async assertNumberFree(number: number) {
+  async assertNumberFree(number: number) {
     const used = await this.prisma.receipt.findUnique({ where: { number }, include: receiptInclude });
     if (!used) return;
     const who = fullName(used.payment.installment.membership.enrollment.player);
@@ -260,6 +261,19 @@ export class ReceiptsService {
     const p = await this.prisma.payment.findUnique({ where: { id }, include: paymentInclude });
     if (!p) throw notFound('Paiement');
     return p;
+  }
+
+  /**
+   * Paiement et son lot (plusieurs tranches réglées en une fois) : le reçu est rattaché au premier paiement du lot
+   * et porte la somme du lot.
+   */
+  private async findBatch(id: string) {
+    const p = await this.findPayment(id);
+    if (!p.batchId) return { primary: p, amount: num(p.amount), label: trancheLabel(p.installment.number, p.installment.count) };
+    const batch = await this.prisma.payment.findMany({ where: { batchId: p.batchId }, include: paymentInclude, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });
+    const numbers = batch.map((b) => b.installment.number).sort((a, b) => a - b);
+    const amount = Math.round(batch.reduce((t, b) => t + num(b.amount), 0) * 1000) / 1000;
+    return { primary: batch[0], amount, label: `Tranches ${numbers.slice(0, -1).join(', ')} et ${numbers[numbers.length - 1]}` };
   }
 
   private view(r: ReceiptRow) {

@@ -8,7 +8,7 @@ export type Space = 'admin' | 'coach' | 'parent' | 'player';
 
 export type PayMode = 'HOURLY' | 'MONTHLY';
 export type StaffFunction = 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
-export type PaymentPlan = 'FULL' | 'SEMESTER' | 'MONTHLY';
+export type PaymentPlan = 'FULL' | 'SEMESTER' | 'QUARTER' | 'MONTHLY';
 export type DiscountKind = 'SIBLING' | 'SPECIAL' | 'EXEMPT';
 
 /** Cotisation d'un joueur (fiche « Modifier ») : montants, réduction, frères et sœurs inscrits. */
@@ -271,7 +271,7 @@ export type Installment = {
   payments?: InstallmentPayment[];
 };
 
-export type PaymentMethod = 'CASH' | 'CHEQUE' | 'ONLINE';
+export type PaymentMethod = 'CASH' | 'CHEQUE' | 'TRANSFER' | 'ONLINE';
 
 export type InstallmentPayment = {
   id: string;
@@ -857,3 +857,17 @@ export type PaymentUpdatePreview = {
     messages: string[];
   }[];
 };
+
+/** Configuration des paiements du club (Réglages › Configuration des paiements). Dates « MM-JJ ». */
+export type PaymentConfig = {
+  plans: Record<PaymentPlan, boolean>;
+  defaultPlan: PaymentPlan;
+  semester: { second: string; firstPercent: number };
+  quarter: { second: string; third: string };
+  monthly: { day: number; firstMonth: number | null; lastMonth: number | null };
+  deposit: { enabled: boolean; mode: 'FEE' | 'PERCENT'; percent: number; inFirst: boolean };
+  reminders: { beforeDays: number; graceDays: number; repeatDays: number; maxRepeats: number; email: boolean };
+  collect: { methods: ('CASH' | 'CHEQUE' | 'TRANSFER')[]; receiptRequired: boolean; multi: boolean; rounding: 'MILLIME' | 'DINAR' | 'FIVE' };
+};
+
+export type ScheduleLine = { dueDate: string; amount: number; paid?: boolean };

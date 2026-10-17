@@ -15,7 +15,7 @@ import type { PaymentReceipts, Receipt } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { openPrintTab, receiptPrintUrl, type PrintMode } from './receiptPrint';
 
-export const METHOD_LABEL = { CASH: 'Espèces', CHEQUE: 'Chèque', ONLINE: 'En ligne' } as const;
+export const METHOD_LABEL = { CASH: 'Espèces', CHEQUE: 'Chèque', TRANSFER: 'Virement', ONLINE: 'En ligne' } as const;
 const KEYS = [['installments'], ['receipts'], ['payment-receipt'], ['audit']];
 
 /** Reçu valide : impression sur le carnet, PDF, annulation avec motif. */

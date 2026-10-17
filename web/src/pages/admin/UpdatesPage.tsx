@@ -8,6 +8,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { Segmented } from '../../components/ui/Segmented';
+import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import { DT, formatDate } from '../../lib/format';
 import type { GroupUpdatePreview, PaymentPlan, PaymentUpdatePreview } from '../../lib/types';
@@ -174,9 +175,7 @@ export function UpdatesPage() {
               )}
               {payments && (
                 <FilterSelect label="Mode de paiement des cotisations à créer" value={plan} onChange={(e) => setPlan(e.target.value as PaymentPlan)}>
-                  <option value="FULL">Cotisation à créer : comptant</option>
-                  <option value="SEMESTER">Cotisation à créer : par semestre</option>
-                  <option value="MONTHLY">Cotisation à créer : par mois</option>
+                  <PlanOptions prefix="Cotisation à créer : " short />
                 </FilterSelect>
               )}
               <Button variant="primary" disabled={!applicable || commit.isPending} onClick={() => commit.mutate()}>

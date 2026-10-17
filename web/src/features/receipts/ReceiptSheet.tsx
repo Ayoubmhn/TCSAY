@@ -8,7 +8,7 @@ export type ReceiptValues = {
   amount: number;
   amountWords: string;
   label: string;
-  method: 'CASH' | 'CHEQUE' | 'ONLINE';
+  method: 'CASH' | 'CHEQUE' | 'TRANSFER' | 'ONLINE';
   chequeNumber: string | null;
   seasonLabel: string;
   issuedOn: string;

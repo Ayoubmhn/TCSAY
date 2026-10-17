@@ -7,6 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
 import { CategoriesService } from '../categories/categories.service';
 import { assertSeasonOpen, fullName, rule } from '../common/rules';
+import { PaymentConfigService } from '../payments/payment-config.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PLAN_LABEL } from '../payments/payment-plan';
 import { PrismaService } from '../prisma/prisma.service';
@@ -44,7 +45,14 @@ export class ReenrollmentController {
     private readonly categories: CategoriesService,
     private readonly payments: PaymentsService,
     private readonly audit: AuditService,
+    private readonly paymentConfig: PaymentConfigService,
   ) {}
+
+  /** Modes proposés par le club (configuration des paiements). */
+  private async plansOffered() {
+    const cfg = await this.paymentConfig.get();
+    return (Object.entries(PLAN_LABEL) as [PaymentPlan, string][]).filter(([value]) => cfg.plans[value]).map(([value, label]) => ({ value, label }));
+  }
 
   private async target(seasonId: string) {
     const season = await this.prisma.season.findUnique({ where: { id: seasonId } });
@@ -110,7 +118,7 @@ export class ReenrollmentController {
       players: rows,
       groups: groups.map((g) => ({ id: g.id, name: g.name, capacity: g.capacity, members: g._count.members, categoryId: g.categoryId })),
       categories,
-      plans: Object.entries(PLAN_LABEL).map(([value, label]) => ({ value, label })),
+      plans: await this.plansOffered(),
     };
   }
 

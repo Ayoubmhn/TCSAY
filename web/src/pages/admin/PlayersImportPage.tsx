@@ -7,6 +7,7 @@ import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
+import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import { formatDate } from '../../lib/format';
 import type { ImportPreview, ImportReport, ImportRow, ImportStatus, PaymentPlan } from '../../lib/types';
@@ -129,9 +130,7 @@ export function PlayersImportPage() {
                 <option value="error">Ignorées</option>
               </FilterSelect>
               <FilterSelect label="Mode de paiement des cotisations" value={plan} onChange={(e) => setPlan(e.target.value as PaymentPlan)}>
-                <option value="FULL">Cotisation : comptant</option>
-                <option value="SEMESTER">Cotisation : par semestre</option>
-                <option value="MONTHLY">Cotisation : par mois</option>
+                <PlanOptions prefix="Cotisation : " short />
               </FilterSelect>
               <Button variant="primary" disabled={!importable || commit.isPending} onClick={() => commit.mutate()}>
                 {commit.isPending ? 'Enregistrement…' : `Confirmer l’import (${importable})`}

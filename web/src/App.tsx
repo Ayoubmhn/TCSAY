@@ -38,6 +38,7 @@ const PlayerProfilePage = page(() => import('./pages/admin/ProfilePages'), 'Play
 const StaffProfilePage = page(() => import('./pages/admin/ProfilePages'), 'StaffProfilePage');
 const RegistrationFormPage = page(() => import('./pages/admin/RegistrationFormPage'), 'RegistrationFormPage');
 const BookingRulesPage = page(() => import('./pages/admin/BookingRulesPage'), 'BookingRulesPage');
+const PaymentConfigPage = page(() => import('./pages/admin/PaymentConfigPage'), 'PaymentConfigPage');
 const ReservationsAdminPage = page(() => import('./pages/admin/ReservationsAdminPage'), 'ReservationsAdminPage');
 const SalariesPage = page(() => import('./pages/admin/SalariesPage'), 'SalariesPage');
 const StaffPage = page(() => import('./pages/admin/StaffPage'), 'StaffPage');
@@ -233,6 +234,7 @@ export function App() {
         <Route path="admin/paiements" element={admin(['payments.collect'], <PaymentsAdminPage />)} />
         <Route path="admin/recus" element={admin(['payments.collect'], <ReceiptsPage />)} />
         <Route path="admin/recus/reglage" element={admin(['payments.collect'], <ReceiptLayoutPage />)} />
+        <Route path="admin/configuration-paiements" element={admin(['permissions.manage', 'payments.collect', 'fees.manage'], <PaymentConfigPage />)} />
         <Route path="admin/acces-paiement" element={admin(['permissions.manage', 'payments.collect'], <PaymentAccessPage />)} />
         <Route path="admin/tarifs" element={admin(['fees.manage'], <FeesPage />)} />
         <Route path="admin/salaires" element={admin(['salaries.manage'], <SalariesPage />)} />
