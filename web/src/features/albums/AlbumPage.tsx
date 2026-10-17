@@ -78,6 +78,94 @@ function TagEditor({ album, photo, onDone }: { album: AlbumDetail; photo: AlbumP
   );
 }
 
+/**
+ * Bande de photos à faire défiler (glisser à gauche / droite) : suit la photo choisie (boutons, clavier),
+ * seules les photos voisines sont chargées.
+ */
+function PhotoStrip({ photos, index, onIndex, className = '', dark = false }: { photos: AlbumPhoto[]; index: number; onIndex: (i: number) => void; className?: string; dark?: boolean }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    const el = strip.current;
+    if (!el) return;
+    const w = el.clientWidth;
+    if (Math.round(Math.abs(el.scrollLeft) / w) !== index) {
+      const rtl = getComputedStyle(el).direction === 'rtl';
+      el.scrollTo({ left: (rtl ? -1 : 1) * index * w, behavior: first.current ? 'auto' : 'smooth' });
+    }
+    first.current = false;
+  }, [index]);
+  const onScroll = () => {
+    const el = strip.current;
+    if (!el) return;
+    const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
+    if (i !== index && i >= 0 && i < photos.length) onIndex(i);
+  };
+  return (
+    <div
+      ref={strip}
+      onScroll={onScroll}
+      className={`flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}
+      aria-label="Photos : glissez à gauche ou à droite"
+    >
+      {photos.map((p, i) => (
+        <div key={p.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center">
+          {Math.abs(i - index) <= 1 && (
+            <img src={apiUrl(p.fullUrl)} alt={p.caption ?? `Photo ${i + 1}`} draggable={false} className={`max-h-full w-auto max-w-full object-contain ${dark ? '' : 'rounded-[18px]'}`} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Plein écran : fond noir, photo à toute la taille, glisser pour changer, toucher ✕ ou Échap pour sortir. */
+function FullScreen({ photos, index, onIndex, onClose, onDownload, title }: { photos: AlbumPhoto[]; index: number; onIndex: (i: number) => void; onClose: () => void; onDownload: () => void; title: string }) {
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // Vrai plein écran quand le navigateur le permet (sinon la couche noire couvre la page).
+    const el = box.current;
+    el?.requestFullscreen?.().catch(() => undefined);
+    const onChange = () => !document.fullscreenElement && onClose();
+    document.addEventListener('fullscreenchange', onChange);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('fullscreenchange', onChange);
+      document.body.style.overflow = prev;
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const btn = 'grid h-11 min-w-11 place-items-center rounded-full bg-white/15 px-3 text-white hover:bg-white/25 disabled:opacity-30';
+  return (
+    <div ref={box} role="dialog" aria-modal="true" aria-label={`${title} en plein écran`} className="fixed inset-0 z-[100] flex flex-col bg-black text-white">
+      <div className="flex items-center justify-between gap-2 px-4 pt-[max(12px,env(safe-area-inset-top))] pb-2">
+        <span className="text-sm font-medium">
+          {index + 1} / {photos.length}
+        </span>
+        <div className="flex gap-2">
+          <button type="button" className={btn} onClick={onDownload} aria-label="Télécharger la photo">
+            ⬇
+          </button>
+          <button type="button" className={btn} onClick={onClose} aria-label="Quitter le plein écran">
+            ✕
+          </button>
+        </div>
+      </div>
+      <PhotoStrip photos={photos} index={index} onIndex={onIndex} className="min-h-0 flex-1" dark />
+      <div className="flex items-center justify-between gap-2 px-4 pt-2 pb-[max(14px,env(safe-area-inset-bottom))]">
+        <button type="button" className={btn} onClick={() => onIndex(Math.max(0, index - 1))} disabled={index === 0} aria-label="Photo précédente">
+          ‹
+        </button>
+        <span className="truncate text-center text-sm text-white/80">{photos[index]?.caption ?? ''}</span>
+        <button type="button" className={btn} onClick={() => onIndex(Math.min(photos.length - 1, index + 1))} disabled={index === photos.length - 1} aria-label="Photo suivante">
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /** Enregistre une photo sur l'appareil : téléchargement (ordinateur, Android), feuille de partage (iPhone), navigateur (application). */
 async function savePhoto(url: string, name: string): Promise<'app' | 'done'> {
   const full = new URL(apiUrl(url)!, window.location.href).href;
@@ -125,36 +213,17 @@ export function AlbumPage() {
   const [askHide, setAskHide] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
-  const strip = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
   const [saving, setSaving] = useState(false);
   const keys = [['album', id], ['albums']];
   const photo = a && open !== null ? a.photos[open] : undefined;
   useEffect(() => setTagging(false), [open]);
+  useEffect(() => {
+    if (open === null) setFull(false);
+  }, [open]);
   const count = a?.photos.length ?? 0;
   const go = (d: number) => setOpen((i) => (i === null ? i : Math.min(count - 1, Math.max(0, i + d))));
 
-  // Défilement gauche / droite : la bande suit la photo choisie (boutons, clavier, vignette).
-  const first = useRef(true);
-  useEffect(() => {
-    const el = strip.current;
-    if (open === null) {
-      first.current = true;
-      return;
-    }
-    if (!el) return;
-    const w = el.clientWidth;
-    if (Math.round(Math.abs(el.scrollLeft) / w) !== open) {
-      const rtl = getComputedStyle(el).direction === 'rtl';
-      el.scrollTo({ left: (rtl ? -1 : 1) * open * w, behavior: first.current ? 'auto' : 'smooth' });
-    }
-    first.current = false;
-  }, [open, photo]);
-  const onStripScroll = () => {
-    const el = strip.current;
-    if (!el || open === null) return;
-    const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
-    if (i !== open && i >= 0 && i < count) setOpen(i);
-  };
   // Flèches du clavier (hors saisie de texte).
   useEffect(() => {
     if (open === null) return;
@@ -163,6 +232,7 @@ export function AlbumPage() {
       const rtl = document.documentElement.dir === 'rtl';
       if (e.key === 'ArrowRight') go(rtl ? -1 : 1);
       if (e.key === 'ArrowLeft') go(rtl ? 1 : -1);
+      if (e.key === 'Escape') setFull(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -267,7 +337,7 @@ export function AlbumPage() {
       </QueryState>
 
       <Modal
-        open={Boolean(photo)}
+        open={Boolean(photo) && !full}
         size="xl"
         title={a && open !== null ? `${a.title} · ${open + 1}/${a.photos.length}` : ''}
         onClose={() => setOpen(null)}
@@ -283,6 +353,9 @@ export function AlbumPage() {
                 </Button>
                 <Button onClick={() => void download()} disabled={saving} aria-label="Télécharger la photo">
                   {saving ? '…' : '⬇ Télécharger'}
+                </Button>
+                <Button onClick={() => setFull(true)} aria-label="Plein écran">
+                  ⛶
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -313,20 +386,7 @@ export function AlbumPage() {
       >
         {photo && a && (
           <div className="flex flex-col gap-3">
-            <div
-              ref={strip}
-              onScroll={onStripScroll}
-              className="flex h-[62dvh] snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              aria-label="Photos : glissez à gauche ou à droite"
-            >
-              {a.photos.map((p, i) => (
-                <div key={p.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center">
-                  {Math.abs(i - (open ?? 0)) <= 1 && (
-                    <img src={apiUrl(p.fullUrl)} alt={p.caption ?? `Photo ${i + 1}`} draggable={false} className="max-h-full w-auto max-w-full rounded-[18px] object-contain" />
-                  )}
-                </div>
-              ))}
-            </div>
+            <PhotoStrip photos={a.photos} index={open ?? 0} onIndex={setOpen} className="h-[62dvh]" />
             {photo.caption && <p className="text-center">{photo.caption}</p>}
             <Pills>
               {photo.tags.map((t) => (
@@ -341,6 +401,7 @@ export function AlbumPage() {
           </div>
         )}
       </Modal>
+      {full && a && open !== null && <FullScreen photos={a.photos} index={open} onIndex={setOpen} onClose={() => setFull(false)} onDownload={() => void download()} title={a.title} />}
       <ConfirmModal
         open={askHide}
         title="Retirer cette photo ?"
