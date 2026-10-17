@@ -14,6 +14,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill } from '../../components/ui/Pill';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { useToast } from '../../components/ui/Toast';
+import { categoryPairs } from '../../lib/categories';
 import { api } from '../../lib/api';
 import { DAY_NAMES, fullName } from '../../lib/format';
 import type { Category, Coach, Court, Group, GroupKind } from '../../lib/types';
@@ -114,11 +115,15 @@ function GroupFormModal({ open, group, onClose }: { open: boolean; group?: Group
       <form id="group-form" noValidate onSubmit={submit} className="flex flex-col gap-3">
         <div className="grid grid-cols-1 gap-3 min-[521px]:grid-cols-2">
           <TextField label="Nom" full value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex. Benjamins G" />
-          <SelectField label="Catégorie (facultative)" value={f.categoryId} onChange={(e) => setF({ ...f, categoryId: e.target.value })}>
-            <option value="">— Toutes / mixte —</option>
-            {categories.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+          <SelectField
+            label="Catégorie (facultative, garçons et filles)"
+            value={categories.data?.find((c) => c.id === f.categoryId)?.pairCode ?? ''}
+            onChange={(e) => setF({ ...f, categoryId: categories.data?.find((c) => c.pairCode === e.target.value)?.id ?? '' })}
+          >
+            <option value="">— Toutes —</option>
+            {categoryPairs(categories.data ?? []).map((p) => (
+              <option key={p.code} value={p.code}>
+                {p.name}
               </option>
             ))}
           </SelectField>

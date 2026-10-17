@@ -1,6 +1,6 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, ConflictException, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { FeeSchedule, Role } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsBoolean, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 import { AccessService } from '../access/access.service';
@@ -38,6 +38,11 @@ class CreateFeeDto {
   @IsOptional()
   @IsBoolean()
   physicalIncluded?: boolean;
+
+  /** Tarif commun à la paire (garçons et filles), par défaut oui. */
+  @IsOptional()
+  @IsBoolean()
+  pair?: boolean;
 }
 
 class UpdateFeeDto {
@@ -57,6 +62,11 @@ class UpdateFeeDto {
   @IsOptional()
   @IsBoolean()
   physicalIncluded?: boolean;
+
+  /** Applique aussi le montant à l'autre catégorie de la paire (même saison, même groupe), par défaut oui. */
+  @IsOptional()
+  @IsBoolean()
+  pair?: boolean;
 
   @IsOptional()
   @IsString()
@@ -93,7 +103,7 @@ export class FeesController {
     return this.prisma.feeSchedule.findMany({
       where: { seasonId: season.id },
       include: {
-        category: { select: { id: true, name: true } },
+        category: { select: { id: true, name: true, pairCode: true, gender: true } },
         group: { select: { id: true, name: true } },
         season: { select: { id: true, label: true, status: true } },
       },
@@ -111,6 +121,16 @@ export class FeesController {
     return fee ? { id: fee.id, amount: fee.amount, depositAmount: fee.depositAmount, physicalIncluded: fee.physicalIncluded, season: season.label } : null;
   }
 
+  /** Catégories de la même paire (ex. Lutins et Lutines), la catégorie choisie en premier. */
+  private async pairOf(categoryId: string, pair: boolean) {
+    const cat = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!cat || cat.archivedAt) throw notFound('Catégorie');
+    if (!pair) return [cat];
+    const others = await this.prisma.category.findMany({ where: { pairCode: cat.pairCode, id: { not: cat.id }, archivedAt: null }, orderBy: { sortOrder: 'asc' } });
+    return [cat, ...others];
+  }
+
+  /** Tarif créé pour la paire de catégories (garçons et filles) : un tarif existant de la paire prend le même montant (tarif commun). */
   @Post()
   @Perm('fees.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateFeeDto) {
@@ -118,28 +138,30 @@ export class FeesController {
     if (LOCKED_SEASON.includes(season.status)) {
       throw rule.conflict('R1', `Saison ${season.label} verrouillée : création de tarif impossible.`);
     }
-    const fee = await this.prisma.feeSchedule.create({
-      data: {
-        seasonId: season.id,
-        categoryId: dto.categoryId,
-        groupId: dto.groupId ?? null,
-        amount: dto.amount,
-        depositAmount: Math.min(dto.depositAmount, dto.amount),
-        physicalIncluded: dto.physicalIncluded ?? false,
-      },
-      include: { category: true, group: true },
-    });
-    await this.audit.log(user.id, {
-      action: 'Tarif créé',
-      entity: 'FeeSchedule',
-      entityId: fee.id,
-      target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${season.label}`,
-      after: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}${fee.physicalIncluded ? ' · séance physique incluse' : ''}`,
-    });
-    return fee;
+    const categories = await this.pairOf(dto.categoryId, dto.pair ?? true);
+    const values = { amount: dto.amount, depositAmount: Math.min(dto.depositAmount, dto.amount), physicalIncluded: dto.physicalIncluded ?? false };
+    const label = `${dt(values.amount)} · acompte ${dt(values.depositAmount)}${values.physicalIncluded ? ' · séance physique incluse' : ''}`;
+    const saved = [];
+    for (const c of categories) {
+      const existing = await this.prisma.feeSchedule.findFirst({ where: { seasonId: season.id, categoryId: c.id, groupId: dto.groupId ?? null }, include: { group: true } });
+      if (existing && categories.length === 1) throw new ConflictException(`Un tarif existe déjà pour ${c.name}${existing.group ? ' · ' + existing.group.name : ''} : modifiez-le.`);
+      const fee = existing
+        ? await this.prisma.feeSchedule.update({ where: { id: existing.id }, data: { ...values, version: { increment: 1 } }, include: { category: true, group: true } })
+        : await this.prisma.feeSchedule.create({ data: { seasonId: season.id, categoryId: c.id, groupId: dto.groupId ?? null, ...values }, include: { category: true, group: true } });
+      await this.audit.log(user.id, {
+        action: existing ? 'Tarif modifié (tarif commun de la paire)' : 'Tarif créé',
+        entity: 'FeeSchedule',
+        entityId: fee.id,
+        target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${season.label}`,
+        before: existing ? `${dt(existing.amount)} · acompte ${dt(existing.depositAmount)}${existing.physicalIncluded ? ' · séance physique incluse' : ''}` : null,
+        after: label,
+      });
+      saved.push(fee);
+    }
+    return saved[0];
   }
 
-  /** R6 : sur saison clôturée, motif obligatoire ; anciennes valeurs conservées dans l'audit. */
+  /** R6 : sur saison clôturée, motif obligatoire ; anciennes valeurs conservées dans l'audit. Montant commun à la paire. */
   @Patch(':id')
   @Perm('fees.manage')
   async update(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateFeeDto) {
@@ -150,27 +172,39 @@ export class FeesController {
     if (!fee) throw notFound('Tarif');
     assertVersion(fee, dto.version, 'Ce tarif');
     const reason = dto.reason?.trim() || null;
-    if (LOCKED_SEASON.includes(fee.season.status) && !reason) {
+    const locked = LOCKED_SEASON.includes(fee.season.status);
+    if (locked && !reason) {
       throw rule.bad('R6', `Saison ${fee.season.label} clôturée : motif obligatoire pour modifier ce tarif.`);
     }
-    const updated = await this.prisma.feeSchedule.update({
-      where: { id },
-      data: {
-        amount: dto.amount,
-        depositAmount: Math.min(dto.depositAmount, dto.amount),
-        physicalIncluded: dto.physicalIncluded ?? fee.physicalIncluded,
-        version: { increment: 1 },
-      },
-    });
-    await this.audit.log(user.id, {
-      action: LOCKED_SEASON.includes(fee.season.status) ? 'Tarif modifié (saison clôturée)' : 'Tarif modifié',
-      entity: 'FeeSchedule',
-      entityId: id,
-      target: `${fee.category.name}${fee.group ? ' · ' + fee.group.name : ''} · ${fee.season.label}`,
-      before: `${dt(fee.amount)} · acompte ${dt(fee.depositAmount)}${fee.physicalIncluded ? ' · séance physique incluse' : ''}`,
-      after: `${dt(updated.amount)} · acompte ${dt(updated.depositAmount)}${updated.physicalIncluded ? ' · séance physique incluse' : ''}`,
-      reason,
-    });
+    const siblings =
+      (dto.pair ?? true)
+        ? await this.prisma.feeSchedule.findMany({
+            where: { seasonId: fee.seasonId, groupId: fee.groupId, id: { not: fee.id }, category: { pairCode: fee.category.pairCode, archivedAt: null } },
+            include: { category: true, group: true },
+          })
+        : [];
+    const data = {
+      amount: dto.amount,
+      depositAmount: Math.min(dto.depositAmount, dto.amount),
+      physicalIncluded: dto.physicalIncluded ?? fee.physicalIncluded,
+      version: { increment: 1 },
+    };
+    const text = (f: { amount: unknown; depositAmount: unknown; physicalIncluded: boolean }) =>
+      `${dt(f.amount as number)} · acompte ${dt(f.depositAmount as number)}${f.physicalIncluded ? ' · séance physique incluse' : ''}`;
+    let updated: FeeSchedule | null = null;
+    for (const f of [fee, ...siblings]) {
+      const u = await this.prisma.feeSchedule.update({ where: { id: f.id }, data });
+      if (f.id === fee.id) updated = u;
+      await this.audit.log(user.id, {
+        action: locked ? 'Tarif modifié (saison clôturée)' : f.id === fee.id ? 'Tarif modifié' : 'Tarif modifié (tarif commun de la paire)',
+        entity: 'FeeSchedule',
+        entityId: f.id,
+        target: `${f.category.name}${f.group ? ' · ' + f.group.name : ''} · ${fee.season.label}`,
+        before: text(f),
+        after: text(u),
+        reason,
+      });
+    }
     return updated;
   }
 }

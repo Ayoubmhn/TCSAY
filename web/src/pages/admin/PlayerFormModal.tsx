@@ -7,6 +7,7 @@ import { KeyValue } from '../../components/ui/KeyValue';
 import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
+import { categoryFor, categoryPairs } from '../../lib/categories';
 import { api, errorMessage } from '../../lib/api';
 import { DT, fD, isPlaceholderEmail, savedMessage, toDateInput } from '../../lib/format';
 import type { Category, Credentials, DiscountKind, MembershipInfo, Parent, PaymentPlan, Player, Suggestion } from '../../lib/types';
@@ -338,7 +339,17 @@ export function PlayerFormModal({
           value={f.birthDate}
           onChange={set('birthDate')}
         />
-        <SelectField label="Genre (obligatoire)" value={f.gender} onChange={set('gender')}>
+        <SelectField
+          label="Genre (obligatoire)"
+          value={f.gender}
+          onChange={(e) => {
+            const gender = e.target.value as Form['gender'];
+            // Catégorie choisie : même paire, version du nouveau genre (ex. Lutins → Lutines).
+            const current = categories.data?.find((c) => c.id === f.categoryId);
+            const next = current && gender ? categoryFor(categories.data ?? [], current.pairCode, gender) : undefined;
+            setF((x) => ({ ...x, gender, categoryId: next?.id ?? x.categoryId }));
+          }}
+        >
           <option value="">—</option>
           <option value="M">Garçon / Homme</option>
           <option value="F">Fille / Femme</option>
@@ -395,14 +406,30 @@ export function PlayerFormModal({
             <TextField label="Email du parent *" full type="email" value={f.np.email} onChange={setNp('email')} />
           </fieldset>
         )}
-        <SelectField label="Catégorie (sinon catégorie proposée)" full value={f.categoryId} onChange={set('categoryId')}>
+        <SelectField
+          label="Catégorie (sinon catégorie proposée ; garçons ou filles d’après le genre)"
+          full
+          value={categories.data?.find((c) => c.id === f.categoryId)?.pairCode ?? ''}
+          onChange={(e) => {
+            const pair = e.target.value;
+            if (!pair) return setF((x) => ({ ...x, categoryId: '' }));
+            const c = categoryFor(categories.data ?? [], pair, f.gender);
+            if (!c) return toast('Choisissez d’abord le genre : la catégorie garçons ou filles en dépend.');
+            setF((x) => ({ ...x, categoryId: c.id }));
+          }}
+        >
           <option value="">{s && 'category' in s ? `Proposée : ${s.category.name}` : '— Proposée automatiquement —'}</option>
-          {categories.data?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
+          {categoryPairs(categories.data ?? []).map((p) => (
+            <option key={p.code} value={p.code}>
+              {p.name}
             </option>
           ))}
         </SelectField>
+        {f.categoryId && categories.data?.find((c) => c.id === f.categoryId) && (
+          <div className="col-span-full -mt-1">
+            <Pill tone="s">Inscrit en {categories.data.find((c) => c.id === f.categoryId)!.name}</Pill>
+          </div>
+        )}
         <TextField
           label="Dérogation de catégorie (motif, si catégorie hors norme)"
           full

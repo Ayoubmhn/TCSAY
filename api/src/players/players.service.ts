@@ -40,7 +40,9 @@ export class PlayersService {
         ? {}
         : q.categoryId
           ? { enrollments: { some: { seasonId: season.id, categoryId: q.categoryId } } }
-          : { OR: [{ enrollments: { some: { seasonId: season.id } } }, { enrollments: { none: {} } }] }),
+          : q.pairCode
+            ? { enrollments: { some: { seasonId: season.id, category: { pairCode: q.pairCode } } } }
+            : { OR: [{ enrollments: { some: { seasonId: season.id } } }, { enrollments: { none: {} } }] }),
       ...(search
         ? {
             AND: [{ OR: [

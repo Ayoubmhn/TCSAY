@@ -246,7 +246,7 @@ export type Fee = {
   depositAmount: number;
   physicalIncluded: boolean;
   version: number;
-  category: { id: string; name: string };
+  category: { id: string; name: string; pairCode: string; gender: 'M' | 'F' | 'MIXED' };
   group: { id: string; name: string } | null;
   season: { id: string; label: string; status: string };
 };

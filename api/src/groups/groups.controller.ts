@@ -123,7 +123,7 @@ export const slotInclude = {
 } satisfies Prisma.GroupSlotInclude;
 
 const groupInclude = {
-  category: { select: { id: true, name: true, code: true } },
+  category: { select: { id: true, name: true, code: true, pairCode: true } },
   slots: { include: slotInclude, orderBy: [{ day: 'asc' as const }, { startTime: 'asc' as const }] },
   members: {
     include: {
@@ -210,7 +210,7 @@ export class GroupsController {
       this.prisma.enrollment.findMany({
         where: { seasonId: g.seasonId, groups: { none: {} }, player: { archivedAt: null } },
         select: {
-          category: { select: { id: true, name: true } },
+          category: { select: { id: true, name: true, pairCode: true } },
           player: { select: { id: true, memberCode: true, firstName: true, lastName: true, birthDate: true } },
         },
         orderBy: { player: { lastName: 'asc' } },
@@ -256,7 +256,7 @@ export class GroupsController {
         lastName: e.player.lastName,
         age: e.player.birthDate ? year - e.player.birthDate.getUTCFullYear() : null,
         category: e.category,
-        sameCategory: !g.categoryId || e.category.id === g.categoryId,
+        sameCategory: !g.category || e.category.pairCode === g.category.pairCode,
       })),
     };
   }
@@ -361,7 +361,9 @@ export class GroupsController {
       throw new BadRequestException('Ce joueur n’est pas inscrit sur la saison du groupe.');
     }
     const reason = dto.derogationReason?.trim() || null;
-    if (group.categoryId && enrollment.categoryId !== group.categoryId && !reason) {
+    // Même paire (ex. Lutins / Lutines) : groupe mixte possible sans dérogation.
+    const groupCat = group.categoryId ? await this.prisma.category.findUnique({ where: { id: group.categoryId }, select: { pairCode: true } }) : null;
+    if (groupCat && enrollment.category.pairCode !== groupCat.pairCode && !reason) {
       throw rule.bad('R4', `${enrollment.player.firstName} est en ${enrollment.category.name} : motif de dérogation obligatoire.`);
     }
     await this.prisma.groupMember.create({ data: { groupId: id, enrollmentId: enrollment.id, derogationReason: reason } });

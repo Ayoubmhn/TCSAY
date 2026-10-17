@@ -182,6 +182,12 @@ export class ListPlayersQuery {
   @IsUUID()
   categoryId?: string;
 
+  /** Paire de catégories (garçons et filles, ex. « J8 »). */
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  pairCode?: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(60)

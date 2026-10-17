@@ -14,6 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 
 import { useAuth } from '../../auth/AuthContext';
+import { categoryPairs } from '../../lib/categories';
 import { api } from '../../lib/api';
 import { fullName, isPlaceholderEmail } from '../../lib/format';
 import type { Category, Player } from '../../lib/types';
@@ -51,7 +52,7 @@ export function PlayersPage() {
       api.get<Player[]>('/players', {
         q: q.trim() || undefined,
         archived: archived || undefined,
-        categoryId: filter !== 'all' && !archived ? filter : undefined,
+        pairCode: filter !== 'all' && !archived ? filter : undefined,
       }),
   });
   const categories = useQuery({ queryKey: ['categories'], queryFn: () => api.get<Category[]>('/categories') });
@@ -98,11 +99,11 @@ export function PlayersPage() {
         />
         <FilterSelect label="Filtrer par catégorie" value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">Toutes les catégories</option>
-          {categories.data
-            ?.filter((c) => c.playersCount > 0)
+          {categoryPairs(categories.data ?? [])
+            .filter((c) => c.playersCount > 0)
             .map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
+              <option key={c.code} value={c.code}>
+                {c.name} ({c.playersCount})
               </option>
             ))}
           <option value="arch">Archivés</option>

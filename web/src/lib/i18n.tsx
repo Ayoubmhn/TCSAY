@@ -104,7 +104,7 @@ const DICT: Record<string, [string, string]> = {
   'Découvrez les entraîneurs, leurs groupes et leur rémunération.': ['Coaches, their groups and their pay.', 'المدربون ومجموعاتهم وأجورهم.'],
   'Découvrez les agents administratifs et la direction technique.': ['Administrative agents and technical direction.', 'الأعوان الإداريون والإدارة الفنية.'],
   'Découvrez les groupes d’entraînement de la saison en cours.': ['Training groups of the current season.', 'مجموعات التدريب للموسم الحالي.'],
-  'Découvrez les 29 catégories, par paires garçon / fille.': ['The 29 categories, in boy / girl pairs.', 'الفئات الـ 29 في أزواج ذكور / إناث.'],
+  'Découvrez les catégories, garçons et filles réunis par âge.': ['The categories, boys and girls together by age.', 'الفئات، الذكور والإناث معًا حسب السن.'],
   'Découvrez les saisons du club, de l’historique à la prochaine.': ['Club seasons, from past to next.', 'مواسم النادي من الأرشيف إلى القادم.'],
   'Découvrez les tarifs par catégorie et par groupe.': ['Fees by category and group.', 'الرسوم حسب الفئة والمجموعة.'],
   'Découvrez les tarifs horaires de réservation.': ['Hourly booking rates.', 'أسعار الحجز بالساعة.'],
