@@ -4,7 +4,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { SPACE_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { NotificationBell } from '../components/NotificationBell';
 import { Avatar } from '../components/ui/Avatar';
-import { Brand } from '../components/ui/Brand';
+import { Brand, Logo } from '../components/ui/Brand';
 import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
 import { MenuButton } from '../components/ui/MenuButton';
 import { Badge } from '../components/ui/Pill';
@@ -227,6 +227,7 @@ const SIDE = 'flex flex-col gap-[18px] overflow-hidden border-e-[1.5px] border-l
 /** Shell (.app) : menu 266px + zone principale ; tiroir 268px avec voile sous 860px. */
 export function AppShell() {
   useCoachOfflinePrefetch();
+  const home = firstPath(menuFor(useMe()));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
   // Trait sous la barre du haut dès que la page défile (téléphone).
@@ -280,7 +281,12 @@ export function AppShell() {
           }`}
         >
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
-          <span className="flex-1" />
+          {/* Téléphone : logo du club au centre de la barre (retour à l'accueil). */}
+          <span className="flex flex-1 justify-center">
+            <Link to={home} aria-label={t('Accueil')} className="nav:hidden">
+              <Logo size={52} />
+            </Link>
+          </span>
           <NotificationBell />
         </div>
         <OfflineBanner />
