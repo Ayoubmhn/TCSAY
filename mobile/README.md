@@ -119,5 +119,5 @@ npx expo export --platform android        # le bundle Android se compile
 - **Session** : jeton gardé chiffré (expo-secure-store, Keystore Android) ; « Rester connecté » = 30 jours.
 - **HTTP en clair** autorisé (`expo-build-properties`, `usesCleartextTraffic`) pour tester sur le Wi-Fi local ; en production, utiliser l'adresse `https`.
 - **Notifications push** sur le téléphone : voir « Notifications du téléphone » ci-dessus (Firebase Cloud Messaging par Expo).
-- **Icônes** : le logo source ne fait que 128 px ; fournir un logo haute définition (1024 px, fond transparent) pour des icônes nettes.
+- **Icônes** : générées depuis le logo haute définition `docs/logo/logo-tcsay-source.png` (794 px, fond transparent) : site (`web/public/logo-tcsay.png`, `favicon.png`, `icons/`) et application (`mobile/assets/`). L'icône du téléphone change au prochain APK.
 - Ne jamais modifier `android/` ou `ios/` à la main (dossiers générés, ignorés par git) : régler `app.json`.

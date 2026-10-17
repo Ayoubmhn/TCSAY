@@ -4,7 +4,7 @@
  *   (séances, feuilles de présence, profil : `lib/offline-cache.ts`), effacées à la déconnexion ; aucun montant.
  * - Notifications push : affichage et ouverture de l'écran concerné.
  */
-const VERSION = 'tcsay-v1';
+const VERSION = 'tcsay-v2'; // à changer quand le logo ou les icônes changent (anciennes copies effacées)
 const SHELL = ['/', '/offline.html', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png', '/logo-tcsay.png', '/favicon.png'];
 
 self.addEventListener('install', (event) => {
