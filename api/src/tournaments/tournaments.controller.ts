@@ -242,7 +242,7 @@ export class TournamentsController {
     const [entries, matches, courts] = await Promise.all([
       this.prisma.tournamentEntry.findMany({
         where: { tournamentId: id, ...(manage ? {} : { status: 'CONFIRMED' }) },
-        include: { player: { select: { memberCode: true, level: true, enrollments: { where: { season: { status: 'ACTIVE' } }, select: { category: { select: { name: true } } } } } } },
+        include: { player: { select: { firstName: true, lastName: true, memberCode: true, level: true, enrollments: { where: { season: { status: 'ACTIVE' } }, select: { category: { select: { name: true } } } } } } },
         orderBy: [{ seed: 'asc' }, { name: 'asc' }],
       }),
       this.prisma.match.findMany({ where: { tournamentId: id }, orderBy: [{ round: 'asc' }, { position: 'asc' }] }),
@@ -266,6 +266,10 @@ export class TournamentsController {
         status: e.status,
         derogationReason: manage ? e.derogationReason : null,
         code: e.player?.memberCode ?? null,
+        // Feuille imprimée (Nom, Prénom, Club) : joueur du club, sinon nom saisi.
+        firstName: e.player?.firstName ?? null,
+        lastName: e.player?.lastName ?? null,
+        club: e.playerId ? 'TCSAY' : null,
         level: e.player?.level ?? null,
         category: e.player?.enrollments[0]?.category.name ?? null,
         mine: Boolean(e.playerId && own.includes(e.playerId)),

@@ -350,6 +350,9 @@ export function TournamentPage() {
             {t.drawPublished ? 'Retirer la publication' : 'Publier le tableau'}
           </Button>
         )}
+        {manage && t.matches.length > 0 && (
+          <ActionIcon kind="print" label="Imprimer la feuille (tableau ou poule, PDF)" onClick={() => window.open(`/impression/tournoi/${t.id}`, '_blank', 'noopener')} />
+        )}
         {manage && t.status !== 'FINISHED' && t.status !== 'CANCELLED' && <ActionIcon kind="cancel" label="Annuler le tournoi" onClick={() => setCancelling(true)} />}
       </div>
 

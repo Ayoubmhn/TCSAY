@@ -69,6 +69,7 @@ const AlbumPage = page(() => import('./features/albums/AlbumPage'), 'AlbumPage')
 const ComplaintsPage = page(() => import('./features/complaints/ComplaintsPage'), 'ComplaintsPage');
 const ComplaintPage = page(() => import('./features/complaints/ComplaintPage'), 'ComplaintPage');
 const ComplaintsAdminPage = page(() => import('./features/complaints/ComplaintsAdminPage'), 'ComplaintsAdminPage');
+const TournamentPrintPage = page(() => import('./features/tournaments/TournamentPrintPage'), 'TournamentPrintPage');
 const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
 const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
 const ReenrollmentPage = page(() => import('./pages/admin/ReenrollmentPage'), 'ReenrollmentPage');
@@ -147,6 +148,7 @@ export function App() {
       <Route path="/bienvenue/:token" element={<InvitationPage />} />
       {/* Impression des reçus : onglet séparé, sans menu */}
       <Route path="/impression/recu/:id" element={admin(['payments.collect'], <ReceiptPrintPage />)} />
+      <Route path="/impression/tournoi/:id" element={<Protected><TournamentPrintPage /></Protected>} />
       <Route path="/impression/recu-test" element={admin(['payments.collect'], <ReceiptPrintPage test />)} />
 
       <Route

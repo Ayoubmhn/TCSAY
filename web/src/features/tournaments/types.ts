@@ -66,6 +66,9 @@ export type TEntry = {
   status: 'CONFIRMED' | 'PENDING' | 'WITHDRAWN';
   derogationReason: string | null;
   code: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  club?: string | null;
   level: string | null;
   category: string | null;
   mine: boolean;
