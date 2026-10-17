@@ -7,7 +7,9 @@ import {
   IconClipboard,
   IconCourt,
   IconHome,
+  IconMail,
   IconRacket,
+  IconSettings,
   IconTrophy,
   IconUserOff,
   IconUsers,
@@ -65,21 +67,36 @@ const COACH_MENU: MenuItem[] = [
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
 ];
 
-/** Espace administration : président, agents, superviseur, directeur technique (modules selon les autorisations). */
+/**
+ * Espace administration : président, agents, superviseur, directeur technique (modules selon les autorisations).
+ * Rangé par tâche : au quotidien en haut (membres, caisse, entraînement, compétition, terrains, communication),
+ * configuration de saison dans « Réglages », repliée par défaut.
+ */
 const ADMIN_MENU: MenuItem[] = [
   { label: 'Dashboard', path: '/admin', icon: IconChart, perm: ['stats.view'] },
-  { label: 'Planning des terrains', path: '/admin/planning', icon: IconCalendar, perm: ['planning.view', 'groups.manage'] },
+  { label: 'Planning', path: '/admin/planning', icon: IconCalendar, perm: ['planning.view', 'groups.manage'] },
   {
-    label: 'Utilisateurs',
+    label: 'Membres',
     icon: IconUsers,
     children: [
       { label: 'Joueurs', path: '/admin/joueurs', perm: ['players.manage'] },
       { label: 'Parents', path: '/admin/parents', perm: ['parents.manage'] },
       { label: 'Entraîneurs', path: '/admin/entraineurs', perm: ['coaches.manage'] },
-      { label: 'Personnel', path: '/admin/personnel', perm: ['staff.manage'] },
-      { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },
       { label: 'Réinscriptions', path: '/admin/reinscriptions', perm: ['players.manage'] },
+      { label: 'Import Excel des joueurs', path: '/admin/joueurs/import', perm: ['players.manage'] },
       { label: 'Fiche d’inscription (A4)', path: '/admin/fiche-inscription', perm: ['players.manage'] },
+    ],
+  },
+  {
+    label: 'Caisse',
+    icon: IconWallet,
+    children: [
+      { label: 'Paiements', path: '/admin/paiements', perm: ['payments.collect'] },
+      { label: 'Reçus', path: '/admin/recus', perm: ['payments.collect'] },
+      { label: 'Dépenses', path: '/admin/depenses', perm: ['expenses.manage'] },
+      { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
+      { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
+      { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
     ],
   },
   {
@@ -87,52 +104,57 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconRacket,
     children: [
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
-      { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
+      { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'] },
       { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'] },
       { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
       { label: 'Exercices', path: '/admin/exercices', perm: ['evaluations.manage'] },
+    ],
+  },
+  {
+    label: 'Compétition',
+    icon: IconTrophy,
+    children: [
       { label: 'Matchs', path: '/matchs' },
       { label: 'Tournois', path: '/tournois' },
-      { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
-      { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
     ],
   },
   {
     label: 'Terrains',
     icon: IconCourt,
     children: [
-      { label: 'Terrains', path: '/admin/terrains', perm: ['courts.manage'] },
       { label: 'Réservations', path: '/admin/reservations', perm: ['reservations.manage'] },
-      { label: 'Tarifs terrains', path: '/admin/tarifs-terrains', perm: ['courts.manage'] },
+      { label: 'Terrains', path: '/admin/terrains', perm: ['courts.manage'] },
     ],
   },
   {
-    label: 'Finances',
-    icon: IconWallet,
-    children: [
-      { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
-      { label: 'Paiements', path: '/admin/paiements', perm: ['payments.collect'] },
-      { label: 'Reçus', path: '/admin/recus', perm: ['payments.collect'] },
-      { label: 'Accès après paiement', path: '/admin/acces-paiement', perm: ['permissions.manage', 'payments.collect'] },
-      { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
-      { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
-      { label: 'Dépenses', path: '/admin/depenses', perm: ['expenses.manage'] },
-      { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
-    ],
-  },
-  {
-    label: 'Suivi',
-    icon: IconClipboard,
+    label: 'Communication',
+    icon: IconMail,
     children: [
       { label: 'Envoyer une notification', path: '/admin/notifications', perm: ['notifications.send'] },
-      { label: 'Mises à jour (Excel)', path: '/admin/mises-a-jour', perm: ['groups.manage', 'payments.collect'] },
       { label: 'Emails envoyés', path: '/admin/emails', perm: ['emails.view'] },
+    ],
+  },
+  {
+    label: 'Réglages',
+    icon: IconSettings,
+    children: [
+      { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
+      { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
+      { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
+      { label: 'Tarifs terrains', path: '/admin/tarifs-terrains', perm: ['courts.manage'] },
+      { label: 'Accès après paiement', path: '/admin/acces-paiement', perm: ['permissions.manage', 'payments.collect'] },
+      { label: 'Personnel', path: '/admin/personnel', perm: ['staff.manage'] },
+      { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },
+      { label: 'Mises à jour (Excel)', path: '/admin/mises-a-jour', perm: ['groups.manage', 'payments.collect'] },
       { label: 'Historique des actions', path: '/admin/audit', perm: ['audit.view'] },
       { label: 'Import historique', path: '/admin/import', soon: true, perm: ['import.manage'] },
     ],
   },
 ];
+
+/** Catégories repliées tant que l'utilisateur ne les a pas ouvertes. */
+export const CLOSED_BY_DEFAULT = ['Réglages'];
 
 export const MENUS: Record<Space, MenuItem[]> = {
   player: PLAYER_MENU,

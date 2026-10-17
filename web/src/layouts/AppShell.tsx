@@ -12,15 +12,17 @@ import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
 import { BottomTabs } from './BottomTabs';
-import { firstPath, isGroup, menuFor, type MenuItem } from './menus';
+import { CLOSED_BY_DEFAULT, firstPath, isGroup, menuFor, type MenuItem } from './menus';
 
-const CLOSED_KEY = 'tcsay-menu-closed';
+// v2 : nouveau rangement du menu (les anciennes catégories repliées ne s'appliquent plus).
+const CLOSED_KEY = 'tcsay-menu-closed-v2';
 
 function readClosed(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '[]') as string[];
+    const saved = localStorage.getItem(CLOSED_KEY);
+    return saved ? (JSON.parse(saved) as string[]) : CLOSED_BY_DEFAULT;
   } catch {
-    return [];
+    return CLOSED_BY_DEFAULT;
   }
 }
 
