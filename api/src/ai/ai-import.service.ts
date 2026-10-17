@@ -128,12 +128,14 @@ export class AiImportService {
     const models = await geminiModels();
     const model = geminiModel();
     const found = models.some((m) => m.name === model);
+    // Vrai essai de lecture (petit texte, aucune photo) : la liste des modèles peut passer alors que la lecture est refusée.
+    if (found) await geminiJson<{ ok: string }>('Réponds {"ok":"oui"}.', [], { type: 'OBJECT', properties: { ok: { type: 'STRING' } }, required: ['ok'] }, 30_000);
     return {
       ok: true,
       model,
       found,
       message: found
-        ? `Clé acceptée par Google. Modèle « ${model} » disponible.`
+        ? `Clé acceptée par Google : essai de lecture réussi avec « ${model} ».`
         : `Clé acceptée par Google, mais le modèle « ${model} » n’est pas dans la liste : mettez par exemple GEMINI_MODEL=${models.find((m) => /flash/.test(m.name))?.name ?? models[0]?.name ?? '…'} dans api/.env.`,
       models: models.filter((m) => /flash/i.test(m.name)).slice(0, 12),
     };

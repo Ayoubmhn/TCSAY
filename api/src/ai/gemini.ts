@@ -32,6 +32,7 @@ type GeminiResponse = {
 
 /** Raison donnée par Google → explication et solution en français (la raison de Google est ajoutée à la fin). */
 const HINTS: [RegExp, string][] = [
+  [/denied access|contact support/i, 'Google a bloqué l’accès à Gemini pour le projet de cette clé (blocage décidé par Google, pas un réglage de la clé). Créez un nouveau projet et une nouvelle clé sur aistudio.google.com (Get API key › Create API key › « Create API key in new project »), si possible avec un autre compte Google, puis remplacez GEMINI_API_KEY. Si le blocage continue : formulaire d’assistance de Google AI Studio.'],
   [/API_KEY_INVALID|api key not valid/i, 'Clé Gemini invalide : recopiez-la depuis aistudio.google.com dans GEMINI_API_KEY (api/.env), sans espace ni guillemet, puis redémarrez l’API.'],
   [/REFERRER|referer/i, 'La clé est limitée à des sites web : dans console.cloud.google.com › API et services › Identifiants, ouvrez la clé et choisissez « Restrictions relatives aux applications : Aucune » (l’appel vient du serveur, pas du navigateur).'],
   [/IP_ADDRESS|ip address/i, 'La clé est limitée à certaines adresses IP : retirez cette restriction dans Google Cloud › Identifiants, ou ajoutez l’adresse du serveur.'],
