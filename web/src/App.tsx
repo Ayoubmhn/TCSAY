@@ -62,6 +62,9 @@ const SessionsPage = page(() => import('./pages/player/SessionsPage'), 'Sessions
 const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage');
 const SettingsPage = page(() => import('./pages/SettingsPage'), 'SettingsPage');
 const TournamentsPage = page(() => import('./features/tournaments/TournamentsPage'), 'TournamentsPage');
+const ComplaintsPage = page(() => import('./features/complaints/ComplaintsPage'), 'ComplaintsPage');
+const ComplaintPage = page(() => import('./features/complaints/ComplaintPage'), 'ComplaintPage');
+const ComplaintsAdminPage = page(() => import('./features/complaints/ComplaintsAdminPage'), 'ComplaintsAdminPage');
 const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
 const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
 const ReenrollmentPage = page(() => import('./pages/admin/ReenrollmentPage'), 'ReenrollmentPage');
@@ -165,6 +168,10 @@ export function App() {
         <Route path="exercices" element={<Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>} />
         <Route path="reserver" element={<Protected roles={PLAYER}><PaymentGate module="reservation" title="Réserver un terrain"><BookPage /></PaymentGate></Protected>} />
         <Route path="tournois" element={<TournamentsPage />} />
+        <Route path="reclamations" element={<ComplaintsPage />} />
+        <Route path="reclamations/:id" element={<ComplaintPage />} />
+        <Route path="admin/reclamations" element={admin(['complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage'], <ComplaintsAdminPage />)} />
+        <Route path="admin/reclamations/:id" element={admin(['complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage'], <ComplaintPage admin />)} />
         <Route path="tournois/:id" element={<TournamentPage />} />
 
         {/* Entraîneur */}

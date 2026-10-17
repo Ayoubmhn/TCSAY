@@ -228,6 +228,10 @@ model User {
   expensesCreated    Expense[]
   tournamentsCreated Tournament[]
   photo              ProfilePhoto?
+  complaints         Complaint[]             @relation("ComplaintAuthor")
+  complaintsTargeted Complaint[]             @relation("ComplaintTarget")
+  complaintsAssigned Complaint[]             @relation("ComplaintAssignee")
+  complaintMessages  ComplaintMessage[]      @relation("ComplaintMessageAuthor")
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -290,6 +294,7 @@ model Player {
   availabilityExceptions AvailabilityException[]
   tournamentEntries      TournamentEntry[]
   photo                  ProfilePhoto?
+  complaints             Complaint[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -1275,4 +1280,78 @@ model ProfilePhoto {
 
   user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+// ───────────────────────── Réclamations et suggestions ─────────────────────────
+
+enum ComplaintKind {
+  COMPLAINT // Réclamation
+  SUGGESTION // Suggestion
+  URGENT // Signalement urgent (sécurité, blessure, comportement grave) : président prévenu tout de suite
+}
+
+enum ComplaintCategory {
+  PAYMENT // Paiement, reçu → caisse
+  RESERVATION // Réservation, terrain → réservations
+  TRAINING // Entraînement → direction technique
+  FACILITIES // Installations, matériel → terrains
+  APP // Application
+  BEHAVIOR // Comportement : président seulement
+  OTHER
+}
+
+enum ComplaintStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+/// Réclamation, suggestion ou signalement d'un acteur ; jamais visible de la personne visée (targetUser).
+model Complaint {
+  id             String            @id @default(uuid()) @db.Uuid
+  number         Int               @unique @default(autoincrement())
+  kind           ComplaintKind
+  category       ComplaintCategory
+  subject        String
+  body           String
+  status         ComplaintStatus   @default(NEW)
+  authorId       String            @db.Uuid
+  authorSpace    String // espace de l'auteur à l'envoi (parent, joueur, entraîneur, administration)
+  playerId       String?           @db.Uuid // enfant concerné (parent)
+  targetUserId   String?           @db.Uuid // personne visée : ne voit jamais la réclamation
+  assigneeId     String?           @db.Uuid // responsable qui l'a prise en charge
+  photo          Bytes?
+  photoMime      String?
+  satisfied      Boolean?
+  closedAt       DateTime?
+  lastActivityAt DateTime          @default(now())
+  remindedAt     DateTime?
+  version        Int               @default(1)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  author   User               @relation("ComplaintAuthor", fields: [authorId], references: [id])
+  target   User?              @relation("ComplaintTarget", fields: [targetUserId], references: [id])
+  assignee User?              @relation("ComplaintAssignee", fields: [assigneeId], references: [id])
+  player   Player?            @relation(fields: [playerId], references: [id])
+  messages ComplaintMessage[]
+
+  @@index([status, category])
+  @@index([authorId])
+}
+
+/// Échange sur une réclamation ; `internal` = note de la direction, jamais montrée à l'auteur.
+model ComplaintMessage {
+  id          String   @id @default(uuid()) @db.Uuid
+  complaintId String   @db.Uuid
+  authorId    String   @db.Uuid
+  body        String
+  internal    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  author    User      @relation("ComplaintMessageAuthor", fields: [authorId], references: [id])
+
+  @@index([complaintId])
 }

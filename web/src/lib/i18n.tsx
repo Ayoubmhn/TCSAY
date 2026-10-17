@@ -53,6 +53,7 @@ const DICT: Record<string, [string, string]> = {
   Dashboard: ['Dashboard', 'لوحة القيادة'],
   Utilisateurs: ['Users', 'المستخدمون'],
   Membres: ['Members', 'الأعضاء'],
+  Réclamations: ['Complaints', 'الشكاوى'],
   Caisse: ['Cash desk', 'الصندوق'],
   Compétition: ['Competition', 'المنافسات'],
   Communication: ['Communication', 'التواصل'],

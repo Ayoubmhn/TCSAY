@@ -137,6 +137,18 @@ export const api = {
   },
 };
 
+/** Image protégée (photo jointe d'une réclamation…) : téléchargée avec le jeton, rendue en adresse locale. */
+export async function blobUrl(path: string): Promise<string> {
+  const headers: Record<string, string> = {};
+  const token = getToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const space = getSpace();
+  if (space) headers['X-Espace'] = space;
+  const res = await fetch(new URL(`${BASE_URL}${path}`, window.location.origin), { headers });
+  if (!res.ok) throw new ApiError(res.status, `Erreur ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
 /** Adresse complète d'une ressource de l'API (ex. photo signée « /photos/… »). */
 export const apiUrl = (path: string | null | undefined): string | undefined => (path ? `${BASE_URL}${path}` : undefined);
 

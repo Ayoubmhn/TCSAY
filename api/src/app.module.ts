@@ -57,6 +57,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ReservationsController } from './reservations/reservations.controller';
 import { ReservationsService } from './reservations/reservations.service';
 import { PhotosController } from './photos/photos.controller';
+import { ComplaintsController } from './complaints/complaints.controller';
+import { ComplaintsService } from './complaints/complaints.service';
 import { PhotosService } from './photos/photos.service';
 import { SalariesController } from './salaries/salaries.controller';
 import { SalariesService } from './salaries/salaries.service';
@@ -114,6 +116,7 @@ import { StaffController } from './staff/staff.controller';
     SettingsController,
     PermissionsController,
     PhotosController,
+    ComplaintsController,
   ],
   providers: [
     UpdatesService,
@@ -130,6 +133,7 @@ import { StaffController } from './staff/staff.controller';
     ReservationsService,
     SalariesService,
     PhotosService,
+    ComplaintsService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })
