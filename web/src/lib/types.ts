@@ -27,7 +27,7 @@ export type MembershipInfo = {
 };
 export type EmployeeType = 'COACH' | 'ADMIN_AGENT' | 'SUPERVISOR' | 'TECH_DIRECTOR';
 
-export type PersonRef = { id: string; firstName: string; lastName: string };
+export type PersonRef = { id: string; firstName: string; lastName: string; photoUrl?: string | null };
 
 export type Me = {
   id: string;
@@ -49,6 +49,8 @@ export type Me = {
   playerId: string | null;
   coachId: string | null;
   players: PersonRef[];
+  /** Photo de profil (adresse signée de l'API, relative à /api/v1). */
+  photoUrl?: string | null;
 };
 
 export type Category = {
@@ -73,6 +75,7 @@ export type Suggestion =
     };
 
 export type Player = {
+  photoUrl?: string | null;
   id: string;
   /** Identifiant du club « 26TCSAY052 » (provisoire tant que l'historique n'est pas importé). */
   memberCode: string | null;
@@ -109,6 +112,7 @@ export type Player = {
 };
 
 export type Parent = {
+  photoUrl?: string | null;
   id: string;
   firstName: string;
   lastName: string;
@@ -126,6 +130,7 @@ export type Parent = {
 export type CoachRef = { id: string; firstName: string; lastName: string; color: string };
 
 export type Coach = {
+  photoUrl?: string | null;
   id: string;
   userId: string;
   firstName: string;
@@ -145,6 +150,7 @@ export type Coach = {
 };
 
 export type Staff = {
+  photoUrl?: string | null;
   id: string;
   firstName: string;
   lastName: string;
@@ -461,7 +467,7 @@ export type AttendanceSheet = {
   opensAt: string;
   closesAt: string;
   editable: boolean;
-  entries: { playerId: string; firstName: string; lastName: string; status: AttendanceStatus | null; reason: string | null }[];
+  entries: { playerId: string; firstName: string; lastName: string; photoUrl?: string | null; status: AttendanceStatus | null; reason: string | null }[];
 };
 
 export type Mood = 'GOOD' | 'TIRED' | 'PAIN';
@@ -637,7 +643,7 @@ export type CoachProfile = Omit<Coach, 'groups' | 'sessionsPerWeek'> & {
 };
 
 export type ParentProfile = Omit<Parent, 'players'> & {
-  children: { id: string; firstName: string; lastName: string; birthDate: string; archivedAt: string | null; category: string | null; groups: { id: string; name: string; slots: Slot[] }[] }[];
+  children: { id: string; photoUrl?: string | null; firstName: string; lastName: string; birthDate: string; archivedAt: string | null; category: string | null; groups: { id: string; name: string; slots: Slot[] }[] }[];
 };
 
 export type StaffProfile = Staff & { salaries: Salary[] };
@@ -696,6 +702,7 @@ export type MemberCodePlan = { provisional: number; definitive: number; changes:
 // ───── Fiche d'un groupe ─────
 
 type GroupDetailMember = Group['members'][number] & {
+  photoUrl?: string | null;
   memberCode: string | null;
   age: number | null;
   gender: 'M' | 'F' | null;

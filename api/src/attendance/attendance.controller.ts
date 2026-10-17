@@ -11,6 +11,7 @@ import { addDaysIso, dayFromIso, isoDay, localInstant, todayIso } from '../commo
 import { NIL_UUID, notFound } from '../common/rules';
 import { periodSelect, sessionsBetween, slotRunsOn, withPeriod } from '../common/sessions';
 import { slotInclude, slotView } from '../groups/groups.controller';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -128,6 +129,7 @@ export class AttendanceController {
     private readonly access: AccessService,
     private readonly gate: PaymentAccessService,
     private readonly audit: AuditService,
+    private readonly photos: PhotosService,
   ) {}
 
   /**
@@ -309,7 +311,7 @@ export class AttendanceController {
           include: {
             members: {
               include: {
-                enrollment: { include: { player: { select: { id: true, firstName: true, lastName: true, archivedAt: true } } } },
+                enrollment: { include: { player: { select: { id: true, firstName: true, lastName: true, archivedAt: true, userId: true } } } },
               },
             },
           },
@@ -319,6 +321,7 @@ export class AttendanceController {
     if (!slot) throw notFound('Séance');
     const marks = await this.prisma.attendance.findMany({ where: { slotId: slot.id, date: dayFromIso(q.date) } });
     const window = attendanceWindow(q.date, slot.startTime, slot.endTime);
+    const photos = await this.photos.forPlayers(slot.group.members.map((m) => m.enrollment.player));
     return {
       group: { id: slot.group.id, name: slot.group.name, startTime: slot.startTime, endTime: slot.endTime },
       slotId: slot.id,
@@ -335,6 +338,7 @@ export class AttendanceController {
             playerId: m.enrollment.playerId,
             firstName: m.enrollment.player.firstName,
             lastName: m.enrollment.player.lastName,
+            photoUrl: photos.get(m.enrollment.playerId) ?? null,
             status: mark?.status ?? null,
             reason: mark?.reason ?? null,
           };

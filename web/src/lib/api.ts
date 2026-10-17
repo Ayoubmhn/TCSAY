@@ -129,13 +129,16 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body ?? {}),
   delete: <T>(path: string, query?: Query) => request<T>('DELETE', path, undefined, query),
   /** Envoi d'un fichier (multipart, champ « file »). */
-  upload: <T>(path: string, file: File, fields: Record<string, string> = {}) => {
+  upload: <T>(path: string, file: File | Blob, fields: Record<string, string> = {}, method: 'POST' | 'PUT' = 'POST') => {
     const form = new FormData();
-    form.append('file', file);
+    form.append('file', file, file instanceof File ? file.name : 'photo.jpg');
     for (const [k, v] of Object.entries(fields)) form.append(k, v);
-    return request<T>('POST', path, form);
+    return request<T>(method, path, form);
   },
 };
+
+/** Adresse complète d'une ressource de l'API (ex. photo signée « /photos/… »). */
+export const apiUrl = (path: string | null | undefined): string | undefined => (path ? `${BASE_URL}${path}` : undefined);
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Une erreur inattendue est survenue.';

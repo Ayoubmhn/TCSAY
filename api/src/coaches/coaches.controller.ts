@@ -11,6 +11,7 @@ import { isoDay, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { assertVersion, fullName, notFound } from '../common/rules';
 import { slotInclude, slotView } from '../groups/groups.controller';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { view as salaryView } from '../salaries/salaries.controller';
 import { SalariesService } from '../salaries/salaries.service';
@@ -84,6 +85,7 @@ export class CoachesController {
     private readonly access: AccessService,
     private readonly audit: AuditService,
     private readonly salaries: SalariesService,
+    private readonly photos: PhotosService,
   ) {}
 
   @Get()
@@ -96,10 +98,11 @@ export class CoachesController {
       },
       orderBy: { user: { firstName: 'asc' } },
     });
+    const photos = await this.photos.forUsers(coaches.map((c) => c.userId));
     return coaches.map((c) => {
       const groups = new Map<string, { id: string; name: string }>();
       for (const s of c.slots) groups.set(s.slot.group.id, s.slot.group);
-      return { ...this.base(c), groups: [...groups.values()], sessionsPerWeek: c.slots.length };
+      return { ...this.base(c), photoUrl: photos.get(c.userId) ?? null, groups: [...groups.values()], sessionsPerWeek: c.slots.length };
     });
   }
 
@@ -129,8 +132,10 @@ export class CoachesController {
       }),
     ]);
     const month = todayIso().slice(0, 7);
+    const photo = await this.photos.forUsers([coach.userId]);
     return {
       ...this.base(coach),
+      photoUrl: photo.get(coach.userId) ?? null,
       slots: slots.map((s) => ({ ...slotView(s), group: s.group })),
       salaries: salaries.map(salaryView),
       estimate: await this.salaries.estimate(coach.userId, month),

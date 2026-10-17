@@ -101,7 +101,7 @@ export function StaffPage() {
                 <Card key={s.id}>
                   <CardRow>
                     <Link to={`/admin/personnel/${s.id}`} className="flex items-center gap-2.5 hover:underline">
-                      <Avatar first={s.firstName} last={s.lastName} />
+                      <Avatar first={s.firstName} last={s.lastName} photo={s.photoUrl} />
                       <h3>{fullName(s)}</h3>
                     </Link>
                     <Pill tone={s.isActive ? 'g' : 'r'}>{s.isActive ? 'Actif' : 'Désactivé'}</Pill>

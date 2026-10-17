@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import type { AttendanceSheet, AttendanceStatus } from '../lib/types';
 import { useAction } from '../lib/useAction';
+import { Avatar } from './ui/Avatar';
 import { Button } from './ui/Button';
 import { TextField } from './ui/Field';
 import { QueryState } from './ui/Loading';
@@ -65,7 +66,8 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
               return (
                 <div key={e.playerId} className="flex flex-col gap-2 border-b-[1.5px] border-line py-2.5 last:border-b-0">
                   <div className="flex flex-wrap items-center justify-between gap-2.5">
-                    <span className="font-medium">
+                    <span className="flex items-center gap-2.5 font-medium">
+                      <Avatar first={e.firstName} last={e.lastName} photo={e.photoUrl} />
                       {e.firstName} {e.lastName}
                     </span>
                     <Segmented<AttendanceStatus>

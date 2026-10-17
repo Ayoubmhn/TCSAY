@@ -56,6 +56,8 @@ import { PlayersService } from './players/players.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReservationsController } from './reservations/reservations.controller';
 import { ReservationsService } from './reservations/reservations.service';
+import { PhotosController } from './photos/photos.controller';
+import { PhotosService } from './photos/photos.service';
 import { SalariesController } from './salaries/salaries.controller';
 import { SalariesService } from './salaries/salaries.service';
 import { SeasonsModule } from './seasons/seasons.module';
@@ -111,6 +113,7 @@ import { StaffController } from './staff/staff.controller';
     AuditController,
     SettingsController,
     PermissionsController,
+    PhotosController,
   ],
   providers: [
     UpdatesService,
@@ -126,6 +129,7 @@ import { StaffController } from './staff/staff.controller';
     PlayersImportService,
     ReservationsService,
     SalariesService,
+    PhotosService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })

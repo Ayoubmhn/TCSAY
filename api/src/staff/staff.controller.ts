@@ -9,6 +9,7 @@ import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
 import { dt, num } from '../common/money';
 import { assertVersion, fullName, notFound } from '../common/rules';
 import { ROLE_LABEL } from '../permissions/permissions';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { view as salaryView } from '../salaries/salaries.controller';
 
@@ -88,6 +89,7 @@ export class StaffController {
     private readonly prisma: PrismaService,
     private readonly accounts: AccountsService,
     private readonly audit: AuditService,
+    private readonly photos: PhotosService,
   ) {}
 
   @Get()
@@ -96,7 +98,8 @@ export class StaffController {
       where: { roles: { hasSome: STAFF_SCOPE } },
       orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
     });
-    return users.map(view);
+    const photos = await this.photos.forUsers(users.map((u) => u.id));
+    return users.map((u) => ({ ...view(u), photoUrl: photos.get(u.id) ?? null }));
   }
 
   @Get(':id/profile')
@@ -110,7 +113,8 @@ export class StaffController {
       },
       orderBy: { month: 'desc' },
     });
-    return { ...view(user), salaries: salaries.map(salaryView) };
+    const photo = await this.photos.forUsers([id]);
+    return { ...view(user), photoUrl: photo.get(id) ?? null, salaries: salaries.map(salaryView) };
   }
 
   /** Création ; si la personne a déjà un compte (même email ou CIN, ex. un entraîneur), les fonctions lui sont ajoutées. */

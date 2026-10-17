@@ -189,7 +189,7 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
 
       {/* Carte utilisateur : avatar, nom, email, déconnexion */}
       <div className="flex flex-none items-center gap-2.5 rounded-[24px] border-[1.5px] border-line bg-card p-3">
-        <Avatar first={me.firstName} last={me.lastName} />
+        <Avatar first={me.firstName} last={me.lastName} photo={me.photoUrl} />
         <div className="min-w-0 flex-1">
           <b className="block truncate font-semibold">
             {me.firstName} {me.lastName.toUpperCase()}

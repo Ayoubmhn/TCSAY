@@ -224,7 +224,7 @@ export function ParentsPage() {
                 <Card key={u.id}>
                   <CardRow>
                     <Link to={`/admin/parents/${u.id}`} className="flex items-center gap-2.5 hover:underline">
-                      <Avatar first={u.firstName} last={u.lastName} />
+                      <Avatar first={u.firstName} last={u.lastName} photo={u.photoUrl} />
                       <h3>{fullName(u)}</h3>
                     </Link>
                     {!u.isActive ? (

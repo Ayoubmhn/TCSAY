@@ -10,6 +10,7 @@ import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { ageAtYearEnd } from '../common/dates';
 import { assertVersion, fullName, notFound, rule } from '../common/rules';
 import { slotInclude, slotView } from '../groups/groups.controller';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 class CreateParentDto {
@@ -84,6 +85,7 @@ export class ParentsController {
     private readonly accounts: AccountsService,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    private readonly photos: PhotosService,
   ) {}
 
   @Get()
@@ -99,8 +101,10 @@ export class ParentsController {
         invitations: { orderBy: { createdAt: 'desc' }, take: 1, select: { createdAt: true, expiresAt: true, usedAt: true, pendingEmail: true } },
       },
     });
+    const photos = await this.photos.forUsers(parents.map((p) => p.id));
     return parents.map((p) => ({
       id: p.id,
+      photoUrl: photos.get(p.id) ?? null,
       firstName: p.firstName,
       lastName: p.lastName,
       email: p.email,
@@ -187,8 +191,10 @@ export class ParentsController {
         },
       },
     });
+    const [mine, kids] = await Promise.all([this.photos.forUsers([parent.id]), this.photos.forPlayers(links.map((l) => l.player))]);
     return {
       id: parent.id,
+      photoUrl: mine.get(parent.id) ?? null,
       firstName: parent.firstName,
       lastName: parent.lastName,
       email: parent.email,
@@ -198,6 +204,7 @@ export class ParentsController {
       version: parent.version,
       children: links.map(({ player: p }) => ({
         id: p.id,
+        photoUrl: kids.get(p.id) ?? null,
         firstName: p.firstName,
         lastName: p.lastName,
         birthDate: p.birthDate,

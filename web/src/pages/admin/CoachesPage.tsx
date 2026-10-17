@@ -110,7 +110,7 @@ export function CoachesPage() {
                   <CardRow>
                     <Link to={`/admin/entraineurs/${c.id}`} className="flex items-center gap-2.5 hover:underline">
                       <span className="relative">
-                        <Avatar first={c.firstName} last={c.lastName} />
+                        <Avatar first={c.firstName} last={c.lastName} photo={c.photoUrl} />
                         <span aria-hidden="true" className="absolute -bottom-0.5 -end-0.5 h-3.5 w-3.5 rounded-full ring-2 ring-card" style={{ background: c.color }} />
                       </span>
                       <h3>{fullName(c).trim()}</h3>

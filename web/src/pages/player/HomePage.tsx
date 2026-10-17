@@ -40,7 +40,7 @@ export function HomePage() {
   return (
     <>
       <div className="flex items-center gap-4">
-        <BigAvatar first={me.firstName} last={me.lastName} />
+        <BigAvatar first={me.firstName} last={me.lastName} photo={me.photoUrl} />
         <div>
           <h1>Bienvenue {me.firstName} 👋</h1>
           <p className="mt-1 text-mut">

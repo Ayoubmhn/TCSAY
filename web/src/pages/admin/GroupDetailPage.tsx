@@ -113,7 +113,7 @@ export function GroupDetailPage() {
                   <Card key={m.playerId}>
                     <CardRow>
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <Avatar first={m.firstName} last={m.lastName} />
+                        <Avatar first={m.firstName} last={m.lastName} photo={m.photoUrl} />
                         <div className="min-w-0">
                           <Link to={`/admin/joueurs/${m.playerId}`} className="hover:underline">
                             <h3>{fullName(m)}</h3>

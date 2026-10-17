@@ -130,7 +130,7 @@ export function PlayersPage() {
                 <Card key={p.id}>
                   <CardRow>
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <Avatar first={p.firstName} last={p.lastName} />
+                      <Avatar first={p.firstName} last={p.lastName} photo={p.photoUrl} />
                       <div className="min-w-0">
                         <Link to={`/admin/joueurs/${p.id}`} className="hover:underline">
                           <h3>{fullName(p)}</h3>

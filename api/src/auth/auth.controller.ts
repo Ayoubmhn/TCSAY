@@ -5,6 +5,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllowPendingPassword, AuthUser, CurrentUser, Public } from './auth-user';
 import { signToken } from './jwt';
@@ -85,6 +86,7 @@ export class AuthController {
     private readonly audit: AuditService,
     private readonly throttle: LoginThrottle,
     private readonly mail: MailService,
+    private readonly photos: PhotosService,
   ) {}
 
   /**
@@ -247,14 +249,14 @@ export class AuthController {
       user.role === 'PARENT'
         ? await this.prisma.parentLink.findMany({
             where: { parentId: user.id, player: { archivedAt: null } },
-            include: { player: { select: { id: true, firstName: true, lastName: true } } },
+            include: { player: { select: { id: true, firstName: true, lastName: true, userId: true } } },
             orderBy: { player: { birthDate: 'asc' } },
           })
         : [];
     const self = user.playerId
       ? await this.prisma.player.findUnique({
           where: { id: user.playerId },
-          select: { id: true, firstName: true, lastName: true },
+          select: { id: true, firstName: true, lastName: true, userId: true },
         })
       : null;
     // Informations du compte : lecture seule pour l'utilisateur, modifiables par le club.
@@ -262,10 +264,13 @@ export class AuthController {
       where: { id: user.id },
       select: { phone: true, cin: true, createdAt: true, lastLoginAt: true },
     });
+    const players = user.role === 'PARENT' ? kids.map((k) => k.player) : self ? [self] : [];
+    const [mine, theirs] = await Promise.all([this.photos.forUsers([user.id]), this.photos.forPlayers(players)]);
     return {
       ...user,
       ...account,
-      players: user.role === 'PARENT' ? kids.map((k) => k.player) : self ? [self] : [],
+      photoUrl: mine.get(user.id) ?? null,
+      players: players.map(({ userId: _u, ...p }) => ({ ...p, photoUrl: theirs.get(p.id) ?? null })),
     };
   }
 }

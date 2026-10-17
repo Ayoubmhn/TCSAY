@@ -14,6 +14,7 @@ import { KeyValue } from '../components/ui/KeyValue';
 import { PageHeader } from '../components/ui/PageHeader';
 import { ForgotPasswordModal } from '../components/ForgotPassword';
 import { Section } from '../components/ui/Section';
+import { PhotoEditor } from '../components/PhotoEditor';
 import { Segmented } from '../components/ui/Segmented';
 import { setTheme, useTheme, type Theme } from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
@@ -64,6 +65,7 @@ export function SettingsPage() {
         <div>
           <Section title="Mon compte">
             <Card>
+              <PhotoEditor first={me.firstName} last={me.lastName} photo={me.photoUrl} path="/photos/me" />
               <div>
                 <KeyValue label="Nom">
                   {me.firstName} {me.lastName}
@@ -79,6 +81,20 @@ export function SettingsPage() {
               <CardText>{t('Informations personnelles modifiables par le club seulement.')}</CardText>
             </Card>
           </Section>
+          {me.role === 'PARENT' && me.players.length > 0 && (
+            <Section title="Photos de mes enfants">
+              <Card className="gap-4">
+                {me.players.map((p) => (
+                  <div key={p.id} className="flex flex-col gap-1.5">
+                    <b className="text-[15px] font-medium">
+                      {p.firstName} {p.lastName}
+                    </b>
+                    <PhotoEditor first={p.firstName} last={p.lastName} photo={p.photoUrl} path={`/photos/players/${p.id}`} hint="Visible de l’entraîneur (feuille de présence) et du club." />
+                  </div>
+                ))}
+              </Card>
+            </Section>
+          )}
           {me.permissions.includes('permissions.manage') && (
             <Section title="Autorisations">
               <Card>

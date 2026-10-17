@@ -12,6 +12,7 @@ import { slotInclude, slotView } from '../groups/groups.controller';
 import { PaymentsService } from '../payments/payments.service';
 import { assertSeasonOpen, assertVersion, fullName, notFound, rule } from '../common/rules';
 import { MailService } from '../mail/mail.service';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatMemberCode, nextMemberCode } from './member-code';
 import { ChangeCategoryDto, CreatePlayerDto, ListPlayersQuery, UpdateContactDto, UpdatePlayerDto } from './players.dto';
@@ -26,6 +27,7 @@ export class PlayersService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly payments: PaymentsService,
+    private readonly photos: PhotosService,
   ) {}
 
   async list(q: ListPlayersQuery) {
@@ -56,14 +58,16 @@ export class PlayersService {
       include: this.include(season.id),
     });
     const year = season.startDate.getUTCFullYear();
-    return players.map((p) => this.view(p, year));
+    const photos = await this.photos.forPlayers(players);
+    return players.map((p) => ({ ...this.view(p, year), photoUrl: photos.get(p.id) ?? null }));
   }
 
   async get(id: string) {
     const season = await this.access.activeSeason();
     const player = await this.prisma.player.findUnique({ where: { id }, include: this.include(season.id) });
     if (!player) throw notFound('Joueur');
-    return this.view(player, season.startDate.getUTCFullYear());
+    const photos = await this.photos.forPlayers([player]);
+    return { ...this.view(player, season.startDate.getUTCFullYear()), photoUrl: photos.get(player.id) ?? null };
   }
 
   /**

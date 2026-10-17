@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { EstimateCard, SalaryCard } from '../../components/SalaryParts';
 import { SlotLine } from '../../components/SlotInfo';
-import { BigAvatar } from '../../components/ui/Avatar';
+import { PhotoEditor } from '../../components/PhotoEditor';
+import { Avatar, BigAvatar } from '../../components/ui/Avatar';
 import { Card, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
 import { InstallmentCard } from '../../components/ui/InstallmentCard';
 import { KeyValue } from '../../components/ui/KeyValue';
@@ -20,14 +21,14 @@ const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px
 const ABSENCE_STATUS = { PENDING: { label: 'En attente', tone: 's' }, APPROVED: { label: 'Validée', tone: 'g' }, REJECTED: { label: 'Refusée', tone: 'r' } } as const;
 
 /** En-tête de profil : retour, avatar, nom, pastilles, actions. */
-function ProfileHeader({ back, backLabel, first, last, pills, actions }: { back: string; backLabel: string; first: string; last: string; pills?: ReactNode; actions?: ReactNode }) {
+function ProfileHeader({ back, backLabel, first, last, photo, pills, actions }: { back: string; backLabel: string; first: string; last: string; photo?: string | null; pills?: ReactNode; actions?: ReactNode }) {
   return (
     <>
       <Link to={back} className="text-sm font-medium text-mut hover:underline">
         ‹ {backLabel}
       </Link>
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <BigAvatar first={first || '?'} last={last} />
+        <BigAvatar first={first || '?'} last={last} photo={photo} />
         <div className="flex min-w-0 flex-col gap-2">
           <h1>{`${first} ${last}`.trim()}</h1>
           {pills && <Pills>{pills}</Pills>}
@@ -38,9 +39,10 @@ function ProfileHeader({ back, backLabel, first, last, pills, actions }: { back:
   );
 }
 
-function InfoCard({ children }: { children: ReactNode }) {
+function InfoCard({ children, photo }: { children: ReactNode; photo?: ReactNode }) {
   return (
     <Card className="max-w-[560px]">
+      {photo}
       <div>{children}</div>
       <CardText>Informations personnelles modifiables par le club seulement.</CardText>
     </Card>
@@ -60,6 +62,7 @@ export function PlayerProfilePage() {
             back="/admin/joueurs"
             backLabel="Joueurs"
             first={p.firstName}
+            photo={p.photoUrl}
             last={p.lastName}
             pills={
               <>
@@ -73,7 +76,7 @@ export function PlayerProfilePage() {
             }
           />
           <Section title="Informations">
-            <InfoCard>
+            <InfoCard photo={<PhotoEditor first={p.firstName} last={p.lastName} photo={p.photoUrl} path={`/photos/players/${p.id}`} invalidate={[['player-profile', id], ['players']]} />}>
               <KeyValue label="Identifiant">
                 {p.memberCode ?? '—'}
                 {p.memberCodeProvisional && p.memberCode ? ' (provisoire : recalculé après l’import des années précédentes)' : ''}
@@ -192,6 +195,7 @@ export function CoachProfilePage() {
             back="/admin/entraineurs"
             backLabel="Entraîneurs"
             first={c.firstName}
+            photo={c.photoUrl}
             last={c.lastName}
             pills={
               <>
@@ -210,7 +214,7 @@ export function CoachProfilePage() {
             }
           />
           <Section title="Informations">
-            <InfoCard>
+            <InfoCard photo={<PhotoEditor first={c.firstName} last={c.lastName} photo={c.photoUrl} path={`/photos/users/${c.userId}`} invalidate={[['coach-profile', id], ['coaches']]} />}>
               <KeyValue label="CIN">{c.cin ?? '—'}</KeyValue>
               <KeyValue label="Téléphone">{c.phone ?? '—'}</KeyValue>
               <KeyValue label="Email">{c.email ?? '— (identifiant : CIN)'}</KeyValue>
@@ -282,6 +286,7 @@ export function ParentProfilePage() {
             back="/admin/parents"
             backLabel="Parents"
             first={p.firstName}
+            photo={p.photoUrl}
             last={p.lastName}
             pills={
               <>
@@ -291,7 +296,7 @@ export function ParentProfilePage() {
             }
           />
           <Section title="Informations">
-            <InfoCard>
+            <InfoCard photo={<PhotoEditor first={p.firstName} last={p.lastName} photo={p.photoUrl} path={`/photos/users/${p.id}`} invalidate={[['parent-profile', id], ['parents']]} />}>
               <KeyValue label="CIN">{p.cin ?? '—'}</KeyValue>
               <KeyValue label="Téléphone">{p.phone ?? '—'}</KeyValue>
               <KeyValue label="Email">{p.email}</KeyValue>
@@ -303,7 +308,8 @@ export function ParentProfilePage() {
                 {p.children.map((k) => (
                   <Card key={k.id}>
                     <CardRow>
-                      <Link to={`/admin/joueurs/${k.id}`} className="hover:underline">
+                      <Avatar first={k.firstName} last={k.lastName} photo={k.photoUrl} />
+                      <Link to={`/admin/joueurs/${k.id}`} className="me-auto hover:underline">
                         <h3>
                           {k.firstName} {k.lastName}
                         </h3>
@@ -349,6 +355,7 @@ export function StaffProfilePage() {
             back="/admin/personnel"
             backLabel="Personnel"
             first={s.firstName}
+            photo={s.photoUrl}
             last={s.lastName}
             pills={
               <>
@@ -365,7 +372,7 @@ export function StaffProfilePage() {
             }
           />
           <Section title="Informations">
-            <InfoCard>
+            <InfoCard photo={<PhotoEditor first={s.firstName} last={s.lastName} photo={s.photoUrl} path={`/photos/users/${s.id}`} invalidate={[['staff-profile', id], ['staff']]} />}>
               <KeyValue label="CIN">{s.cin ?? '—'}</KeyValue>
               <KeyValue label="Téléphone">{s.phone ?? '—'}</KeyValue>
               <KeyValue label="Email">{s.email ?? '— (identifiant : CIN)'}</KeyValue>

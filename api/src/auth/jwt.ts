@@ -59,3 +59,6 @@ export function verifyToken(token: string): Payload | null {
     return null;
   }
 }
+
+/** Signature courte d'une adresse (photos) : même secret que les jetons, jamais devinable. */
+export const signUrl = (data: string): string => sign(`url:${data}`).slice(0, 22);

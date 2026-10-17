@@ -227,6 +227,7 @@ model User {
   invitations        Invitation[]
   expensesCreated    Expense[]
   tournamentsCreated Tournament[]
+  photo              ProfilePhoto?
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -288,6 +289,7 @@ model Player {
   availability           Availability?
   availabilityExceptions AvailabilityException[]
   tournamentEntries      TournamentEntry[]
+  photo                  ProfilePhoto?
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -1258,4 +1260,19 @@ model Invitation {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/// Photo de profil (400 × 400 JPEG, réduite dans le navigateur, sans position GPS) : d'un compte ou d'un joueur sans compte.
+model ProfilePhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @unique @db.Uuid
+  playerId    String?  @unique @db.Uuid
+  mime        String
+  data        Bytes
+  updatedById String   @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
 }

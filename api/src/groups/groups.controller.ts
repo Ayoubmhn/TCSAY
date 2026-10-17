@@ -24,6 +24,7 @@ import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { minutesOf } from '../common/dates';
 import { assertSeasonOpen, assertVersion, fullName, NIL_UUID, notFound, rule } from '../common/rules';
 import { DAY_LONG, DAY_NAMES, slotsOverlap } from '../common/sessions';
+import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -159,6 +160,7 @@ export class GroupsController {
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    private readonly photos: PhotosService,
   ) {}
 
   /** Admin et personnel : tous les groupes ; coach : les groupes dont il anime au moins un créneau. */
@@ -200,6 +202,7 @@ export class GroupsController {
           birthDate: true,
           gender: true,
           phone: true,
+          userId: true,
           parentLinks: { select: { parent: { select: { id: true, firstName: true, lastName: true, phone: true, email: true } } } },
         },
       }),
@@ -214,6 +217,7 @@ export class GroupsController {
       }),
     ]);
     const byId = new Map(players.map((p) => [p.id, p]));
+    const photos = await this.photos.forPlayers(players);
     const sessions = [...new Set(attendance.map((a) => a.date.toISOString().slice(0, 10)))].slice(0, 8);
     const base = this.view(g);
     return {
@@ -226,6 +230,7 @@ export class GroupsController {
         const present = marks.filter((a) => a.status !== 'ABSENT').length;
         return {
           ...m,
+          photoUrl: photos.get(m.playerId) ?? null,
           memberCode: p?.memberCode ?? null,
           age: p?.birthDate ? year - p.birthDate.getUTCFullYear() : null,
           gender: p?.gender ?? null,
