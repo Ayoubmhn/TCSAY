@@ -205,6 +205,50 @@ function MatchBox({ m, all, manage, onResult, onReferee }: { m: TMatch; all: TMa
   );
 }
 
+/** Créneaux prévus du tournoi (jours × terrains × plages), avant le tirage. */
+function Slots({ t }: { t: TournamentDetail }) {
+  const toMin = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+  const hh = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const days: string[] = [];
+  for (let d = new Date(`${t.startDate}T00:00:00Z`); d <= new Date(`${t.endDate}T00:00:00Z`) && days.length < 31; d.setUTCDate(d.getUTCDate() + 1)) days.push(d.toISOString().slice(0, 10));
+  const starts: number[] = [];
+  for (let m = toMin(t.dayStart); m + t.matchMinutes <= toMin(t.dayEnd); m += t.matchMinutes) starts.push(m);
+  if (!starts.length || !t.courts.length) return null;
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      {days.map((d) => (
+        <Card key={d} className="gap-2">
+          <CardRow>
+            <h3>{fD(d, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+            <Pill tone="b">{starts.length * t.courts.length} créneaux</Pill>
+          </CardRow>
+          <div className="overflow-x-auto">
+            <div className="grid min-w-max gap-1.5 text-[13px]" style={{ gridTemplateColumns: `90px repeat(${starts.length}, minmax(64px, 1fr))` }}>
+              <span />
+              {starts.map((m) => (
+                <span key={m} className="text-center text-mut">
+                  {hh(m)}
+                </span>
+              ))}
+              {t.courts.map((c) => (
+                <div key={c.id} className="contents">
+                  <span className="truncate font-medium">{c.name}</span>
+                  {starts.map((m) => (
+                    <span key={m} className="rounded-[10px] bg-fld py-1.5 text-center text-mut" aria-label={`${c.name} ${hh(m)} : match du tournoi`}>
+                      Match
+                    </span>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </Card>
+      ))}
+      <CardText keep>Créneaux de {t.matchMinutes} min. Le tirage place les matchs (avec {t.restMinutes} min de repos entre deux matchs d’un joueur) et réserve les terrains.</CardText>
+    </div>
+  );
+}
+
 function PaidPill({ e }: { e: TEntry }) {
   return e.paid ? <Pill tone="g">Inscription payée</Pill> : <Pill tone="r">Inscription à payer</Pill>;
 }
@@ -253,6 +297,7 @@ export function TournamentPage() {
   if (!t) return <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>{null}</QueryState>;
   const confirmed = t.entries.filter((e) => e.status === 'CONFIRMED');
   const pending = t.entries.filter((e) => e.status === 'PENDING');
+  const myPending = pending.filter((e) => e.mine);
   const family = me.role === 'PARENT' || me.role === 'PLAYER';
   const tabs = [
     { value: 'entries' as const, label: `Inscrits · ${confirmed.length}` },
@@ -310,20 +355,35 @@ export function TournamentPage() {
 
       {tab === 'entries' && (
         <Section title="Inscrits">
-          {family && t.familyRequest && t.status === 'REGISTRATION' && (
-            <Card className="mb-3 max-w-[760px]">
-              <div className="flex flex-wrap items-center gap-2">
-                <KidSelect />
-                <Button variant="primary" onClick={() => request.mutate()} disabled={request.isPending}>
-                  Demander l’inscription
-                </Button>
+          {family && t.status === 'REGISTRATION' &&
+            (t.familyRequest ? (
+              <Card className="mb-3 max-w-[760px]">
+                <h3>Inscrire {me.role === 'PARENT' ? 'mon enfant' : 'moi'} au tournoi</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <KidSelect />
+                  <Button variant="primary" onClick={() => request.mutate()} disabled={request.isPending}>
+                    Demander l’inscription
+                  </Button>
+                </div>
+                {myPending.length > 0 && (
+                  <Pills>
+                    {myPending.map((e) => (
+                      <Pill key={e.id} tone="s">
+                        Demande en attente : {e.name}
+                      </Pill>
+                    ))}
+                  </Pills>
+                )}
+                <CardText keep>
+                  Critères : {t.eligibilityLabel}. La direction technique valide la demande ; vous êtes prévenu par notification.
+                  {t.fee !== null && ` Inscription payante : ${DT(t.fee)}, à régler au club (paiement en ligne bientôt).`}
+                </CardText>
+              </Card>
+            ) : (
+              <div className="mb-3 max-w-[760px]">
+                <Note>Les inscriptions à ce tournoi sont faites par la direction technique : contactez le club pour inscrire un joueur.</Note>
               </div>
-              <CardText keep>
-                La direction technique valide la demande ; vous êtes prévenu par notification.
-                {t.fee !== null && ` Inscription payante : ${DT(t.fee)}, à régler au club.`}
-              </CardText>
-            </Card>
-          )}
+            ))}
           {manage && t.status === 'REGISTRATION' && <AddEntry tournamentId={t.id} />}
           {pending.length > 0 && manage && (
             <CardGrid list className="mt-3">
@@ -479,7 +539,10 @@ export function TournamentPage() {
               ))}
             </CardGrid>
           ) : (
-            <EmptyState>{t.drawHidden ? 'Horaires en préparation : ils seront publiés avec le tableau.' : 'Les horaires sont fixés au tirage au sort.'}</EmptyState>
+            <>
+              <EmptyState>{t.drawHidden ? 'Horaires en préparation : ils seront publiés avec le tableau.' : 'Les horaires des matchs sont fixés au tirage au sort, dans les créneaux ci-dessous.'}</EmptyState>
+              <Slots t={t} />
+            </>
           )}
         </Section>
       )}

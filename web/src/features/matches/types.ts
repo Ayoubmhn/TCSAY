@@ -67,6 +67,20 @@ export type MatchDetail = MatchSummary & {
   } | null;
   stats: { all: [PlayerStats, PlayerStats]; sets: { set: number; stats: [PlayerStats, PlayerStats] }[] } | null;
   points: AnnotatedPoint[];
+  /** Durées en secondes (d'après l'heure de saisie des points). */
+  timing?: {
+    match: number;
+    sets: { set: number; seconds: number }[];
+    averagePoint: number | null;
+    longestPoint: { seconds: number; seq: number; set: number; game: string } | null;
+  } | null;
 };
+
+/** 3 725 s → « 1 h 02 », 95 s → « 1 min 35 s », 42 s → « 42 s ». */
+export function duration(sec: number): string {
+  if (sec >= 3600) return `${Math.floor(sec / 3600)} h ${String(Math.floor((sec % 3600) / 60)).padStart(2, '0')}`;
+  if (sec >= 60) return `${Math.floor(sec / 60)} min${sec % 60 && sec < 600 ? ` ${sec % 60} s` : ''}`;
+  return `${sec} s`;
+}
 
 export const first = (name: string) => name.split(' ')[0];

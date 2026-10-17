@@ -13,7 +13,7 @@ import { api } from '../../lib/api';
 import { fD } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
 import { LivePill } from './MatchesPage';
-import { first, type AnnotatedPoint, type MatchDetail, type PlayerStats, type PointKind, type Side } from './types';
+import { duration, first, type AnnotatedPoint, type MatchDetail, type PlayerStats, type PointKind, type Side } from './types';
 
 const SHOTS = ['Coup droit', 'Revers', 'Volée', 'Smash', 'Amorti', 'Lob', 'Passing'];
 
@@ -272,12 +272,38 @@ function StatsBlock({ m }: { m: MatchDetail }) {
           <StatRow label="Plus longue série" a={A.longestStreak} b={B.longestStreak} />
         </Card>
       </Section>
+      {m.timing && <Timing m={m} set={set} />}
       <Section title="Élan du match">
         <Card>
           <Momentum points={set === 'ALL' ? m.points : m.points.filter((p) => String(p.set) === set)} a={first(m.playerA.name)} b={first(m.playerB.name)} />
         </Card>
       </Section>
     </>
+  );
+}
+
+/** Durées : match, sets, temps moyen par point et point le plus long (temps entre deux points saisis). */
+function Timing({ m, set }: { m: MatchDetail; set: string }) {
+  const t = m.timing!;
+  const setLabel = (n: number) => `${n + 1}${n ? 'e' : 'er'} set`;
+  const one = set === 'ALL' ? null : t.sets.find((s) => String(s.set) === set);
+  const longest = t.longestPoint;
+  const row = (label: string, value: string) => (
+    <div className="flex items-center justify-between gap-3 border-b-[1.5px] border-line py-2 text-sm last:border-0">
+      <span className="text-mut">{label}</span>
+      <span className="font-semibold">{value}</span>
+    </div>
+  );
+  return (
+    <Section title="Durée">
+      <Card className="gap-0">
+        {one ? row(`Durée du ${setLabel(one.set)}`, duration(one.seconds)) : row(m.status === 'LIVE' ? 'Durée (en cours)' : 'Durée du match', duration(t.match))}
+        {!one && t.sets.map((s) => <div key={s.set}>{row(setLabel(s.set), duration(s.seconds))}</div>)}
+        {t.averagePoint !== null && row('Temps moyen par point', duration(t.averagePoint))}
+        {longest && row('Point le plus long', `${duration(longest.seconds)} · ${setLabel(longest.set)}, ${longest.game}`)}
+      </Card>
+      <p className="mt-2 text-xs text-mut">Mesuré entre deux points saisis (pauses de plus de 15 min exclues) : précis si la saisie se fait en direct.</p>
+    </Section>
   );
 }
 
@@ -380,7 +406,10 @@ export function MatchPage() {
               <h1 className="text-[23px] font-semibold">
                 {m.playerA.name} – {m.playerB.name}
               </h1>
-              <span className="text-[13px] text-mut">{m.referee ? `Arbitre : ${m.referee.name}` : `Saisie : ${m.scorer}`}</span>
+              <span className="text-[13px] text-mut">
+                {m.referee ? `Arbitre : ${m.referee.name}` : `Saisie : ${m.scorer}`}
+                {m.timing && ` · ${m.status === 'LIVE' ? 'en cours depuis' : 'durée'} ${duration(m.timing.match)}`}
+              </span>
             </div>
             <div className="mt-3">
               <Board m={m} />

@@ -11,6 +11,7 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
 import type { EventItem, Overview } from '../../lib/types';
+import { STATUS, type TournamentSummary } from '../../features/tournaments/types';
 
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
@@ -25,6 +26,15 @@ export function HomePage() {
     enabled: Boolean(playerId),
   });
   const events = useQuery({ queryKey: ['events'], queryFn: () => api.get<EventItem[]>('/events') });
+  const tournaments = useQuery({
+    queryKey: ['tournaments'],
+    queryFn: () => api.get<{ canManage: boolean; tournaments: TournamentSummary[] }>('/tournaments'),
+  });
+  const today = new Date().toISOString().slice(0, 10);
+  // Tournois à venir ou en cours : inscriptions ouvertes en premier.
+  const upcoming = (tournaments.data?.tournaments ?? [])
+    .filter((t) => (t.status === 'REGISTRATION' || t.status === 'RUNNING') && t.endDate >= today)
+    .sort((a, b) => (a.status === b.status ? a.startDate.localeCompare(b.startDate) : a.status === 'REGISTRATION' ? -1 : 1));
   const o = overview.data;
 
   return (
@@ -150,6 +160,39 @@ export function HomePage() {
             </>
           )}
         </QueryState>
+      )}
+
+      {upcoming.length > 0 && (
+        <Section title="Tournois">
+          <CardGrid>
+            {upcoming.map((t) => (
+              <Card key={t.id}>
+                <CardRow>
+                  <h3>
+                    <Link to={`/tournois/${t.id}`} className="hover:underline">
+                      🏆 {t.name}
+                    </Link>
+                  </h3>
+                  <Pill tone={STATUS[t.status].tone}>{STATUS[t.status].label}</Pill>
+                </CardRow>
+                <Pills>
+                  <Pill tone="b">
+                    {t.startDate === t.endDate
+                      ? fD(t.startDate, { weekday: 'long', day: 'numeric', month: 'long' })
+                      : `${fD(t.startDate, { day: 'numeric', month: 'short' })} – ${fD(t.endDate, { day: 'numeric', month: 'short' })}`}
+                  </Pill>
+                  <Pill tone="s">{t.eligibilityLabel}</Pill>
+                  {t.fee !== null && <Pill tone="s">Inscription {DT(t.fee)}</Pill>}
+                </Pills>
+                <CardActions>
+                  <Link to={`/tournois/${t.id}`} className={LINK_BTN}>
+                    {t.status === 'REGISTRATION' ? (t.familyRequest ? 'S’inscrire' : 'Voir le tournoi') : 'Tableau et horaires'}
+                  </Link>
+                </CardActions>
+              </Card>
+            ))}
+          </CardGrid>
+        </Section>
       )}
 
       <Section title="Événements">

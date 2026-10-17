@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { addDaysIso, dayFromIso, isoDay, localInstant, minutesOf } from '../common/dates';
 import { fullName } from '../common/rules';
 import { DAY_LONG, periodSelect, slotRunsOn, withPeriod } from '../common/sessions';
+import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type Eligibility = { mode: 'cats' | 'age' | 'open'; categoryIds?: string[]; fromYear?: number; toYear?: number; gender?: 'M' | 'F' | null };
@@ -42,6 +43,7 @@ export class TournamentsService {
     private readonly prisma: PrismaService,
     private readonly access: AccessService,
     private readonly audit: AuditService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   async find(id: string) {
@@ -77,6 +79,47 @@ export class TournamentsService {
       select: { userId: true, parentLinks: { where: { parent: { isActive: true } }, select: { parentId: true } } },
     });
     return [...new Set(players.flatMap((p) => [...p.parentLinks.map((l) => l.parentId), ...(p.userId ? [p.userId] : [])]))];
+  }
+
+  /** Direction technique et administrateurs qui gèrent les tournois (demandes des familles, alertes). */
+  managers(): Promise<string[]> {
+    return this.permissions.holders('tournaments.manage');
+  }
+
+  /** Familles des joueurs du club qui remplissent les critères (inscrits dans la saison active) : annonce d'un tournoi. */
+  async eligibleFamilies(elig: Eligibility): Promise<string[]> {
+    const players = await this.prisma.player.findMany({
+      where: {
+        archivedAt: null,
+        ...(elig.gender ? { gender: elig.gender } : {}),
+        enrollments: {
+          some: { season: { status: SeasonStatus.ACTIVE }, ...(elig.mode === 'cats' && elig.categoryIds?.length ? { categoryId: { in: elig.categoryIds } } : {}) },
+        },
+        ...(elig.mode === 'age'
+          ? {
+              birthDate: {
+                ...(elig.fromYear ? { gte: new Date(Date.UTC(elig.fromYear, 0, 1)) } : {}),
+                ...(elig.toYear ? { lt: new Date(Date.UTC(elig.toYear + 1, 0, 1)) } : {}),
+              },
+            }
+          : {}),
+      },
+      select: { id: true },
+    });
+    return this.familyOf(players.map((p) => p.id));
+  }
+
+  /** Familles des inscrits confirmés (ou en attente) d'un tournoi. */
+  async entryFamilies(tournamentId: string): Promise<string[]> {
+    const entries = await this.prisma.tournamentEntry.findMany({ where: { tournamentId, status: { in: ['CONFIRMED', 'PENDING'] } }, select: { playerId: true } });
+    return this.familyOf(entries.map((e) => e.playerId));
+  }
+
+  /** Horaire lisible d'un match (« sam. 24 oct. 11:00 · Court 1 »). */
+  slot(m: { scheduledAt: Date | null; court: string | null }): string {
+    if (!m.scheduledAt) return 'horaire à fixer';
+    const when = m.scheduledAt.toLocaleString('fr-FR', { timeZone: 'Africa/Tunis', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    return `${when}${m.court ? ` · ${m.court}` : ''}`;
   }
 
   async notify(users: string[], title: string, body: string, link: string, tx: Tx | PrismaService = this.prisma) {
@@ -253,7 +296,12 @@ export class TournamentsService {
       const next = await this.prisma.match.findFirst({ where: { tournamentId: t.id, round: m.round + 1, position: Math.floor(m.position / 2) } });
       if (next) {
         const side = m.position % 2 ? 'B' : 'A';
-        await this.prisma.match.update({ where: { id: next.id }, data: side === 'A' ? { playerAId: winnerId, playerAName: winnerName } : { playerBId: winnerId, playerBName: winnerName } });
+        const n = await this.prisma.match.update({ where: { id: next.id }, data: side === 'A' ? { playerAId: winnerId, playerAName: winnerName } : { playerBId: winnerId, playerBName: winnerName } });
+        // Les deux joueurs du match suivant sont connus : familles et arbitre prévenus de l'horaire.
+        if (t.drawPublished && !n.playerAName.startsWith(TBD) && !n.playerBName.startsWith(TBD)) {
+          const users = [...(await this.familyOf([n.playerAId, n.playerBId])), ...(n.refereeUserId ? [n.refereeUserId] : [])];
+          await this.notify([...new Set(users)], `Prochain match : ${n.playerAName} – ${n.playerBName}`, `${n.title ?? t.name} · ${this.slot(n)}.`, `/matchs/${n.id}`);
+        }
         return;
       }
       await this.finish(t.id, t.name, winnerName, winnerId);

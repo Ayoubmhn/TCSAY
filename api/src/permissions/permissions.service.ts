@@ -47,6 +47,14 @@ export class PermissionsService implements OnModuleInit {
     return [...out];
   }
 
+  /** Comptes actifs qui ont une autorisation (président et administrateurs compris) : destinataires des alertes. */
+  async holders(permission: string): Promise<string[]> {
+    const map = await this.load();
+    const roles: Role[] = [Role.PRESIDENT, Role.ADMIN, ...[...map].filter(([, set]) => set.has(permission)).map(([role]) => role)];
+    const users = await this.prisma.user.findMany({ where: { isActive: true, roles: { hasSome: roles } }, select: { id: true } });
+    return users.map((u) => u.id);
+  }
+
   async matrix(): Promise<Record<string, string[]>> {
     const map = await this.load();
     return Object.fromEntries(EDITABLE_ROLES.map((r) => [r, [...(map.get(r) ?? [])].sort()]));

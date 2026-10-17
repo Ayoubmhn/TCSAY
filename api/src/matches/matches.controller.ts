@@ -9,7 +9,7 @@ import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { dayFromIso, isoDay } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { TBD, TournamentsService } from '../tournaments/tournaments.service';
-import { computeMatch, matchStats, MatchFormat, PointInput, scoreLine, Side } from './score-engine';
+import { AnnotatedPoint, computeMatch, matchStats, MatchFormat, PointInput, scoreLine, Side } from './score-engine';
 
 const KINDS = ['INTERNAL', 'FRIENDLY', 'TOURNAMENT'] as const;
 export const MATCH_KIND_LABEL: Record<(typeof KINDS)[number], string> = { INTERNAL: 'Match interne', FRIENDLY: 'Match amical', TOURNAMENT: 'Tournoi' };
@@ -78,6 +78,45 @@ const formatOf = (m: { setsToWin: number; games: number; tiebreak: boolean; supe
 });
 const inputsOf = (m: MatchRow): PointInput[] =>
   [...m.points].sort((a, b) => a.seq - b.seq).map((p) => ({ winner: p.winner as Side, firstIn: p.firstIn, kind: p.kind, shot: p.shot }));
+
+/** Au-delà de 15 minutes entre deux points saisis : interruption (pluie, pause), pas un point. */
+const PAUSE_SEC = 15 * 60;
+
+/**
+ * Durées en secondes, d'après l'heure de chaque point saisi : match (début → fin), chaque set (fin du set précédent →
+ * dernier point du set), temps moyen et point le plus long (temps entre deux points saisis, interruptions exclues).
+ */
+function timing(m: MatchRow, points: AnnotatedPoint[]) {
+  if (!m.startedAt) return null;
+  const at = new Map(m.points.map((p) => [p.seq, p.createdAt.getTime()]));
+  const start = m.startedAt.getTime();
+  const end = m.finishedAt?.getTime() ?? (m.status === MatchStatus.LIVE ? Date.now() : (at.get(points.at(-1)?.seq ?? -1) ?? start));
+  const sets: { set: number; seconds: number }[] = [];
+  let from = start;
+  let prev = start;
+  let longest: { seconds: number; seq: number; set: number; game: string } | null = null;
+  const gaps: number[] = [];
+  points.forEach((p, i) => {
+    const t = at.get(p.seq) ?? prev;
+    const gap = Math.round((t - prev) / 1000);
+    if (gap > 0 && gap <= PAUSE_SEC) {
+      gaps.push(gap);
+      if (!longest || gap > longest.seconds) longest = { seconds: gap, seq: p.seq, set: p.set, game: p.game };
+    }
+    const last = points[i + 1]?.set !== p.set;
+    if (last) {
+      sets.push({ set: p.set, seconds: Math.max(0, Math.round(((points[i + 1] ? t : m.status === MatchStatus.LIVE ? end : t) - from) / 1000)) });
+      from = t;
+    }
+    prev = t;
+  });
+  return {
+    match: Math.max(0, Math.round((end - start) / 1000)),
+    sets,
+    averagePoint: gaps.length ? Math.round(gaps.reduce((a, b) => a + b, 0) / gaps.length) : null,
+    longestPoint: longest,
+  };
+}
 
 /** Une partie se rejoue après 30 minutes : au-delà, seule la direction corrige un match terminé. */
 const UNDO_AFTER_END_MIN = 30;
@@ -245,6 +284,7 @@ export class MatchesController {
       },
       stats: open && state ? { all: matchStats(state.points), sets: setsPlayed.map((s) => ({ set: s, stats: matchStats(state.points, s) })) } : null,
       points: open ? (state?.points ?? []) : [],
+      timing: open && state ? timing(m, state.points) : null,
     };
   }
 

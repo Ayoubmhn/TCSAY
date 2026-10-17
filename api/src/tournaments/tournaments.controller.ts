@@ -29,6 +29,9 @@ import { assertVersion, fullName } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
 import { Eligibility, roundLabel, TBD, TournamentsService } from './tournaments.service';
 
+/** « 2026-10-24 » → « samedi 24 octobre ». */
+const frDate = (iso: string) => dayFromIso(iso).toLocaleDateString('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
+
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const KINDS = ['INTERNAL', 'OPEN', 'CHAMPIONSHIP', 'INTERCLUB'] as const;
 const KIND_LABEL: Record<(typeof KINDS)[number], string> = { INTERNAL: 'Tournoi interne', OPEN: 'Open', CHAMPIONSHIP: 'Championnat', INTERCLUB: 'Rencontre inter-clubs' };
@@ -266,7 +269,7 @@ export class TournamentsController {
         level: e.player?.level ?? null,
         category: e.player?.enrollments[0]?.category.name ?? null,
         mine: Boolean(e.playerId && own.includes(e.playerId)),
-        paid: Boolean(e.paidAt),
+        paid: manage || (e.playerId && own.includes(e.playerId)) ? Boolean(e.paidAt) : undefined,
         paidAt: manage || (e.playerId && own.includes(e.playerId)) ? e.paidAt : null,
       })),
       drawHidden,
@@ -355,6 +358,15 @@ export class TournamentsController {
       data: { ...this.data(dto), ...(await this.referee(dto.refereeUserId, dto.refereeName)), status: TournamentStatus.REGISTRATION, createdById: actor.id },
     });
     await this.audit.log(actor.id, { action: 'Tournoi créé', entity: 'Tournament', entityId: t.id, target: t.name, after: `${dto.startDate} → ${dto.endDate}` });
+    // Annonce : familles des joueurs qui remplissent les critères (le tournoi s'affiche aussi sur leur accueil).
+    const when = dto.startDate === dto.endDate ? `le ${frDate(dto.startDate)}` : `du ${frDate(dto.startDate)} au ${frDate(dto.endDate)}`;
+    await this.tournaments.notify(
+      await this.tournaments.eligibleFamilies(dto.eligibility as Eligibility),
+      `Nouveau tournoi : ${t.name}`,
+      `${when}${t.fee !== null ? ` · inscription ${num(t.fee)} DT` : ''}. ${t.familyRequest ? 'Inscrivez-vous dans Tournois.' : 'Inscriptions par le club.'}`,
+      `/tournois/${t.id}`,
+    );
+    if (t.refereeUserId) await this.tournaments.notify([t.refereeUserId], `Arbitre du tournoi ${t.name}`, `Vous êtes l’arbitre prévu (${when}). Vos matchs vous seront notifiés à la publication du tableau.`, `/tournois/${t.id}`);
     return { id: t.id };
   }
 
@@ -365,8 +377,16 @@ export class TournamentsController {
     assertVersion(t, dto.version, 'Ce tournoi');
     if (t.status !== TournamentStatus.REGISTRATION && t.status !== TournamentStatus.DRAFT) throw new BadRequestException('Tirage fait : le tournoi ne se modifie plus.');
     await this.validate(dto);
-    await this.prisma.tournament.update({ where: { id }, data: { ...this.data(dto), ...(await this.referee(dto.refereeUserId, dto.refereeName)), version: { increment: 1 } } });
+    const ref = await this.referee(dto.refereeUserId, dto.refereeName);
+    await this.prisma.tournament.update({ where: { id }, data: { ...this.data(dto), ...ref, version: { increment: 1 } } });
     await this.audit.log(actor.id, { action: 'Tournoi modifié', entity: 'Tournament', entityId: id, target: dto.name });
+    const link = `/tournois/${id}`;
+    const moved = isoDay(t.startDate) !== dto.startDate || isoDay(t.endDate) !== dto.endDate || t.dayStart !== dto.dayStart || t.dayEnd !== dto.dayEnd;
+    if (moved) await this.tournaments.notify(await this.tournaments.entryFamilies(id), `Tournoi modifié : ${dto.name}`, `Nouvelles dates : du ${frDate(dto.startDate)} au ${frDate(dto.endDate)}, ${dto.dayStart}–${dto.dayEnd}.`, link);
+    if (ref.refereeUserId !== t.refereeUserId) {
+      if (ref.refereeUserId) await this.tournaments.notify([ref.refereeUserId], `Arbitre du tournoi ${dto.name}`, 'Vous êtes l’arbitre prévu. Vos matchs vous seront notifiés à la publication du tableau.', link);
+      if (t.refereeUserId) await this.tournaments.notify([t.refereeUserId], `Arbitrage : ${dto.name}`, 'Un autre arbitre est prévu pour ce tournoi.', link);
+    }
     return { ok: true };
   }
 
@@ -388,6 +408,9 @@ export class TournamentsController {
       await tx.tournament.update({ where: { id }, data: { status: TournamentStatus.CANCELLED } });
       await this.audit.log(actor.id, { action: 'Tournoi annulé', entity: 'Tournament', entityId: id, target: t.name, reason: reason.trim() }, tx);
     });
+    const refs = await this.prisma.match.findMany({ where: { tournamentId: id, refereeUserId: { not: null } }, select: { refereeUserId: true } });
+    const users = [...(await this.tournaments.entryFamilies(id)), ...refs.map((r) => r.refereeUserId!), ...(t.refereeUserId ? [t.refereeUserId] : [])];
+    await this.tournaments.notify([...new Set(users)], `Tournoi annulé : ${t.name}`, `Motif : ${reason.trim()}.`, `/tournois/${id}`);
     return { ok: true };
   }
 
@@ -446,7 +469,15 @@ export class TournamentsController {
     const e = await this.prisma.tournamentEntry.findFirst({ where: { id: entryId, tournamentId: id } });
     if (!e) throw new NotFoundException('Inscription introuvable.');
     await this.prisma.tournamentEntry.delete({ where: { id: entryId } });
-    await this.audit.log(actor.id, { action: 'Retrait du tournoi', entity: 'Tournament', entityId: id, target: `${t.name} · ${e.name}` });
+    await this.audit.log(actor.id, { action: e.status === 'PENDING' ? 'Demande d’inscription refusée' : 'Retrait du tournoi', entity: 'Tournament', entityId: id, target: `${t.name} · ${e.name}` });
+    if (e.playerId) {
+      await this.tournaments.notify(
+        await this.tournaments.familyOf([e.playerId]),
+        e.status === 'PENDING' ? `Demande refusée : ${t.name}` : `Inscription retirée : ${t.name}`,
+        e.status === 'PENDING' ? `La demande pour ${e.name} n’a pas été retenue. Renseignez-vous auprès de la direction technique.` : `${e.name} ne fait plus partie des inscrits.`,
+        `/tournois/${id}`,
+      );
+    }
     return { ok: true };
   }
 
@@ -465,6 +496,7 @@ export class TournamentsController {
     if (existing && existing.status !== 'WITHDRAWN') throw new BadRequestException(existing.status === 'PENDING' ? 'Demande déjà envoyée.' : 'Déjà inscrit.');
     if (existing) await this.prisma.tournamentEntry.update({ where: { id: existing.id }, data: { status: 'PENDING', requestedById: user.id } });
     else await this.prisma.tournamentEntry.create({ data: { tournamentId: id, playerId, name: fullName(p).trim(), status: 'PENDING', requestedById: user.id } });
+    await this.tournaments.notify(await this.tournaments.managers(), `Demande d’inscription : ${fullName(p).trim()}`, `${t.name} : demande à valider dans Tournois › Inscrits.`, `/tournois/${id}`);
     return { ok: true, message: 'Demande envoyée : la direction technique la valide.' };
   }
 
@@ -490,6 +522,7 @@ export class TournamentsController {
       data: { status: MatchStatus.FINISHED, winner: dto.winner, score, finishedAt: new Date(), endReason: dto.score?.trim() ? null : 'Victoire par forfait' },
     });
     await this.audit.log(actor.id, { action: 'Résultat de match saisi', entity: 'Match', entityId: matchId, target: `${m.playerAName} – ${m.playerBName}`, after: `${dto.winner ? m.playerBName : m.playerAName} · ${score}` });
+    await this.tournaments.notify(await this.tournaments.familyOf([m.playerAId, m.playerBId]), `Résultat : ${dto.winner ? m.playerBName : m.playerAName} gagne`, `${m.playerAName} – ${m.playerBName} · ${score}.`, `/matchs/${matchId}`);
     await this.tournaments.afterMatch(matchId);
     return { ok: true };
   }
@@ -507,6 +540,19 @@ export class TournamentsController {
     if (dto.published) {
       const entries = await this.prisma.tournamentEntry.findMany({ where: { tournamentId: id, status: 'CONFIRMED' }, select: { playerId: true } });
       await this.tournaments.notify(await this.tournaments.familyOf(entries.map((e) => e.playerId)), `Tableau du tournoi ${t.name}`, 'Le tableau et l’horaire des matchs sont publiés dans Tournois.', `/tournois/${id}`);
+      // Arbitres : la liste de leurs matchs avec l'horaire.
+      const ms = await this.prisma.match.findMany({ where: { tournamentId: id, refereeUserId: { not: null }, status: MatchStatus.SCHEDULED }, orderBy: { scheduledAt: 'asc' } });
+      const byRef = new Map<string, typeof ms>();
+      for (const m of ms) byRef.set(m.refereeUserId!, [...(byRef.get(m.refereeUserId!) ?? []), m]);
+      for (const [userId, list] of byRef) {
+        const first = list[0];
+        await this.tournaments.notify(
+          [userId],
+          `Arbitre : ${list.length} match(s) · ${t.name}`,
+          `Premier match ${this.tournaments.slot(first)} (${first.playerAName} – ${first.playerBName}). Vous saisissez les points depuis Matchs.`,
+          list.length === 1 ? `/matchs/${first.id}` : `/tournois/${id}`,
+        );
+      }
     }
     return { ok: true };
   }
@@ -527,6 +573,14 @@ export class TournamentsController {
       target: `${t.name} · ${e.name}`,
       after: dto.paid ? `${num(t.fee)} DT` : null,
     });
+    if (e.playerId) {
+      await this.tournaments.notify(
+        await this.tournaments.familyOf([e.playerId]),
+        dto.paid ? `Inscription payée : ${t.name}` : `Paiement d’inscription annulé : ${t.name}`,
+        dto.paid ? `${num(t.fee)} DT reçus pour ${e.name}. Merci !` : `Le paiement de ${e.name} est de nouveau à régler (${num(t.fee)} DT).`,
+        `/tournois/${id}`,
+      );
+    }
     return { ok: true };
   }
 
@@ -540,7 +594,12 @@ export class TournamentsController {
     const ref = await this.referee(dto.userId, dto.name);
     await this.prisma.match.update({ where: { id: matchId }, data: ref });
     await this.audit.log(actor.id, { action: 'Arbitre du match', entity: 'Match', entityId: matchId, target: `${m.playerAName} – ${m.playerBName}`, before: m.refereeName, after: ref.refereeName });
-    if (ref.refereeUserId) await this.tournaments.notify([ref.refereeUserId], `Arbitre : ${m.playerAName} – ${m.playerBName}`, `${m.title ?? 'Match'}${m.court ? ` · ${m.court}` : ''}. Vous saisissez les points depuis Matchs.`, `/matchs/${matchId}`);
+    if (ref.refereeUserId && ref.refereeUserId !== m.refereeUserId) {
+      await this.tournaments.notify([ref.refereeUserId], `Arbitre : ${m.playerAName} – ${m.playerBName}`, `${m.title ?? 'Match'} · ${this.tournaments.slot(m)}. Vous saisissez les points depuis Matchs.`, `/matchs/${matchId}`);
+    }
+    if (m.refereeUserId && m.refereeUserId !== ref.refereeUserId) {
+      await this.tournaments.notify([m.refereeUserId], `Arbitrage retiré : ${m.playerAName} – ${m.playerBName}`, `${m.title ?? 'Match'} · ${this.tournaments.slot(m)} : un autre arbitre est prévu.`, `/matchs/${matchId}`);
+    }
     return { ok: true };
   }
 
