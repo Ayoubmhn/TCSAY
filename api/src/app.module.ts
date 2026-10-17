@@ -1,4 +1,6 @@
 import { AiImportController } from './ai/ai-import.controller';
+import { SeasonReportsController } from './reports/season-reports.controller';
+import { SeasonReportsService } from './reports/season-reports.service';
 import { AiImportService } from './ai/ai-import.service';
 import { UpdatesController } from './imports/updates.controller';
 import { UpdatesService } from './imports/updates.service';
@@ -78,6 +80,7 @@ import { StaffController } from './staff/staff.controller';
   imports: [PrismaModule, CoreModule, SeasonsModule],
   controllers: [
     AiImportController,
+    SeasonReportsController,
     UpdatesController,
     HealthController,
     AuthController,
@@ -131,6 +134,7 @@ import { StaffController } from './staff/staff.controller';
   ],
   providers: [
     AiImportService,
+    SeasonReportsService,
     UpdatesService,
     LoginThrottle,
     PermissionsCodeService,

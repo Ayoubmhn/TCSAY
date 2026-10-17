@@ -364,6 +364,8 @@ model Season {
   salaries      Salary[]
   importBatches ImportBatch[]
   evaluations   Evaluation[]
+  reportFiles   SeasonReportFile[]
+  reportDrafts  SeasonReportDraft[]
 
   @@index([status])
 }
@@ -1607,4 +1609,44 @@ model PhotoTag {
 
   @@id([photoId, playerId])
   @@index([playerId])
+}
+
+/// Rapports de fin de saison présentés à l'assemblée générale : rapport moral (التقرير الأدبي) et rapport financier (التقرير المالي).
+enum SeasonReportKind {
+  MORAL
+  FINANCIAL
+}
+
+/// Ancien rapport déposé (Word, PDF ou photo), archivé par saison. Jamais supprimé (R8 : archivage avec motif).
+model SeasonReportFile {
+  id            String           @id @default(uuid()) @db.Uuid
+  seasonId      String           @db.Uuid
+  kind          SeasonReportKind
+  fileName      String
+  mimeType      String
+  size          Int
+  data          Bytes
+  uploadedById  String           @db.Uuid
+  createdAt     DateTime         @default(now())
+  archivedAt    DateTime?
+  archiveReason String?
+
+  season Season @relation(fields: [seasonId], references: [id])
+
+  @@index([seasonId, kind])
+}
+
+/// Textes rédigés par le bureau pour le rapport d'une saison (introduction, difficultés, objectifs…), les chiffres venant de la base.
+model SeasonReportDraft {
+  id          String           @id @default(uuid()) @db.Uuid
+  seasonId    String           @db.Uuid
+  kind        SeasonReportKind
+  texts       Json
+  version     Int              @default(1) // R13
+  updatedById String?          @db.Uuid
+  updatedAt   DateTime         @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id])
+
+  @@unique([seasonId, kind])
 }

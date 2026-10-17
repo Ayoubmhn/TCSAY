@@ -73,6 +73,8 @@ const ComplaintsPage = page(() => import('./features/complaints/ComplaintsPage')
 const ComplaintPage = page(() => import('./features/complaints/ComplaintPage'), 'ComplaintPage');
 const ComplaintsAdminPage = page(() => import('./features/complaints/ComplaintsAdminPage'), 'ComplaintsAdminPage');
 const TournamentPrintPage = page(() => import('./features/tournaments/TournamentPrintPage'), 'TournamentPrintPage');
+const SeasonReportsPage = page(() => import('./features/reports/SeasonReportsPage'), 'SeasonReportsPage');
+const ReportPrintRoute = page(() => import('./features/reports/SeasonReportsPage'), 'ReportPrintRoute');
 const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
 const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
 const ReenrollmentPage = page(() => import('./pages/admin/ReenrollmentPage'), 'ReenrollmentPage');
@@ -154,6 +156,7 @@ export function App() {
       {/* Impression des reçus : onglet séparé, sans menu */}
       <Route path="/impression/recu/:id" element={admin(['payments.collect'], <ReceiptPrintPage />)} />
       <Route path="/impression/tournoi/:id" element={<Protected><TournamentPrintPage /></Protected>} />
+      <Route path="/impression/rapport/:seasonId/:kind" element={admin(['stats.view', 'seasons.manage'], <ReportPrintRoute />)} />
       <Route path="/impression/recu-test" element={admin(['payments.collect'], <ReceiptPrintPage test />)} />
 
       <Route
@@ -225,6 +228,7 @@ export function App() {
         <Route path="admin/suivi-technique" element={admin(['evaluations.manage'], <TechOverviewPage />)} />
         <Route path="admin/exercices" element={admin(['evaluations.manage'], <ExercisesCoachPage />)} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
+        <Route path="admin/rapports" element={admin(['stats.view', 'seasons.manage'], <SeasonReportsPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />
         <Route path="admin/saisons/:id" element={admin(['seasons.manage', 'stats.view'], <SeasonDetailPage />)} />
         <Route path="admin/terrains" element={admin(['courts.manage'], <CourtsPage />)} />

@@ -151,6 +151,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconSettings,
     children: [
       { label: 'Saisons', path: '/admin/saisons', perm: ['seasons.manage', 'stats.view'] },
+      { label: 'Rapports de fin de saison', path: '/admin/rapports', perm: ['stats.view', 'seasons.manage'] },
       { label: 'Catégories', path: '/admin/categories', perm: ['seasons.manage'] },
       { label: 'Tarifs d’entraînement', path: '/admin/tarifs', perm: ['fees.manage'] },
       { label: 'Tarifs terrains', path: '/admin/tarifs-terrains', perm: ['courts.manage'] },
