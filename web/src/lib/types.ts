@@ -614,6 +614,13 @@ export type Dashboard = {
   reservationsTomorrow: number;
   tomorrow: string;
   groups: { id: string; name: string; members: number; capacity: number }[];
+  newThisMonth: number;
+  /** Montant attendu de la saison (cotisations après réductions). */
+  due: number;
+  lateFamilies: number;
+  late30: number;
+  reservationsToday: number;
+  todo: { pendingAbsences: number; newComplaints: number; tournamentRequests: number; withoutMembership: number };
 };
 
 export type EmailLog = {

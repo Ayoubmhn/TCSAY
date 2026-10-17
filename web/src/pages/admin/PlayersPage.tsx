@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { ActionIcon } from '../../components/ui/ActionIcon';
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -37,7 +37,9 @@ const PLAYER_SORTS: SortOption<Player>[] = [
 export function PlayersPage() {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
-  const [form, setForm] = useState<{ open: boolean; player?: Player }>({ open: false });
+  // « Nouveau joueur » depuis le tableau de bord : /admin/joueurs?nouveau=1 ouvre directement le formulaire.
+  const [params] = useSearchParams();
+  const [form, setForm] = useState<{ open: boolean; player?: Player }>({ open: params.get('nouveau') === '1' });
   const [toArchive, setToArchive] = useState<Player>();
   const [codes, setCodes] = useState(false);
   const [view, setView] = useViewMode('joueurs');

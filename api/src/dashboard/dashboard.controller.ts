@@ -24,7 +24,8 @@ export class DashboardController {
     const today = todayIso();
     const tomorrow = addDaysIso(today, 1);
 
-    const [activePlayers, groups, coaches, payments, installments, reservationsTomorrow] = await Promise.all([
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const [activePlayers, groups, coaches, payments, installments, reservationsTomorrow, extra] = await Promise.all([
       this.prisma.player.count({ where: { archivedAt: null, enrollments: { some: { seasonId: season.id } } } }),
       this.prisma.trainingGroup.findMany({
         where: { seasonId: season.id, archivedAt: null },
@@ -53,6 +54,7 @@ export class DashboardController {
           startTime: { gte: localInstant(tomorrow, 0), lt: localInstant(addDaysIso(tomorrow, 1), 0) },
         },
       }),
+      this.extra(season.id, today, monthStart),
     ]);
 
     const late = installments
@@ -65,6 +67,7 @@ export class DashboardController {
           dueDate: i.dueDate,
           remaining: Math.round((num(i.amount) - paid) * 1000) / 1000,
           player: i.membership.enrollment.player,
+          days: Math.floor((dayFromIso(today).getTime() - i.dueDate.getTime()) / 86_400_000),
         };
       })
       .filter((i) => i.remaining > 0);
@@ -81,6 +84,29 @@ export class DashboardController {
       reservationsTomorrow,
       tomorrow,
       groups: groups.map((g) => ({ id: g.id, name: g.name, members: g.members.length, capacity: g.capacity })),
+      // Nouveau tableau de bord : joueurs inscrits ce mois, montant attendu, familles en retard, retards de plus de 30 jours, « À traiter ».
+      lateFamilies: new Set(late.map((i) => i.player.id)).size,
+      late30: late.filter((i) => i.days > 30).length,
+      ...extra,
+    };
+  }
+
+  /** Compteurs du tableau de bord : inscriptions du mois, montant attendu, réservations du jour et éléments à traiter. */
+  private async extra(seasonId: string, today: string, monthStart: string) {
+    const [newThisMonth, due, reservationsToday, pendingAbsences, newComplaints, tournamentRequests, withoutMembership] = await Promise.all([
+      this.prisma.enrollment.count({ where: { seasonId, createdAt: { gte: localInstant(monthStart, 0) }, player: { archivedAt: null } } }),
+      this.prisma.membership.aggregate({ where: { enrollment: { seasonId, player: { archivedAt: null } } }, _sum: { totalAmount: true } }),
+      this.prisma.reservation.count({ where: { activeKey: { not: null }, startTime: { gte: localInstant(today, 0), lt: localInstant(addDaysIso(today, 1), 0) } } }),
+      this.prisma.coachAbsence.count({ where: { status: 'PENDING', date: { gte: dayFromIso(today) } } }),
+      this.prisma.complaint.count({ where: { status: 'NEW' } }),
+      this.prisma.tournamentEntry.count({ where: { status: 'PENDING', tournament: { status: { notIn: ['CANCELLED', 'FINISHED'] } } } }),
+      this.prisma.enrollment.count({ where: { seasonId, membership: null, player: { archivedAt: null } } }),
+    ]);
+    return {
+      newThisMonth,
+      due: num(due._sum.totalAmount ?? 0),
+      reservationsToday,
+      todo: { pendingAbsences, newComplaints, tournamentRequests, withoutMembership },
     };
   }
 }
