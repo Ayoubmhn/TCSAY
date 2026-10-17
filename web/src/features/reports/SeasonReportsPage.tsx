@@ -8,6 +8,7 @@ import { Card, CardRow, CardSubtitle, EmptyState } from '../../components/ui/Car
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { FilterSelect, Filters } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
+import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill } from '../../components/ui/Pill';
@@ -59,8 +60,8 @@ export function SeasonReportsPage() {
     success: 'Rapport retiré de l’archive.',
     onSuccess: () => setToArchive(undefined),
   });
-  const download = async (f: SeasonReports['files'][number]) => {
-    const url = await blobUrl(`/seasons/${seasonId}/reports/files/${f.id}`);
+  const download = async (f: SeasonReports['files'][number], from = seasonId) => {
+    const url = await blobUrl(`/seasons/${from}/reports/files/${f.id}`);
     const a = document.createElement('a');
     a.href = url;
     a.download = f.fileName;
@@ -73,6 +74,12 @@ export function SeasonReportsPage() {
     if (f) upload.mutate(f);
   };
   const files = (d?.files ?? []).filter((f) => f.kind === kind);
+  const previousFiles = (d?.previousFiles ?? []).filter((f) => f.kind === kind);
+  // Texte d'un ancien rapport Word, affiché pour le relire et en reprendre des passages.
+  const [reading, setReading] = useState<{ fileName: string; paragraphs: string[] }>();
+  const readText = useAction((f: SeasonReports['files'][number]) => api.get<{ fileName: string; paragraphs: string[] }>(`/seasons/${d!.previous!.id}/reports/files/${f.id}/text`), {
+    onSuccess: setReading,
+  });
 
   return (
     <>
@@ -129,6 +136,33 @@ export function SeasonReportsPage() {
                 </Card>
               </Section>
 
+              {d.previous && (
+                <Section title={`Rapport de la saison précédente · ${d.previous.label}`}>
+                  <Card>
+                    {previousFiles.length ? (
+                      <ul className="m-0 list-none p-0">
+                        {previousFiles.map((f) => (
+                          <li key={f.id} className="flex flex-wrap items-center gap-3 border-t-[1.5px] border-line py-2.5 first:border-t-0">
+                            <span className="min-w-0 flex-1 truncate">{f.fileName}</span>
+                            {f.mimeType.includes('wordprocessingml') && (
+                              <Button disabled={readText.isPending} onClick={() => readText.mutate(f)}>
+                                Lire le texte
+                              </Button>
+                            )}
+                            <Button onClick={() => void download(f, d.previous!.id)}>Télécharger</Button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <EmptyState>
+                        Aucun {KIND_LABEL[kind].toLowerCase()} déposé pour {d.previous.label}. Déposez les anciens rapports dans leur saison (ou depuis
+                        « Import historique ») : ils servent de modèle pour rédiger celui-ci.
+                      </EmptyState>
+                    )}
+                  </Card>
+                </Section>
+              )}
+
               <Section title="Textes du bureau">
                 <Card>
                   <CardRow>
@@ -181,14 +215,21 @@ export function SeasonReportsPage() {
                 </div>
                 <Note>
                   Les chiffres sont calculés pour la saison {d.season.label} (inscriptions, paiements, réservations, dépenses payées, salaires versés).
-                  Avant l’impression, enregistrez les textes : la page imprimée reprend les textes enregistrés. Pour comparer avec les saisons
-                  anciennes, importez-les dans « Import historique ».
+                  Avant l’impression, enregistrez les textes : la page imprimée reprend les textes enregistrés. Les saisons anciennes
+                  (joueurs, recettes, dépenses) s’importent dans « Import historique » : leurs chiffres servent de comparaison.
                 </Note>
               </Section>
             </>
           )}
         </QueryState>
       </div>
+
+      <Modal open={Boolean(reading)} title={reading?.fileName ?? ''} size="lg" onClose={() => setReading(undefined)} footer={<Button onClick={() => setReading(undefined)}>Fermer</Button>}>
+        <div dir="auto" className="flex max-h-[60vh] flex-col gap-2 overflow-auto text-[15px] leading-relaxed">
+          {reading?.paragraphs.length ? reading.paragraphs.map((p, i) => <p key={i} dir="auto" className="m-0">{p}</p>) : <EmptyState>Document sans texte.</EmptyState>}
+        </div>
+        <Note>Sélectionnez un passage pour le copier dans les textes du bureau.</Note>
+      </Modal>
 
       <ConfirmModal
         open={Boolean(toArchive)}

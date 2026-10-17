@@ -10,7 +10,7 @@ const STATUS: Record<ImportStatus, { tone: PillTone; label: string }> = {
   error: { tone: 'r', label: 'Ignoré' },
 };
 
-type Col<K extends string> = { key: K; label: string; w: number; dir?: 'rtl'; placeholder?: string; choices?: [string, string][]; list?: string; mode?: 'tel' | 'email' | 'decimal' };
+export type Col<K extends string> = { key: K; label: string; w: number; dir?: 'rtl'; placeholder?: string; choices?: [string, string][]; list?: string; mode?: 'tel' | 'email' | 'decimal' };
 
 /** Colonnes modifiables, dans l'ordre du fichier du cahier. */
 const PLAYER_COLS: Col<keyof ImportRawRow>[] = [
@@ -46,14 +46,14 @@ export type Doubts = Map<number, Record<string, string>>;
 
 const cellCls = 'w-full min-w-0 rounded-[10px] bg-transparent px-2 py-1.5 text-[13.5px] text-fg outline-none focus:bg-card focus:outline-2 focus:outline-pri';
 
-type Result = { line: number; status: ImportStatus; messages: string[] };
+export type Result = { line: number; status: ImportStatus; messages: string[] };
 
 /**
  * Tableau modifiable (comme dans Excel) : chaque cellule se corrige à l'écran, l'analyse est refaite par l'API après
  * chaque modification ; rien n'est enregistré avant la confirmation. Ligne d'en-tête et colonne des noms fixes pendant
  * le défilement. Cases lues par l'IA avec un doute : bordure pointillée et raison sous la case.
  */
-function EditableTable<R extends Record<string, string>, X extends Result>({
+export function EditableTable<R extends Record<string, string>, X extends Result>({
   cols,
   stickyKey,
   table,
@@ -73,7 +73,7 @@ function EditableTable<R extends Record<string, string>, X extends Result>({
   results: X[];
   filter: 'all' | ImportStatus;
   onChange: (rows: R[]) => void;
-  extra: { label: string; w: number; render: (r: X | undefined) => ReactNode };
+  extra: { label: string; w: number; render: (r: X | undefined, i: number) => ReactNode };
   doubts?: Doubts;
   onDoubts?: (d: Doubts) => void;
   highlight?: number | null;
@@ -165,7 +165,7 @@ function EditableTable<R extends Record<string, string>, X extends Result>({
                     </td>
                   );
                 })}
-                <td className="border-b-[1.5px] border-s-[1.5px] border-line px-2 py-1 text-[12.5px]">{extra.render(r)}</td>
+                <td className="border-b-[1.5px] border-s-[1.5px] border-line px-2 py-1 text-[12.5px]">{extra.render(r, i)}</td>
                 <td className="max-w-[340px] border-b-[1.5px] border-s-[1.5px] border-line px-2 py-1 text-[12px] text-mut">
                   {r?.messages.length ? r.messages.join(' · ') : r ? 'OK' : ''}
                 </td>

@@ -7,7 +7,7 @@ import { inflateRawSync } from 'node:zlib';
  */
 export type Cell = string | number | null;
 
-function unzip(buffer: Buffer): Map<string, Buffer> {
+export function unzip(buffer: Buffer): Map<string, Buffer> {
   // Fin du répertoire central : signature 0x06054b50, dans les 64 Ko de fin.
   let eocd = -1;
   for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65_557); i--) {
@@ -38,7 +38,7 @@ function unzip(buffer: Buffer): Map<string, Buffer> {
   return files;
 }
 
-const decode = (s: string) =>
+export const decode = (s: string) =>
   s
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
@@ -109,4 +109,10 @@ export function readXlsx(buffer: Buffer, sheetName?: string): { sheet: string; r
 export function excelDate(serial: number): string {
   const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86_400_000);
   return d.toISOString().slice(0, 10);
+}
+
+/** Noms des feuilles du classeur, dans l'ordre. */
+export function sheetNames(buffer: Buffer): string[] {
+  const xml = unzip(buffer).get('xl/workbook.xml')?.toString('utf8') ?? '';
+  return [...xml.matchAll(/<sheet\b[^>]*>/g)].map((m) => decode(/name="([^"]+)"/.exec(m[0])?.[1] ?? ''));
 }

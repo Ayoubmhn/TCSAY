@@ -13,13 +13,15 @@ export type SeasonReports = {
     events: { title: string; date: string; place: string }[];
   };
   financial: {
-    income: { fees: number; feesCount: number; courts: number; courtsCount: number; tournaments: number; total: number; remaining: number; discounts: number };
+    income: { fees: number; feesCount: number; courts: number; courtsCount: number; tournaments: number; other: { category: string; count: number; amount: number }[]; imported: boolean; total: number; remaining: number; discounts: number };
     expenses: { salaries: number; categories: { category: string; count: number; amount: number }[]; total: number; unpaid: number };
     result: number;
     previous: { label: string; income: number; expenses: number; result: number } | null;
   };
   drafts: Record<ReportKind, { texts: Record<string, string>; version: number; from: 'season' | 'previous' | 'default'; updatedAt: string | null }>;
   files: { id: string; kind: ReportKind; fileName: string; mimeType: string; size: number; createdAt: string }[];
+  /** Rapports déposés de la saison précédente (modèle pour rédiger ceux de cette saison). */
+  previousFiles: { id: string; kind: ReportKind; fileName: string; mimeType: string; size: number; createdAt: string }[];
 };
 
 /** Sections rédigées par le bureau : clé, titre arabe, aide en français, texte proposé par défaut. */
@@ -54,6 +56,15 @@ const EXPENSE_AR: Record<string, string> = {
   TRAVEL: 'التنقلات',
   SERVICES: 'خدمات (محاسبة، تنظيف…)',
   OTHER: 'مصاريف أخرى',
+};
+
+/** Autres recettes importées de l'historique (cahier, Excel, Word). */
+const INCOME_AR: Record<string, string> = {
+  DONATION: 'التبرعات والهبات',
+  RENTAL: 'كراء الملاعب والمحلات',
+  TOURNAMENT: 'مداخيل الدورات',
+  GRANT: 'المنح والدعم',
+  OTHER: 'مداخيل أخرى',
 };
 
 /** Texte isolé de gauche à droite (années « 2026-2027 », montants négatifs) dans une phrase arabe. */
@@ -225,6 +236,9 @@ export function ReportDocument({ data, kind, texts }: { data: SeasonReports; kin
               <Row label={`معاليم الانخراط والتمارين (${f.income.feesCount} دفعة)`} value={DTar(f.income.fees)} />
               <Row label={`كراء الملاعب (${f.income.courtsCount} حجز)`} value={DTar(f.income.courts)} />
               <Row label="معاليم المشاركة في الدورات" value={DTar(f.income.tournaments)} />
+              {f.income.other.map((o) => (
+                <Row key={o.category} label={INCOME_AR[o.category] ?? o.category} value={DTar(o.amount)} />
+              ))}
               <Row label="مجموع المداخيل" value={DTar(f.income.total)} strong />
             </tbody>
           </table>

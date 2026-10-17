@@ -1,4 +1,6 @@
 import { AiImportController } from './ai/ai-import.controller';
+import { HistoryController } from './history/history.controller';
+import { HistoryService } from './history/history.service';
 import { SeasonReportsController } from './reports/season-reports.controller';
 import { SeasonReportsService } from './reports/season-reports.service';
 import { AiImportService } from './ai/ai-import.service';
@@ -81,6 +83,7 @@ import { StaffController } from './staff/staff.controller';
   controllers: [
     AiImportController,
     SeasonReportsController,
+    HistoryController,
     UpdatesController,
     HealthController,
     AuthController,
@@ -135,6 +138,7 @@ import { StaffController } from './staff/staff.controller';
   providers: [
     AiImportService,
     SeasonReportsService,
+    HistoryService,
     UpdatesService,
     LoginThrottle,
     PermissionsCodeService,

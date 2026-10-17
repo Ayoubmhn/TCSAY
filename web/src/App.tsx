@@ -74,6 +74,7 @@ const ComplaintPage = page(() => import('./features/complaints/ComplaintPage'), 
 const ComplaintsAdminPage = page(() => import('./features/complaints/ComplaintsAdminPage'), 'ComplaintsAdminPage');
 const TournamentPrintPage = page(() => import('./features/tournaments/TournamentPrintPage'), 'TournamentPrintPage');
 const SeasonReportsPage = page(() => import('./features/reports/SeasonReportsPage'), 'SeasonReportsPage');
+const HistoryPage = page(() => import('./features/history/HistoryPage'), 'HistoryPage');
 const ReportPrintRoute = page(() => import('./features/reports/SeasonReportsPage'), 'ReportPrintRoute');
 const TournamentPage = page(() => import('./features/tournaments/TournamentPage'), 'TournamentPage');
 const FederationAccountsPage = page(() => import('./pages/admin/FederationAccountsPage'), 'FederationAccountsPage');
@@ -82,7 +83,6 @@ const ExpensesPage = page(() => import('./pages/admin/ExpensesPage'), 'ExpensesP
 const AvailabilityAdminPage = page(() => import('./pages/admin/AvailabilityAdminPage'), 'AvailabilityAdminPage');
 const AvailabilityPage = page(() => import('./pages/AvailabilityPage'), 'AvailabilityPage');
 const NotFoundPage = page(() => import('./pages/SoonPage'), 'NotFoundPage');
-const SoonPage = page(() => import('./pages/SoonPage'), 'SoonPage');
 const PlanningPage = page(() => import('./pages/staff/PlanningPage'), 'PlanningPage');
 const ReceiptsPage = page(() => import('./pages/admin/ReceiptsPage'), 'ReceiptsPage');
 const ReceiptLayoutPage = page(() => import('./pages/admin/ReceiptsPage'), 'ReceiptLayoutPage');
@@ -248,16 +248,7 @@ export function App() {
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />
         <Route path="admin/autorisations" element={<Navigate to="/parametres/autorisations" replace />} />
-        <Route
-          path="admin/import"
-          element={admin(
-            ['import.manage'],
-            <SoonPage
-              title="Import historique"
-              text="Numérisation des cahiers depuis 2010 : envoi des scans, extraction par IA, validation humaine ligne par ligne (sprint 9, pilote de 30 à 50 pages)."
-            />,
-          )}
-        />
+        <Route path="admin/import" element={admin(['import.manage'], <HistoryPage />)} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       </Routes>

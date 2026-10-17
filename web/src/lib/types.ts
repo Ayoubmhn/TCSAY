@@ -620,7 +620,7 @@ export type Dashboard = {
   lateFamilies: number;
   late30: number;
   reservationsToday: number;
-  todo: { pendingAbsences: number; newComplaints: number; tournamentRequests: number; withoutMembership: number };
+  todo: { pendingAbsences: number; newComplaints: number; tournamentRequests: number; withoutMembership: number; reportsToPrepare: { seasonId: string; label: string } | null };
 };
 
 export type EmailLog = {

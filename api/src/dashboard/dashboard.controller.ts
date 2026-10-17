@@ -102,11 +102,18 @@ export class DashboardController {
       this.prisma.tournamentEntry.count({ where: { status: 'PENDING', tournament: { status: { notIn: ['CANCELLED', 'FINISHED'] } } } }),
       this.prisma.enrollment.count({ where: { seasonId, membership: null, player: { archivedAt: null } } }),
     ]);
+    // Dernière saison clôturée dont les deux rapports (moral, financier) ne sont pas encore rédigés.
+    const closed = await this.prisma.season.findFirst({
+      where: { status: 'CLOSED', archivedAt: null },
+      orderBy: { endDate: 'desc' },
+      select: { id: true, label: true, _count: { select: { reportDrafts: true } } },
+    });
+    const reportsToPrepare = closed && closed._count.reportDrafts < 2 ? { seasonId: closed.id, label: closed.label } : null;
     return {
       newThisMonth,
       due: num(due._sum.totalAmount ?? 0),
       reservationsToday,
-      todo: { pendingAbsences, newComplaints, tournamentRequests, withoutMembership },
+      todo: { pendingAbsences, newComplaints, tournamentRequests, withoutMembership, reportsToPrepare },
     };
   }
 }

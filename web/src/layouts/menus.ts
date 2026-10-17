@@ -161,7 +161,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },
       { label: 'Mises à jour (Excel)', path: '/admin/mises-a-jour', perm: ['groups.manage', 'payments.collect'] },
       { label: 'Historique des actions', path: '/admin/audit', perm: ['audit.view'] },
-      { label: 'Import historique', path: '/admin/import', soon: true, perm: ['import.manage'] },
+      { label: 'Import historique', path: '/admin/import', perm: ['import.manage'] },
     ],
   },
 ];

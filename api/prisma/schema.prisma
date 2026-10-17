@@ -310,6 +310,7 @@ model Player {
   photoConsentAt         DateTime?
   eventMembers           EventMember[]
   eventResponses         EventResponse[]
+  historicalEntries      HistoricalEntry[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -358,14 +359,15 @@ model Season {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  enrollments   Enrollment[]
-  groups        TrainingGroup[]
-  feeSchedules  FeeSchedule[]
-  salaries      Salary[]
-  importBatches ImportBatch[]
-  evaluations   Evaluation[]
-  reportFiles   SeasonReportFile[]
-  reportDrafts  SeasonReportDraft[]
+  enrollments       Enrollment[]
+  groups            TrainingGroup[]
+  feeSchedules      FeeSchedule[]
+  salaries          Salary[]
+  importBatches     ImportBatch[]
+  evaluations       Evaluation[]
+  reportFiles       SeasonReportFile[]
+  reportDrafts      SeasonReportDraft[]
+  historicalEntries HistoricalEntry[]
 
   @@index([status])
 }
@@ -397,14 +399,16 @@ model Enrollment {
   categoryId       String   @db.Uuid
   derogationReason String? // catégorie hors norme (R3)
   origin           Origin   @default(MANUAL)
+  importBatchId    String?  @db.Uuid // import historique (R14)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  player     Player        @relation(fields: [playerId], references: [id])
-  season     Season        @relation(fields: [seasonId], references: [id])
-  category   Category      @relation(fields: [categoryId], references: [id])
-  membership Membership?
-  groups     GroupMember[]
+  importBatch ImportBatch?  @relation(fields: [importBatchId], references: [id])
+  player      Player        @relation(fields: [playerId], references: [id])
+  season      Season        @relation(fields: [seasonId], references: [id])
+  category    Category      @relation(fields: [categoryId], references: [id])
+  membership  Membership?
+  groups      GroupMember[]
 
   @@unique([playerId, seasonId]) // une catégorie par saison
 }
@@ -1112,16 +1116,58 @@ model EmailLog {
 
 // ───────────────────────── Import historique (S9) ─────────────────────────
 
+/// Lot d'import : un fichier (Excel, Word) ou une saisie à la main, enregistré en une fois (R14).
+/// Import historique : `register` = PLAYERS, INCOME ou EXPENSE ; annulation avec motif (écritures archivées).
 model ImportBatch {
-  id        String       @id @default(uuid()) @db.Uuid
-  seasonId  String?      @db.Uuid
-  label     String
-  status    ImportStatus @default(PENDING)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  seasonId     String?      @db.Uuid
+  label        String
+  status       ImportStatus @default(PENDING)
+  register     String? // PLAYERS, INCOME, EXPENSE (import historique)
+  source       String? // EXCEL, WORD, MANUAL
+  fileName     String?
+  rowCount     Int          @default(0)
+  createdById  String?      @db.Uuid
+  cancelledAt  DateTime?
+  cancelReason String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  season Season?       @relation(fields: [seasonId], references: [id])
-  pages  ScannedPage[]
+  season      Season?           @relation(fields: [seasonId], references: [id])
+  pages       ScannedPage[]
+  entries     HistoricalEntry[]
+  enrollments Enrollment[]
+}
+
+enum HistoricalKind {
+  INCOME // Recette (cotisations surtout, dons, locations…)
+  EXPENSE // Dépense (salaires des entraîneurs compris)
+}
+
+/// Recette ou dépense d'une saison passée, reprise du cahier, d'Excel ou de Word (origine IMPORT, R14).
+/// Jamais modifiée ni relancée (R7) : une erreur s'annule avec le lot entier (motif), puis on réimporte.
+model HistoricalEntry {
+  id         String         @id @default(uuid()) @db.Uuid
+  seasonId   String         @db.Uuid
+  batchId    String         @db.Uuid
+  kind       HistoricalKind
+  category   String // recettes : FEES, DONATION, RENTAL, TOURNAMENT, GRANT, OTHER ; dépenses : ExpenseCategory ou SALARY
+  date       DateTime?      @db.Date
+  label      String
+  person     String? // joueur (recette) ou bénéficiaire, fournisseur, entraîneur (dépense)
+  playerId   String?        @db.Uuid // joueur reconnu (cotisation)
+  amount     Decimal        @db.Decimal(10, 3)
+  reference  String? // n° de reçu, de facture
+  note       String?
+  sourceRef  String // fichier et ligne d'origine (R14)
+  archivedAt DateTime?
+  createdAt  DateTime       @default(now())
+
+  season Season      @relation(fields: [seasonId], references: [id])
+  batch  ImportBatch @relation(fields: [batchId], references: [id])
+  player Player?     @relation(fields: [playerId], references: [id])
+
+  @@index([seasonId, kind])
 }
 
 model ScannedPage {

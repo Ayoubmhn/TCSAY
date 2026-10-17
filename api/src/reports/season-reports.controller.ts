@@ -7,6 +7,7 @@ import type { Response } from 'express';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
 import { assertVersion } from '../common/rules';
+import { readDocxText } from '../history/docx-reader';
 import { PrismaService } from '../prisma/prisma.service';
 import { SeasonReportsService } from './season-reports.service';
 
@@ -61,8 +62,8 @@ export class SeasonReportsController {
   @Perm('stats.view', 'seasons.manage')
   async get(@Param('id', ParseUUIDPipe) id: string) {
     const season = await this.reports.season(id);
-    const [previous, moral, financial, drafts, files] = await Promise.all([
-      this.reports.previous(season),
+    const previous = await this.reports.previous(season);
+    const [moral, financial, drafts, files, previousFiles] = await Promise.all([
       this.reports.moral(season),
       this.reports.financial(season),
       this.reports.drafts(season),
@@ -71,8 +72,24 @@ export class SeasonReportsController {
         orderBy: { createdAt: 'desc' },
         select: { id: true, kind: true, fileName: true, mimeType: true, size: true, createdAt: true },
       }),
+      // Rapports déposés de la saison précédente : modèle pour rédiger ceux de cette saison.
+      previous
+        ? this.prisma.seasonReportFile.findMany({
+            where: { seasonId: previous.id, archivedAt: null },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true, kind: true, fileName: true, mimeType: true, size: true, createdAt: true },
+          })
+        : Promise.resolve([]),
     ]);
-    return { season: { id: season.id, label: season.label, status: season.status }, previous: previous ? { id: previous.id, label: previous.label } : null, moral, financial, drafts, files };
+    return {
+      season: { id: season.id, label: season.label, status: season.status },
+      previous: previous ? { id: previous.id, label: previous.label } : null,
+      moral,
+      financial,
+      drafts,
+      files,
+      previousFiles,
+    };
   }
 
   /** Textes du bureau (R13 : version). */
@@ -118,6 +135,20 @@ export class SeasonReportsController {
     res.setHeader('Content-Type', f.mimeType);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(f.fileName)}`);
     res.send(Buffer.from(f.data));
+  }
+
+  /** Texte d'un ancien rapport Word (.docx), paragraphe par paragraphe : à relire et reprendre pour le nouveau. */
+  @Get('files/:fileId/text')
+  @Perm('stats.view', 'seasons.manage')
+  async text(@Param('id', ParseUUIDPipe) id: string, @Param('fileId', ParseUUIDPipe) fileId: string) {
+    const f = await this.prisma.seasonReportFile.findFirst({ where: { id: fileId, seasonId: id }, select: { fileName: true, mimeType: true, data: true } });
+    if (!f) throw new NotFoundException('Rapport introuvable.');
+    if (!f.mimeType.includes('wordprocessingml')) throw new BadRequestException('Texte disponible pour les rapports Word (.docx) seulement : ouvrez le fichier.');
+    try {
+      return { fileName: f.fileName, paragraphs: readDocxText(Buffer.from(f.data)) };
+    } catch {
+      throw new BadRequestException('Document Word illisible.');
+    }
   }
 
   /** R8 : jamais supprimé, retiré de la liste avec motif. */

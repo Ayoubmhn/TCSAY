@@ -129,9 +129,9 @@ export class SeasonReportsService {
   }
 
   /** Recettes (cotisations, réservations, inscriptions aux tournois) et dépenses (factures, matériel…, salaires) d'une saison. */
-  private async money(s: SeasonRow) {
+  async money(s: SeasonRow) {
     const range = this.range(s);
-    const [payments, due, reservations, entries, expenses, unpaidExpenses, salaries] = await Promise.all([
+    const [payments, due, reservations, entries, expenses, unpaidExpenses, salaries, history] = await Promise.all([
       this.prisma.payment.aggregate({ where: { installment: { membership: { enrollment: { seasonId: s.id } } } }, _sum: { amount: true }, _count: true }),
       this.prisma.membership.aggregate({ where: { enrollment: { seasonId: s.id, player: { archivedAt: null } } }, _sum: { totalAmount: true, baseAmount: true } }),
       this.prisma.reservation.aggregate({ where: { cancelledAt: null, startTime: range, type: { in: ['LEISURE', 'PRIVATE'] } }, _sum: { price: true }, _count: true }),
@@ -139,27 +139,42 @@ export class SeasonReportsService {
       this.prisma.expense.groupBy({ by: ['category'], where: { archivedAt: null, paidAt: range }, _sum: { amount: true }, _count: true }),
       this.prisma.expense.aggregate({ where: { archivedAt: null, paidAt: null, date: range }, _sum: { amount: true }, _count: true }),
       this.prisma.salary.groupBy({ by: ['paidAt'], where: { seasonId: s.id }, _sum: { amount: true } }),
+      // Saison passée : recettes et dépenses importées (cahier, Excel, Word).
+      this.prisma.historicalEntry.groupBy({ by: ['kind', 'category'], where: { seasonId: s.id, archivedAt: null }, _sum: { amount: true }, _count: true }),
     ]);
+    const hist = (kind: 'INCOME' | 'EXPENSE', category?: string) =>
+      round3(history.filter((h) => h.kind === kind && (!category || h.category === category)).reduce((t, h) => t + num(h._sum.amount ?? 0), 0));
+    const histCount = (kind: 'INCOME' | 'EXPENSE', category: string) => history.find((h) => h.kind === kind && h.category === category)?._count ?? 0;
 
-    const fees = round3(num(payments._sum.amount ?? 0));
+    const fees = round3(num(payments._sum.amount ?? 0) + hist('INCOME', 'FEES'));
     const courts = round3(num(reservations._sum.price ?? 0));
     const tournaments = round3(entries.reduce((t, e) => t + num(e.tournament.fee ?? 0), 0));
     const dueTotal = num(due._sum.totalAmount ?? 0);
-    const paidSalaries = round3(salaries.filter((x) => x.paidAt).reduce((t, x) => t + num(x._sum.amount ?? 0), 0));
+    const paidSalaries = round3(salaries.filter((x) => x.paidAt).reduce((t, x) => t + num(x._sum.amount ?? 0), 0) + hist('EXPENSE', 'SALARY'));
     const unpaidSalaries = round3(salaries.filter((x) => !x.paidAt).reduce((t, x) => t + num(x._sum.amount ?? 0), 0));
-    const byCategory = expenses
-      .map((e) => ({ category: e.category, count: e._count, amount: round3(num(e._sum.amount ?? 0)) }))
-      .sort((a, b) => b.amount - a.amount);
-    const incomeTotal = round3(fees + courts + tournaments);
+    const cats = new Map<string, { category: string; count: number; amount: number }>();
+    for (const e of expenses) cats.set(e.category, { category: e.category, count: e._count, amount: round3(num(e._sum.amount ?? 0)) });
+    for (const h of history.filter((x) => x.kind === 'EXPENSE' && x.category !== 'SALARY')) {
+      const c = cats.get(h.category) ?? { category: h.category, count: 0, amount: 0 };
+      cats.set(h.category, { category: h.category, count: c.count + h._count, amount: round3(c.amount + num(h._sum.amount ?? 0)) });
+    }
+    const byCategory = [...cats.values()].sort((a, b) => b.amount - a.amount);
+    // Autres recettes importées (dons, locations, subventions…), à part des cotisations.
+    const other = ['DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER']
+      .map((category) => ({ category, count: histCount('INCOME', category), amount: hist('INCOME', category) }))
+      .filter((x) => x.amount > 0);
+    const incomeTotal = round3(fees + courts + tournaments + other.reduce((t, x) => t + x.amount, 0));
     const expenseTotal = round3(paidSalaries + byCategory.reduce((t, c) => t + c.amount, 0));
 
     return {
       income: {
         fees,
-        feesCount: payments._count,
+        feesCount: payments._count + histCount('INCOME', 'FEES'),
         courts,
         courtsCount: reservations._count,
         tournaments,
+        other,
+        imported: hist('INCOME') > 0 || hist('EXPENSE') > 0,
         total: incomeTotal,
         // Reste à encaisser sur les cotisations de la saison, et coût des réductions accordées.
         remaining: round3(Math.max(0, dueTotal - fees)),

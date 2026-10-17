@@ -158,6 +158,7 @@ export function DashboardPage() {
         d.todo.pendingAbsences > 0 && can('absences.manage') && { tone: 's' as PillTone, icon: '⇄', text: `${d.todo.pendingAbsences} absence(s) d’entraîneur à décider`, cta: 'Remplacer', to: '/admin/absences' },
         d.todo.newComplaints > 0 && can('complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage') && { tone: 's' as PillTone, icon: '✉', text: `${d.todo.newComplaints} réclamation(s) sans réponse`, cta: 'Ouvrir', to: '/admin/reclamations' },
         d.todo.tournamentRequests > 0 && can('tournaments.manage') && { tone: 'b' as PillTone, icon: '🏆', text: `${d.todo.tournamentRequests} demande(s) d’inscription au tournoi`, cta: 'Valider', to: '/tournois' },
+        d.todo.reportsToPrepare && can('seasons.manage', 'stats.view') && { tone: 's' as PillTone, icon: '✎', text: `Saison ${d.todo.reportsToPrepare.label} clôturée : préparer le rapport moral et le rapport financier`, cta: 'Préparer', to: `/admin/rapports?saison=${d.todo.reportsToPrepare.seasonId}` },
         d.todo.withoutMembership > 0 && can('payments.collect', 'players.manage') && { tone: 'b' as PillTone, icon: '€', text: `${d.todo.withoutMembership} joueur(s) sans cotisation`, cta: 'Créer', to: '/admin/joueurs' },
       ].filter((x): x is { tone: PillTone; icon: string; text: string; cta: string; to: string } => Boolean(x))
     : [];
