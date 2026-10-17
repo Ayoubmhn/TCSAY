@@ -1,7 +1,7 @@
 /**
- * Position des champs sur le carnet de reçus pré-imprimé (A5 à l'italienne, 210 × 148 mm), en millimètres
- * depuis le coin haut-gauche de la feuille. `y` = ligne d'écriture (bas du texte). Mesures relevées sur la photo
- * d'un reçu du club (redressée au format A5) ; l'admin les ajuste au millimètre (décalage global ou champ par champ) depuis l'écran Reçus.
+ * Position des champs sur le carnet de reçus pré-imprimé (à l'italienne, 210 × 147 mm mesurés à la règle), en
+ * millimètres depuis le coin haut-gauche de la feuille. `y` = ligne d'écriture (bas du texte). Lignes mesurées à la
+ * règle sur un reçu du club, colonnes d'après les photos ; l'admin les ajuste au millimètre depuis l'écran Reçus.
  */
 export type ReceiptBox = { x: number; y: number; w: number };
 
@@ -35,20 +35,20 @@ export type ReceiptLayout = {
 
 export const DEFAULT_RECEIPT_LAYOUT: ReceiptLayout = {
   pageWidth: 210,
-  pageHeight: 148,
+  pageHeight: 147,
   offsetX: 0,
   offsetY: 0,
   fontSize: 12,
   fields: {
-    label: { x: 124, y: 32, w: 46 }, // « 1ère tranche », sous le nom arabe du club
-    payerName: { x: 108, y: 61.5, w: 44 }, // après « توصلت من السيد: »
-    amountWords: { x: 8, y: 61.5, w: 72 }, // après « ما قدره: »
-    amountDigits: { x: 142, y: 72, w: 32 }, // montant en chiffres, avant « نقدا »
-    barCheque: { x: 78, y: 70, w: 47 }, // espèces : on barre « صكا . عدد الصك »
-    barCash: { x: 128.5, y: 70, w: 8 }, // chèque : on barre « نقدا »
-    chequeNumber: { x: 12, y: 72, w: 62 }, // n° du chèque, après « عدد الصك »
-    season: { x: 62, y: 101.5, w: 44 }, // après « الموسم الرياضي »
-    date: { x: 64, y: 114, w: 42 }, // après « صيادة في »
+    label: { x: 124, y: 34, w: 46 }, // « 1ère tranche », sous « وصل إشتراك »
+    payerName: { x: 90, y: 63.5, w: 62 }, // après « توصلت من السيد: » (ligne à 6,4 cm du haut)
+    amountWords: { x: 18, y: 63.5, w: 58 }, // après « ما قدره: »
+    amountDigits: { x: 155, y: 75, w: 26 }, // montant en chiffres, avant « نقدا » (ligne à 7,5 cm)
+    barCheque: { x: 111, y: 72.5, w: 33 }, // espèces : on barre « صكا . عدد الصك »
+    barCash: { x: 146, y: 72.5, w: 8 }, // chèque : on barre « نقدا »
+    chequeNumber: { x: 22, y: 75, w: 86 }, // n° du chèque, après « عدد الصك »
+    season: { x: 74, y: 101.5, w: 66 }, // après « الموسم الرياضي » (ligne à 10 cm)
+    date: { x: 85, y: 117, w: 34 }, // après « صيادة في »
   },
   footer: [
     'Compte Bancaire : BIAT - Ksar Hellal · الحساب البنكي : بنك تونس العربي الدولي',

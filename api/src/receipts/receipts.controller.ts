@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query
 import { ApiBearerAuth, ApiProperty, ApiPropertyOptional, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsInt, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
+import { DEFAULT_RECEIPT_LAYOUT, normalizeLayout } from './receipt-layout';
 import { ReceiptsService } from './receipts.service';
 
 class ListQuery {
@@ -90,6 +91,12 @@ export class ReceiptsController {
   @Get('receipts/layout')
   layout() {
     return this.receipts.layout();
+  }
+
+  /** Mesures du carnet du club (valeurs d'origine). */
+  @Get('receipts/layout/default')
+  defaultLayout() {
+    return normalizeLayout(DEFAULT_RECEIPT_LAYOUT);
   }
 
   @Put('receipts/layout')

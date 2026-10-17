@@ -76,11 +76,10 @@ function LayoutEditor({ saved }: { saved: ReceiptLayout }) {
             <MmField label="Décalage vertical (mm)" value={layout.offsetY} onChange={(v) => setLayout({ ...layout, offsetY: v })} />
             <MmField label="Taille du texte (pt)" step={1} value={layout.fontSize} onChange={(v) => setLayout({ ...layout, fontSize: v })} />
           </div>
-          <Pills>
-            <Pill tone="s">
-              Feuille {layout.pageWidth} × {layout.pageHeight} mm
-            </Pill>
-          </Pills>
+          <div className="grid grid-cols-2 gap-2.5">
+            <MmField label="Largeur de la feuille (mm)" value={layout.pageWidth} onChange={(v) => setLayout({ ...layout, pageWidth: v })} />
+            <MmField label="Hauteur de la feuille (mm)" value={layout.pageHeight} onChange={(v) => setLayout({ ...layout, pageHeight: v })} />
+          </div>
         </Card>
         {FIELDS.map((key) => (
           <Card key={key}>
@@ -99,6 +98,7 @@ function LayoutEditor({ saved }: { saved: ReceiptLayout }) {
         </Button>
         <Button onClick={test}>Imprimer une page de test</Button>
         {dirty && <Button onClick={() => setLayout(saved)}>Annuler les modifications</Button>}
+        <Button onClick={() => void api.get<ReceiptLayout>('/receipts/layout/default').then(setLayout)}>Revenir aux mesures du carnet</Button>
       </div>
       <div className="mt-4 overflow-auto rounded-[24px] border-[1.5px] border-line bg-fld p-4" aria-label="Aperçu de l’impression sur le carnet">
         <div style={{ width: `${layout.pageWidth * 3.78 * scale}px`, height: `${layout.pageHeight * 3.78 * scale}px` }}>
