@@ -234,6 +234,8 @@ model User {
   complaintMessages  ComplaintMessage[]      @relation("ComplaintMessageAuthor")
   albumsCreated      Album[]                 @relation("AlbumCreatedBy")
   albumMembers       AlbumMember[]
+  eventMembers       EventMember[]
+  eventResponses     EventResponse[]         @relation("EventResponder")
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -302,6 +304,8 @@ model Player {
   /// Autorisation photo (albums) : true accordée, false refusée, null sans réponse (règle du club : Setting photos.consent).
   photoConsent           Boolean?
   photoConsentAt         DateTime?
+  eventMembers           EventMember[]
+  eventResponses         EventResponse[]
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -909,16 +913,75 @@ model MatchPoint {
 
 // ───────────────────────── Divers ─────────────────────────
 
+enum EventAudience {
+  EVERYONE // tout le club
+  GROUPS // groupes d'entraînement choisis (joueurs, parents, entraîneurs)
+  CATEGORIES // catégories choisies (joueurs inscrits cette saison et leurs parents)
+  CUSTOM // personnes choisies
+}
+
+/// Événement du club : affiché sur l'accueil des personnes concernées ; participation facultative.
 model Event {
-  id        String   @id @default(uuid()) @db.Uuid
-  title     String
-  date      DateTime @db.Date
-  place     String
-  tag       String // ex. « Tournoi »
-  published Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String        @id @default(uuid()) @db.Uuid
+  title       String
+  date        DateTime      @db.Date
+  startTime   String? // « 17:00 »
+  endTime     String?
+  place       String
+  tag         String // type : fête, stage, réunion…
+  description String?
+  audience    EventAudience @default(EVERYONE)
+  groupIds    String[]      @default([]) @db.Uuid
+  categoryIds String[]      @default([]) @db.Uuid
+  /// Participation : « Je participe / Je ne participe pas » ; sinon affichage seulement.
+  rsvp        Boolean       @default(false)
+  capacity    Int?
+  poster      Bytes?
+  posterMime  String?
+  createdById String?       @db.Uuid
+  notifiedAt  DateTime?
+  remindedAt  DateTime?
+  archivedAt  DateTime?
+  version     Int           @default(1)
+  published   Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
   albums    Album[]
+  members   EventMember[]
+  responses EventResponse[]
+}
+
+/// Personne invitée (audience « personnes choisies ») : un compte ou un joueur (sa famille).
+model EventMember {
+  id       String  @id @default(uuid()) @db.Uuid
+  eventId  String  @db.Uuid
+  userId   String? @db.Uuid
+  playerId String? @db.Uuid
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@unique([eventId, playerId])
+}
+
+/// Réponse de participation : pour un compte (soi-même) ou pour un enfant (`playerId`, réponse du parent).
+model EventResponse {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @db.Uuid
+  key       String // playerId, sinon userId : une réponse par personne
+  userId    String   @db.Uuid // qui a répondu
+  playerId  String?  @db.Uuid
+  going     Boolean
+  updatedAt DateTime @updatedAt
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   User    @relation("EventResponder", fields: [userId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, key])
 }
 
 /// Paramètres modifiables par l'admin (délai d'annulation, début de la nuit…).

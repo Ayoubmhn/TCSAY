@@ -41,6 +41,7 @@ async function wipe() {
   // Les reçus refusent DELETE (déclencheur) : TRUNCATE aussi.
   await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
   for (const model of [
+    'photoTag', 'albumPhoto', 'albumMember', 'album', 'complaintMessage', 'complaint', 'profilePhoto', 'eventResponse', 'eventMember', 'invitation', 'nativePushToken',
     'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
     'availabilityException', 'availability', 'sessionChange', 'matchPoint', 'match', 'tournamentEntry', 'tournament', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
     'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'passwordReset', 'pushSubscription', 'expense', 'user', 'courtRate', 'court',
@@ -464,7 +465,23 @@ async function main() {
   }
 
   await prisma.event.create({
-    data: { title: 'Tournoi interne d’automne', date: day('2026-10-25'), place: 'Club, courts 1 à 3', tag: 'Tournoi' },
+    data: { title: 'Tournoi interne d’automne', date: day('2026-10-25'), place: 'Club, courts 1 à 3', tag: 'Tournoi', createdById: admin.id, notifiedAt: new Date() },
+  });
+  // Événement avec participation (places limitées) : les familles répondent « Je participe ».
+  await prisma.event.create({
+    data: {
+      title: 'Fête de fin d’année du club',
+      date: day('2026-12-20'),
+      startTime: '15:00',
+      endTime: '19:00',
+      place: 'Club-house',
+      tag: 'Fête',
+      description: 'Goûter, mini-tournoi parents-enfants et remise des diplômes. Inscription souhaitée pour prévoir le goûter.',
+      rsvp: true,
+      capacity: 80,
+      createdById: admin.id,
+      notifiedAt: new Date(),
+    },
   });
 
   await prisma.emailLog.createMany({

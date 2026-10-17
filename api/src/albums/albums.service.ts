@@ -3,6 +3,7 @@ import { AlbumAudience, AlbumKind, EmailKind, Prisma, Role } from '@prisma/clien
 import { timingSafeEqual } from 'node:crypto';
 import { AuthUser, can } from '../auth/auth-user';
 import { signUrl } from '../auth/jwt';
+import { EventsService } from '../events/events.service';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -25,6 +26,7 @@ export class AlbumsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly permissions: PermissionsService,
+    private readonly events: EventsService,
   ) {}
 
   manager(user: AuthUser) {
@@ -71,7 +73,14 @@ export class AlbumsService {
   }
 
   /** Joueurs liés au contexte (proposés en premier pour l'identification). */
-  async contextPlayers(album: { kind: AlbumKind; tournamentId: string | null; matchId: string | null; groupId: string | null }): Promise<string[]> {
+  async contextPlayers(album: { kind: AlbumKind; tournamentId: string | null; matchId: string | null; groupId: string | null; eventId?: string | null }): Promise<string[]> {
+    if (album.kind === AlbumKind.EVENT && album.eventId) {
+      // Participants inscrits d'abord, sinon les joueurs de l'audience (groupes, catégories, personnes).
+      const going = await this.prisma.eventResponse.findMany({ where: { eventId: album.eventId, going: true, playerId: { not: null } }, select: { playerId: true } });
+      if (going.length) return going.map((r) => r.playerId!);
+      const ev = await this.prisma.event.findUnique({ where: { id: album.eventId }, select: { id: true, title: true, date: true, startTime: true, place: true, audience: true, groupIds: true, categoryIds: true, createdById: true, archivedAt: true, published: true, rsvp: true, members: true } });
+      return ev ? [...(await this.events.audience(ev)).players] : [];
+    }
     if (album.kind === AlbumKind.TOURNAMENT && album.tournamentId) {
       return (await this.prisma.tournamentEntry.findMany({ where: { tournamentId: album.tournamentId, status: 'CONFIRMED', playerId: { not: null } }, select: { playerId: true } })).map((e) => e.playerId!);
     }
@@ -87,7 +96,18 @@ export class AlbumsService {
 
   /** Audience : tout le club, ou la liste des comptes autorisés. */
   async audience(album: AlbumRef): Promise<Audience> {
-    if (album.audience === AlbumAudience.EVERYONE || (album.audience === AlbumAudience.CONTEXT && album.kind === AlbumKind.EVENT)) return { everyone: true, users: new Set() };
+    if (album.audience === AlbumAudience.EVERYONE) return { everyone: true, users: new Set() };
+    // Album d'un événement : l'audience de l'événement (tout le club, groupes, catégories, personnes).
+    if (album.audience === AlbumAudience.CONTEXT && album.kind === AlbumKind.EVENT) {
+      const ev = album.eventId ? await this.prisma.event.findUnique({ where: { id: album.eventId }, select: { id: true, title: true, date: true, startTime: true, place: true, audience: true, groupIds: true, categoryIds: true, createdById: true, archivedAt: true, published: true, rsvp: true, members: true } }) : null;
+      if (!ev) return { everyone: true, users: new Set() };
+      const a = await this.events.audience(ev);
+      if (a.everyone) return { everyone: true, users: new Set() };
+      const users = new Set([album.createdById, ...a.users]);
+      album.members.forEach((m) => m.userId && users.add(m.userId));
+      (await this.families(album.members.map((m) => m.playerId))).forEach((u) => users.add(u));
+      return { everyone: false, users };
+    }
     const users = new Set<string>([album.createdById]);
     const memberUsers = album.members.map((m) => m.userId).filter((x): x is string => Boolean(x));
     const memberPlayers = album.members.map((m) => m.playerId).filter((x): x is string => Boolean(x));

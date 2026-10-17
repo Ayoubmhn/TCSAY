@@ -25,6 +25,7 @@ import { PlanningController } from './dashboard/planning.controller';
 import { FinanceStatsController } from './dashboard/finance-stats.controller';
 import { SeasonStatsController } from './dashboard/season-stats.controller';
 import { EventsController } from './events/events.controller';
+import { EventsService } from './events/events.service';
 import { FeesController } from './fees/fees.controller';
 import { GroupsController } from './groups/groups.controller';
 import { HealthController } from './health.controller';
@@ -138,6 +139,7 @@ import { StaffController } from './staff/staff.controller';
     PhotosService,
     ComplaintsService,
     AlbumsService,
+    EventsService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })

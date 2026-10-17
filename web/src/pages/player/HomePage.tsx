@@ -10,7 +10,9 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
-import type { EventItem, Overview } from '../../lib/types';
+import type { Overview } from '../../lib/types';
+import { EventCard } from '../../features/events/EventCard';
+import type { EventSummary } from '../../features/events/types';
 import { STATUS, type TournamentSummary } from '../../features/tournaments/types';
 
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
@@ -25,7 +27,7 @@ export function HomePage() {
     queryFn: () => api.get<Overview>('/me/overview', { playerId }),
     enabled: Boolean(playerId),
   });
-  const events = useQuery({ queryKey: ['events'], queryFn: () => api.get<EventItem[]>('/events') });
+  const events = useQuery({ queryKey: ['events'], queryFn: () => api.get<EventSummary[]>('/events') });
   const tournaments = useQuery({
     queryKey: ['tournaments'],
     queryFn: () => api.get<{ canManage: boolean; tournaments: TournamentSummary[] }>('/tournaments'),
@@ -196,19 +198,15 @@ export function HomePage() {
       )}
 
       <Section title="Événements">
+        {events.data && events.data.length > 0 && (
+          <Link to="/evenements" className="-mt-2 text-sm font-medium text-mut hover:underline">
+            Tous les événements ›
+          </Link>
+        )}
         {events.data && events.data.length > 0 ? (
           <CardGrid>
-            {events.data.map((e) => (
-              <Card key={e.id}>
-                <CardRow>
-                  <h3>{e.title}</h3>
-                  <Pill tone="s">{e.tag}</Pill>
-                </CardRow>
-                <Pills>
-                  <Pill tone="b">{fD(e.date, { weekday: 'long', day: 'numeric', month: 'long' })}</Pill>
-                  <Pill tone="g">{e.place}</Pill>
-                </Pills>
-              </Card>
+            {events.data.slice(0, 6).map((e) => (
+              <EventCard key={e.id} e={e} />
             ))}
           </CardGrid>
         ) : (

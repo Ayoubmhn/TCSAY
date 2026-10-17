@@ -18,16 +18,16 @@ type Person = { kind: 'user' | 'player'; id: string; name: string };
 type People = { users: { id: string; name: string; roles: string[] }[]; players: { id: string; name: string; code: string | null }[] };
 
 /** Création / modification d'un album : contexte (tournoi, événement, match, groupe), audience, personnes ajoutées. */
-export function AlbumForm({ album, onClose }: { album?: AlbumDetail; onClose: () => void }) {
+export function AlbumForm({ album, preset, onClose }: { album?: AlbumDetail; preset?: { kind: AlbumKind; contextId: string; title: string; date: string }; onClose: () => void }) {
   const me = useMe();
   const navigate = useNavigate();
   const manager = me.role === 'ADMIN' && me.permissions.includes('albums.manage');
-  const [title, setTitle] = useState(album?.title ?? '');
+  const [title, setTitle] = useState(album?.title ?? preset?.title ?? '');
   const [description, setDescription] = useState(album?.description ?? '');
-  const [kind, setKind] = useState<AlbumKind>(album?.kind ?? (manager ? 'TOURNAMENT' : 'GROUP'));
-  const [contextId, setContextId] = useState(album?.contextId ?? '');
+  const [kind, setKind] = useState<AlbumKind>(album?.kind ?? preset?.kind ?? (manager ? 'TOURNAMENT' : 'GROUP'));
+  const [contextId, setContextId] = useState(album?.contextId ?? preset?.contextId ?? '');
   const [audience, setAudience] = useState<AlbumAudience>(album?.audience ?? 'CONTEXT');
-  const [date, setDate] = useState(album?.date ?? todayIso());
+  const [date, setDate] = useState(album?.date ?? preset?.date ?? todayIso());
   const [people, setPeople] = useState<Person[]>(album?.members ?? []);
   const [q, setQ] = useState('');
   // Création : photos choisies tout de suite, envoyées juste après la création de l'album.

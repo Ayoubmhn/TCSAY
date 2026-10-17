@@ -62,6 +62,8 @@ const SessionsPage = page(() => import('./pages/player/SessionsPage'), 'Sessions
 const NotificationsPage = page(() => import('./pages/NotificationsPage'), 'NotificationsPage');
 const SettingsPage = page(() => import('./pages/SettingsPage'), 'SettingsPage');
 const TournamentsPage = page(() => import('./features/tournaments/TournamentsPage'), 'TournamentsPage');
+const EventsPage = page(() => import('./features/events/EventsPage'), 'EventsPage');
+const EventPage = page(() => import('./features/events/EventPage'), 'EventPage');
 const AlbumsPage = page(() => import('./features/albums/AlbumsPage'), 'AlbumsPage');
 const AlbumPage = page(() => import('./features/albums/AlbumPage'), 'AlbumPage');
 const ComplaintsPage = page(() => import('./features/complaints/ComplaintsPage'), 'ComplaintsPage');
@@ -170,6 +172,8 @@ export function App() {
         <Route path="exercices" element={<Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>} />
         <Route path="reserver" element={<Protected roles={PLAYER}><PaymentGate module="reservation" title="Réserver un terrain"><BookPage /></PaymentGate></Protected>} />
         <Route path="tournois" element={<TournamentsPage />} />
+        <Route path="evenements" element={<EventsPage />} />
+        <Route path="evenements/:id" element={<EventPage />} />
         <Route path="photos" element={<AlbumsPage />} />
         <Route path="photos/:id" element={<AlbumPage />} />
         <Route path="reclamations" element={<ComplaintsPage />} />
