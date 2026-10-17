@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "tn.tcsay.app",
+      "sha256_cert_fingerprints": [
+        "0B:17:68:0A:F6:40:D7:3B:59:DA:3A:F3:E3:84:A9:2D:17:F3:79:3A:B2:3D:F5:50:26:C0:57:34:BA:A0:DC:6E"
+      ]
+    }
+  }
+]

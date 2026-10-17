@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TCSAY Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap">
+</head>
+<body style="margin:0">
+<style>
+/* Mise en page : menu latéral 266px + zone principale ; tiroir sous 860px. Jetons = design system TCSAY. */
+:root{
+  --bg:#fafafa;--fg:#1a1a1a;--mut:#8a8a8f;--card:#fff;--line:#e6e6ea;--fld:#f3f4f8;--btn:#ebebeb;
+  --pri:#5a5acd;--sel:#0000e0;--dr:#f7f8fb;--day:#f1f2f6;--paid:#e9f7e1;--topay:#ffe8e8;
+  --pb:#c9e9fb;--pg:#dff3a8;--pr:#fdb3b0;--ps:#f0d9a8;--ink:#111;--veil:rgba(0,0,0,.45);--toggle:#222;
+  --font:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121212;--fg:#f2f2f2;--mut:#9a9aa0;--card:#1c1c1e;--line:#333;--fld:#26272b;--btn:#2e2e32;
+  --dr:#17181b;--day:#2a2b30;--paid:#1f2e1a;--topay:#3a2224;--veil:rgba(0,0,0,.6);--toggle:#f2f2f2;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121212;--fg:#f2f2f2;--mut:#9a9aa0;--card:#1c1c1e;--line:#333;--fld:#26272b;--btn:#2e2e32;
+  --dr:#17181b;--day:#2a2b30;--paid:#1f2e1a;--topay:#3a2224;--veil:rgba(0,0,0,.6);--toggle:#f2f2f2;color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2.5px solid var(--pri);outline-offset:2px}
+h1{font-size:27px;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:18px;font-weight:500;margin:0}
+h3{font-size:16px;font-weight:500;margin:0}
+.sub{color:var(--mut);margin:4px 0 0}
+.mut{color:var(--mut)}
+.num{font-variant-numeric:tabular-nums}
+
+/* App shell */
+.app{display:grid;grid-template-columns:266px minmax(0,1fr);min-height:100%}
+.side{background:var(--dr);border-right:1.5px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.ball{width:38px;height:38px;border-radius:50%;background:var(--pg);display:grid;place-items:center;color:var(--ink);font-weight:600;font-size:13px}
+.brand b{display:block;font-weight:600}
+.brand span{font-size:12px;color:var(--mut)}
+.navt{font-size:12px;font-weight:600;color:var(--mut);letter-spacing:.12em;padding:0 10px}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav button{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;padding:11px 14px;border-radius:18px;font-weight:500;color:var(--fg)}
+.nav button:hover{background:var(--btn)}
+.nav button.on{background:var(--fg);color:var(--bg)}
+.ucard{margin-top:auto;border:1.5px solid var(--line);background:var(--card);border-radius:24px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ucard .who{display:flex;gap:10px;align-items:center}
+.av{width:40px;height:40px;border-radius:14px;background:var(--fld);display:grid;place-items:center;font-weight:600;font-size:14px;flex:none}
+.main{min-width:0;padding-inline:clamp(16px,3.5vw,40px);padding-block:22px 60px}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.mbtn{width:46px;height:46px;border-radius:15px;background:var(--btn);display:none;grid-template-columns:repeat(2,7px);gap:5px;place-content:center}
+.mbtn i{width:7px;height:7px;border-radius:50%;background:var(--fg)}
+.top .sp{flex:1}
+.veil{display:none}
+@media (max-width:860px){
+  .app{grid-template-columns:1fr}
+  .side{position:fixed;left:0;top:0;bottom:0;width:268px;z-index:40;transform:translateX(-105%);transition:transform .25s ease;padding-top:calc(22px + env(safe-area-inset-top,0px))}
+  .side.open{transform:none}
+  .veil.open{display:block;position:fixed;inset:0;background:var(--veil);z-index:39}
+  .mbtn{display:grid}
+  h1{font-size:23px}
+}
+
+/* Pastilles & boutons */
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:5px 13px;font-size:13px;font-weight:500;color:var(--ink);white-space:nowrap}
+.b{background:var(--pb)}.g{background:var(--pg)}.r{background:var(--pr)}.s{background:var(--ps)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.btn{background:var(--pri);color:#fff;border-radius:99px;padding:11px 20px;font-weight:600;display:inline-flex;align-items:center;gap:8px;justify-content:center}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn2{background:var(--btn);color:var(--fg);border-radius:99px;padding:9px 16px;font-weight:500;font-size:14px}
+.btn2:disabled{opacity:.45;cursor:not-allowed}
+.btn2.danger{background:var(--pr);color:var(--ink)}
+.ico{width:42px;height:42px;border-radius:15px;background:var(--btn);display:grid;place-items:center;font-size:17px}
+.badge{font-size:11px;font-weight:600;background:var(--ps);color:var(--ink);border-radius:99px;padding:3px 9px}
+
+/* Cartes & grilles */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+@media (max-width:560px){.cards{grid-template-columns:1fr}}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:26px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card .cs{font-size:13px;font-weight:600;color:var(--mut)}
+.card .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.card .acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto;padding-top:4px}
+.kpi{font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.sect{display:flex;flex-direction:column;gap:14px;margin-top:28px}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.filters{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0 6px;align-items:center}
+.sel,.fld{appearance:none;-webkit-appearance:none;background:var(--fld);border:0;border-radius:22px;padding:11px 16px;min-width:0;max-width:100%}
+.sel{padding-right:40px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a8a8f' stroke-width='1.8' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 16px center}
+.fld{width:100%}
+label.lb{font-size:12px;font-weight:500;color:var(--mut);display:flex;flex-direction:column;gap:6px}
+.note{background:var(--fld);border-radius:18px;padding:13px 16px;font-size:13.5px;color:var(--fg);display:flex;gap:10px;align-items:flex-start;margin-top:18px}
+.note b{font-weight:600}
+.demo{background:var(--ps);color:var(--ink);font-size:10.5px;font-weight:600;letter-spacing:.06em;border-radius:99px;padding:2px 7px;vertical-align:middle}
+.empty{border:1.5px dashed var(--line);border-radius:24px;padding:28px;text-align:center;color:var(--mut)}
+
+/* Accueil */
+.hello{display:flex;align-items:center;gap:16px}
+.bigav{width:60px;height:68px;border-radius:22px;background:var(--pb);color:var(--ink);display:grid;place-items:center;font-weight:600;font-size:20px;position:relative;flex:none}
+.bigav::after{content:"";position:absolute;right:-3px;bottom:6px;width:14px;height:14px;border-radius:50%;background:#3aa84a;border:3px solid var(--bg)}
+.hero{position:relative;margin-top:24px;border-radius:36px;padding:28px 28px 34px;color:#fff;background:linear-gradient(150deg,#14532d 0%,#2f7a4d 60%,#c2410c 100%);min-height:200px;display:flex;flex-direction:column;gap:12px}
+.hero .eb{font-size:12px;font-weight:600;letter-spacing:.12em;opacity:.85}
+.hero h2{font-size:24px;font-weight:600}
+.hero .notch{position:absolute;right:-6px;bottom:-6px;width:78px;height:78px;border-radius:50%;background:var(--bg);display:grid;place-items:center}
+.hero .notch button{width:58px;height:58px;border-radius:50%;background:var(--sel);color:#fff;font-size:22px}
+
+/* Puces jours, calendrier */
+.days{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin}
+.dchip{flex:none;width:62px;border-radius:22px;background:var(--day);padding:10px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.dchip small{font-size:12px;color:var(--mut)}
+.dchip b{font-size:18px;font-weight:600}
+.dchip.on{background:var(--sel);color:#fff}.dchip.on small{color:#dfe0ff}
+.seg{display:inline-flex;background:var(--btn);border-radius:99px;padding:4px}
+.seg button{border-radius:99px;padding:7px 16px;font-weight:500;font-size:14px}
+.seg button.on{background:var(--toggle);color:var(--bg)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center}
+.cal .wd{font-size:12px;font-weight:600;color:var(--mut);padding:4px 0}
+.cal button{aspect-ratio:1;max-width:46px;width:100%;margin:auto;border-radius:50%;background:var(--day);font-weight:500;font-size:14px;position:relative}
+.cal button.out{opacity:.35}
+.cal button.dot::after{content:"";position:absolute;bottom:6px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--pri)}
+.cal button.on{background:var(--sel);color:#fff}.cal button.on::after{background:#fff}
+.cal button.today{outline:1.5px solid var(--fg);outline-offset:-1.5px}
+
+/* Grille de réservation */
+.gwrap{overflow-x:auto;border:1.5px solid var(--line);border-radius:26px;background:var(--card);padding:14px}
+.grid{display:grid;gap:6px;min-width:520px}
+.grid .gh{font-size:13px;font-weight:600;text-align:center;padding:4px 0}
+.grid .hr{font-size:13px;color:var(--mut);display:flex;align-items:center;gap:4px;font-variant-numeric:tabular-nums}
+.slot{height:38px;border-radius:12px;background:var(--fld);font-size:12px;font-weight:500;color:var(--fg)}
+.slot.taken{background:var(--pr);color:var(--ink)}
+.slot.mine{background:var(--pg);color:var(--ink)}
+.slot.sand{background:var(--ps);color:var(--ink)}
+.slot.past{opacity:.35;cursor:not-allowed}
+.slot.chosen{background:var(--sel);color:#fff}
+.slot:disabled{cursor:not-allowed}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+.book{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:1100px){.book{grid-template-columns:1fr}}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:6px 0;border-bottom:1.5px solid var(--line)}
+.kv:last-of-type{border-bottom:0}
+.kv span:first-child{color:var(--mut)}
+
+/* Tranches */
+.tr{border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:12px;border:1.5px solid var(--line)}
+.tr.paid{background:var(--paid)}.tr.topay{background:var(--topay)}
+.tr .amts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tr .amts small{display:block;font-size:12px;color:var(--mut)}
+.tr .amts b{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:8px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--pri);border-radius:99px}
+
+/* Modales, toasts, login */
+.ov{position:fixed;inset:0;background:var(--veil);z-index:60;display:grid;place-items:center;padding:16px}
+.modal{background:var(--card);border-radius:28px;width:min(540px,100%);max-height:88vh;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
+.modal .mh{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form .full{grid-column:1/-1}
+@media (max-width:520px){.form{grid-template-columns:1fr}}
+.toasts{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;z-index:80;width:max-content;max-width:calc(100% - 32px)}
+.toast{background:var(--fg);color:var(--bg);border-radius:99px;padding:12px 20px;font-size:14px;font-weight:500;animation:tin .25s ease}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}}
+@media (prefers-reduced-motion:reduce){.toast,.side{animation:none;transition:none}}
+.login{min-height:100%;display:grid;place-items:center;padding:24px 16px}
+.lbox{width:min(460px,100%);display:flex;flex-direction:column;gap:18px}
+.roles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.roles button{background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:16px;text-align:left;display:flex;flex-direction:column;gap:4px}
+.roles button:hover{border-color:var(--pri)}
+.roles small{color:var(--mut);font-size:12.5px}
+.att{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1.5px solid var(--line)}
+.att:last-child{border-bottom:0}
+.proto{font-size:12px;color:var(--mut);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+
+<div id="app"></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script>
+/* ===================== Données de démonstration ===================== */
+const NOW = new Date(2026,9,6,23,39);
+const TODAY = new Date(2026,9,6);
+const SEASON = '2026-2027';
+const pad = n => String(n).padStart(2,'0');
+const iso = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const addD = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const fromIso = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const fD = (d,o={weekday:'short',day:'numeric',month:'short'}) => (typeof d==='string'?fromIso(d):d).toLocaleDateString('fr-FR',o);
+const esc = s => String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DT = n => n.toLocaleString('fr-FR')+' DT';
+
+// 29 catégories
+const CATS = [];
+[['6','Lutins','Lutines','J6'],['7','Lutins','Lutines','J7'],['8','Lutins','Lutines','J8'],['9','Poussins','Poussines','J9'],['10','Poussins','Poussines','J10'],
+ ['11','Benjamins','Benjamines','J11'],['12','Benjamins','Benjamines','J12'],['14','Minimes G.','Minimes F.','J14'],['16','Cadets','Cadettes','J16'],['18','Juniors G.','Juniors F.','J18']]
+ .forEach(([a,m,f,c])=>{ CATS.push({id:c+'M',name:`${m} (-${a})`,fam:'Jeunes',gender:'M',pair:c,max:+a}); CATS.push({id:c+'F',name:`${f} (-${a})`,fam:'Jeunes',gender:'F',pair:c,max:+a}); });
+CATS.push({id:'A1M',name:'Seniors',fam:'Adultes',gender:'M',pair:'A1',note:'Messieurs ? à confirmer'},{id:'A1F',name:'Dames',fam:'Adultes',gender:'F',pair:'A1'},
+ {id:'V35M',name:'Vétérans +35 (M)',fam:'Vétérans',gender:'M',pair:'V35'},{id:'V35F',name:'Vétérans +35 (D)',fam:'Vétérans',gender:'F',pair:'V35'},
+ {id:'V45M',name:'Vétérans +45 (M)',fam:'Vétérans',gender:'M',pair:'V45'},{id:'V45F',name:'Vétérans +45 (D)',fam:'Vétérans',gender:'F',pair:'V45'},
+ {id:'E1M',name:'Entreprise Messieurs',fam:'Entreprise',gender:'M',pair:'E1'},{id:'E1F',name:'Entreprise Dames',fam:'Entreprise',gender:'F',pair:'E1'},
+ {id:'P1X',name:'Padel',fam:'Padel',gender:'MIXED',pair:'P1',note:'Mixte ? à confirmer'});
+const cat = id => CATS.find(c=>c.id===id);
+
+function suggestCat(birth,gender){
+  if(!birth||!gender) return null;
+  const age = 2026 - fromIso(birth).getFullYear(); // provisoire : année de naissance, réf. 31/12/2026
+  if(age<4) return {err:`Âge ${age} ans : minimum 4 ans (provisoire).`,age};
+  if(age<18){ const c = CATS.find(c=>c.fam==='Jeunes'&&c.gender===gender&&age<c.max); return {cat:c,age}; }
+  return {cat:cat(gender==='M'?'A1M':'A1F'),age,alt:age>=45?(gender==='M'?'V45M':'V45F'):age>=35?(gender==='M'?'V35M':'V35F'):null};
+}
+
+const COURTS = [
+  {id:'T1',name:'Court 1',lit:true,surface:'Terre battue',active:true},
+  {id:'T2',name:'Court 2',lit:true,surface:'Terre battue',active:true},
+  {id:'T3',name:'Court 3',lit:false,surface:'Dur',active:true},
+  {id:'T4',name:'Court 4',lit:true,surface:'Dur',active:true,maint:true},
+  {id:'P1',name:'Padel',lit:true,surface:'Gazon synthétique',active:true},
+];
+const court = id => COURTS.find(c=>c.id===id);
+
+const COACHES = [
+  {id:'C1',first:'Mehdi',last:'Gharbi',phone:'+216 22 000 101',email:'mehdi.gharbi@exemple.tn',mode:'Mensuel ? à confirmer'},
+  {id:'C2',first:'Amira',last:'Ben Salah',phone:'+216 22 000 102',email:'amira.bensalah@exemple.tn',mode:'Mensuel ? à confirmer'},
+];
+const coach = id => COACHES.find(c=>c.id===id);
+
+const PLAYERS = [
+  {id:'J1',first:'Yassine',last:'Ben Ali',g:'M',birth:'2015-03-12',cat:'J12M',email:'',phone:''},
+  {id:'J2',first:'Lina',last:'Ben Ali',g:'F',birth:'2017-07-02',cat:'J10F',email:'',phone:''},
+  {id:'J3',first:'Omar',last:'Trabelsi',g:'M',birth:'1990-05-20',cat:'A1M',email:'omar.trabelsi@exemple.tn',phone:'+216 98 000 303'},
+  {id:'J4',first:'Nour',last:'Hammami',g:'F',birth:'2012-01-18',cat:'J16F',email:'',phone:''},
+  {id:'J5',first:'Adam',last:'Sassi',g:'M',birth:'2014-09-04',cat:'J14M',email:'',phone:'',derog:'Niveau adapté au groupe Benjamins A'},
+  {id:'J6',first:'Rayen',last:'Kefi',g:'M',birth:'2019-11-23',cat:'J8M',email:'',phone:''},
+  {id:'J7',first:'Ahmed',last:'Bouzid',g:'M',birth:'1985-02-11',cat:'V35M',email:'ahmed.bouzid@exemple.tn',phone:'+216 98 000 307'},
+  {id:'J8',first:'Ines',last:'Chaabane',g:'F',birth:'2011-06-30',cat:'J16F',email:'',phone:''},
+];
+const player = id => PLAYERS.find(p=>p.id===id);
+const pname = p => p.first+' '+p.last;
+
+const PARENTS = [
+  {id:'U1',first:'Sana',last:'Ben Ali',email:'sana.benali@exemple.tn',phone:'+216 55 000 201',kids:['J1','J2']},
+  {id:'U2',first:'Hela',last:'Kefi',email:'hela.kefi@exemple.tn',phone:'+216 55 000 202',kids:['J6']},
+  {id:'U3',first:'Mourad',last:'Hammami',email:'mourad.hammami@exemple.tn',phone:'+216 55 000 203',kids:['J4']},
+  {id:'U4',first:'Fethi',last:'Sassi',email:'fethi.sassi@exemple.tn',phone:'+216 55 000 204',kids:['J5']},
+  {id:'U5',first:'Rim',last:'Chaabane',email:'rim.chaabane@exemple.tn',phone:'+216 55 000 205',kids:['J8']},
+];
+const parentsOf = pid => PARENTS.filter(u=>u.kids.includes(pid));
+
+const GROUPS = [
+  {id:'G1',name:'Benjamins A',cat:'J12M',coach:'C1',court:'T1',days:[1,3],start:'17:00',end:'18:30',cap:8,members:['J1','J5']},
+  {id:'G2',name:'Poussines B',cat:'J10F',coach:'C2',court:'T2',days:[2,4],start:'16:00',end:'17:00',cap:6,members:['J2']},
+  {id:'G3',name:'Adultes soir',cat:'A1M',coach:'C1',court:'T1',days:[1,4],start:'19:00',end:'20:30',cap:6,members:['J3','J7']},
+  {id:'G4',name:'Cadettes',cat:'J16F',coach:'C2',court:'T2',days:[3,6],start:'10:00',end:'11:30',cap:2,members:['J4','J8']},
+];
+const group = id => GROUPS.find(g=>g.id===id);
+const groupOf = pid => GROUPS.find(g=>g.members.includes(pid));
+
+const SEASONS = [
+  {id:'S5',name:'2027-2028',status:'DRAFT'},
+  {id:'S4',name:'2026-2027',status:'ACTIVE'},
+  {id:'S3',name:'2025-2026',status:'CLOSED'},
+  {id:'S1',name:'2010-2011',status:'HISTORICAL'},
+];
+const ST = {DRAFT:['Brouillon','s'],ACTIVE:['Active','g'],CLOSED:['Clôturée','r'],HISTORICAL:['Historique','b']};
+
+// Montants : valeurs de démonstration uniquement
+const FEES = [
+  {cat:'J12M',group:'G1',amount:600,n:2},{cat:'J10F',group:'G2',amount:500,n:2},
+  {cat:'A1M',group:'G3',amount:700,n:2},{cat:'J16F',group:'G4',amount:600,n:3},
+];
+const CTARIFS = [
+  {type:'Loisir',period:'Jour',price:10},{type:'Loisir',period:'Nuit',price:15},
+  {type:'Séance privée',period:'Jour',price:20},{type:'Séance privée',period:'Nuit',price:25},
+];
+const price = (type,hour) => CTARIFS.find(t=>t.type===type&&t.period===(hour>=18?'Nuit':'Jour')).price;
+
+let INST = [ // tranches
+  {id:'I1',pid:'J1',season:'2026-2027',n:1,of:2,due:'2026-10-15',amount:300,paid:300},
+  {id:'I2',pid:'J1',season:'2026-2027',n:2,of:2,due:'2027-01-15',amount:300,paid:0},
+  {id:'I3',pid:'J2',season:'2026-2027',n:1,of:2,due:'2026-10-15',amount:250,paid:150},
+  {id:'I4',pid:'J2',season:'2026-2027',n:2,of:2,due:'2027-01-15',amount:250,paid:0},
+  {id:'I5',pid:'J3',season:'2026-2027',n:1,of:2,due:'2026-10-15',amount:350,paid:350},
+  {id:'I6',pid:'J3',season:'2026-2027',n:2,of:2,due:'2027-01-15',amount:350,paid:350},
+  {id:'I7',pid:'J4',season:'2026-2027',n:1,of:3,due:'2026-09-30',amount:200,paid:0},
+  {id:'I8',pid:'J4',season:'2026-2027',n:2,of:3,due:'2026-12-31',amount:200,paid:0},
+  {id:'I9',pid:'J4',season:'2026-2027',n:3,of:3,due:'2027-03-31',amount:200,paid:0},
+  {id:'I10',pid:'J1',season:'2025-2026',n:1,of:2,due:'2025-10-15',amount:280,paid:280},
+  {id:'I11',pid:'J1',season:'2025-2026',n:2,of:2,due:'2026-01-15',amount:280,paid:280},
+  {id:'I12',pid:'J3',season:'2025-2026',n:1,of:1,due:'2025-10-15',amount:650,paid:650},
+];
+const PAYMENTS = [
+  {inst:'I1',amount:300,date:'2026-09-18',mode:'Espèces',by:'Admin Bureau'},
+  {inst:'I3',amount:150,date:'2026-09-20',mode:'Espèces',by:'Admin Bureau'},
+  {inst:'I5',amount:350,date:'2026-09-12',mode:'Espèces',by:'Admin Bureau'},
+  {inst:'I6',amount:350,date:'2026-09-12',mode:'Espèces',by:'Admin Bureau'},
+];
+const SALARIES = [
+  {coach:'C1',period:'Octobre 2026',amount:900,paid:false},{coach:'C1',period:'Septembre 2026',amount:900,paid:true,date:'2026-10-02'},
+  {coach:'C1',period:'Août 2026',amount:600,paid:true,date:'2026-09-03'},{coach:'C2',period:'Octobre 2026',amount:750,paid:false},
+  {coach:'C2',period:'Septembre 2026',amount:750,paid:true,date:'2026-10-02'},
+];
+let RES = [
+  {id:'R1',pid:'J3',date:'2026-10-07',hour:18,court:'T1',type:'Loisir',by:'Omar Trabelsi'},
+  {id:'R2',pid:'J3',date:'2026-10-10',hour:9,court:'T2',type:'Loisir',by:'Omar Trabelsi'},
+  {id:'R3',pid:'J1',date:'2026-10-11',hour:10,court:'T3',type:'Loisir',by:'Sana Ben Ali'},
+  {id:'R4',pid:'J4',coach:'C1',date:'2026-10-09',hour:15,court:'T2',type:'Séance privée',by:'Mehdi Gharbi'},
+];
+const EVENTS = [{title:'Tournoi interne d’automne',date:'2026-10-25',place:'Club, courts 1 à 3',tag:'Tournoi'}];
+// Présences : clé group|date|pid → true présent / false absent
+const ATT = {'G1|2026-09-28|J1':false,'G1|2026-09-30|J1':true,'G1|2026-10-05|J1':true,'G2|2026-10-01|J2':false,'G2|2026-09-29|J2':true,'G3|2026-10-01|J3':false,'G3|2026-10-05|J3':true,'G1|2026-10-05|J5':true};
+const ABS_REASON = {'G1|2026-09-28|J1':'Malade (justifié par le parent)','G2|2026-10-01|J2':'Non justifiée','G3|2026-10-01|J3':'Déplacement professionnel'};
+let EMAILS = [
+  {to:'omar.trabelsi@exemple.tn',subject:'Vos identifiants TCSAY',kind:'Identifiants',date:'2026-09-10 10:12',status:'Envoyé'},
+  {to:'sana.benali@exemple.tn',subject:'Vos identifiants TCSAY',kind:'Identifiants',date:'2026-09-10 10:14',status:'Envoyé'},
+  {to:'mourad.hammami@exemple.tn',subject:'Rappel : tranche 1/3 de Nour en retard',kind:'Rappel',date:'2026-10-01 09:00',status:'Envoyé'},
+  {to:'mehdi.gharbi@exemple.tn',subject:'Votre salaire de septembre est versé',kind:'Salaire',date:'2026-10-02 17:40',status:'Envoyé'},
+];
+let AUDIT = [
+  {who:'Admin Bureau',when:'2026-10-02 17:38',action:'Salaire marqué versé',target:'Mehdi Gharbi · Septembre 2026',before:'À verser',after:'Versé',motif:''},
+  {who:'Admin Bureau',when:'2026-09-20 11:05',action:'Paiement encaissé (espèces)',target:'Lina Ben Ali · Tranche 1/2',before:'0 DT',after:'150 DT',motif:''},
+  {who:'Admin Bureau',when:'2026-09-15 09:30',action:'Dérogation de catégorie',target:'Adam Sassi → groupe Benjamins A',before:'Minimes G. (-14)',after:'Groupe Benjamins A',motif:'Niveau adapté au groupe Benjamins A'},
+  {who:'Admin Bureau',when:'2026-09-01 08:00',action:'Saison activée',target:'2026-2027',before:'Brouillon',after:'Active',motif:''},
+];
+
+/* ===================== Utilisateurs démo ===================== */
+const USERS = {
+  joueur:{role:'joueur',label:'Joueur',first:'Omar',last:'Trabelsi',pid:'J3',hint:'Omar Trabelsi, adulte'},
+  parent:{role:'parent',label:'Parent',first:'Sana',last:'Ben Ali',kids:['J1','J2'],hint:'Sana Ben Ali, 2 enfants'},
+  coach:{role:'coach',label:'Coach',first:'Mehdi',last:'Gharbi',cid:'C1',hint:'Mehdi Gharbi, 2 groupes'},
+  admin:{role:'admin',label:'Administrateur',first:'Admin',last:'Bureau',hint:'Bureau du club'},
+};
+const MENUS = {
+  joueur:[['home','Accueil'],['pay','Mes paiements'],['ses','Mes séances'],['abs','Mes absences'],['book','Réserver un terrain'],['tour','Historique des tournois',1]],
+  coach:[['cses','Mes séances'],['csal','Mes salaires'],['book','Réserver (séances privées)']],
+  admin:[['dash','Dashboard'],['players','Joueurs'],['parents','Parents'],['coaches','Entraîneurs'],['groups','Groupes'],['courts','Terrains'],['cats','Catégories'],['seasons','Saisons'],['fees','Tarifs d’entraînement'],['ctar','Tarifs terrains'],['ares','Réservations'],['sal','Salaires'],['apay','Paiements'],['mails','Emails envoyés'],['audit','Journal d’audit'],['import','Import historique',1]],
+};
+MENUS.parent = MENUS.joueur;
+
+/* ===================== État ===================== */
+const S = {user:null,view:null,kid:'J1',season:'2026-2027',mustChange:{joueur:true,parent:true,coach:true,admin:false},
+  day:iso(addD(TODAY,1)),pick:null,calMode:'Mois',calMonth:new Date(2026,9,1),calDay:iso(TODAY),
+  f:{cat:'all',q:'',fam:'all',ares:iso(addD(TODAY,1)),student:'J4'},drawer:false};
+const app = document.getElementById('app');
+
+/* ===================== Utilitaires UI ===================== */
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.textContent=msg; document.getElementById('toasts').appendChild(t); setTimeout(()=>t.remove(),3600); }
+function modal(html,onMount){ closeModal(); const o=document.createElement('div'); o.className='ov'; o.id='ov'; o.innerHTML=`<div class="modal" role="dialog" aria-modal="true">${html}</div>`; o.addEventListener('click',e=>{if(e.target===o)closeModal()}); document.body.appendChild(o); onMount&&onMount(o); const f=o.querySelector('input,select,textarea,button.btn'); f&&f.focus(); }
+function closeModal(){ document.getElementById('ov')?.remove(); }
+function confirmBox(title,text,cta,fn,withMotif){
+  modal(`<div class="mh"><h2>${title}</h2><button class="ico" data-close aria-label="Fermer">✕</button></div><p class="mut" style="margin:0">${text}</p>
+  ${withMotif?`<label class="lb">Motif (obligatoire)<textarea id="motif" class="fld" rows="2"></textarea></label>`:''}
+  <div class="pills" style="justify-content:flex-end"><button class="btn2" data-close>Annuler</button><button class="btn" id="okb">${cta}</button></div>`,o=>{
+    o.querySelector('#okb').onclick=()=>{ const m=o.querySelector('#motif'); if(withMotif&&!m.value.trim()){toast('Le motif est obligatoire.');return;} closeModal(); fn(m?m.value.trim():''); };
+  });
+}
+function audit(action,target,before,after,motif=''){ const d=new Date(); AUDIT.unshift({who:'Admin Bureau',when:'2026-10-06 '+pad(d.getHours())+':'+pad(d.getMinutes()),action,target,before,after,motif}); }
+const initials = (a,b) => (a[0]+(b?b[0]:'')).toUpperCase();
+const sel = (id,opts,val,label) => `<select class="sel" id="${id}" aria-label="${label}">${opts.map(([v,t])=>`<option value="${v}" ${v==val?'selected':''}>${esc(t)}</option>`).join('')}</select>`;
+const note = html => `<div class="note"><span aria-hidden="true">ⓘ</span><div>${html}</div></div>`;
+const pageHead = (t,s,right='') => `<div class="head"><div><h1>${t}</h1><p class="sub">${s}</p></div>${right}</div>`;
+
+function sessionsFor(gids,from,to){
+  const out=[]; for(let d=new Date(from); d<=to; d=addD(d,1)){ GROUPS.filter(g=>gids.includes(g.id)).forEach(g=>{ if(g.days.includes(d.getDay())) out.push({g,date:iso(d)}); }); }
+  return out;
+}
+const sessStart = s => { const [h,m]=s.g.start.split(':').map(Number); const d=fromIso(s.date); d.setHours(h,m); return d; };
+const currentPid = () => S.user.role==='parent'?S.kid:S.user.pid;
+const kidSelect = () => S.user.role==='parent' ? sel('kidSel',S.user.kids.map(k=>[k,pname(player(k))]),S.kid,'Choisir le joueur') : '';
+
+/* ===================== Écrans : connexion ===================== */
+function vLogin(){
+  return `<div class="login"><div class="lbox">
+    <div class="brand"><div class="ball" aria-hidden="true">TC</div><div><b>TCSAY</b><span>Tennis Club de Sayada</span></div></div>
+    <div><h1>Connexion</h1><p class="sub">Les comptes sont créés par l’administrateur du club.</p></div>
+    <div class="card" style="gap:12px">
+      <label class="lb">Identifiant (email)<input class="fld" id="lg-email" type="email" placeholder="prenom.nom@exemple.tn"></label>
+      <label class="lb">Mot de passe<input class="fld" id="lg-pw" type="password" placeholder="••••••••"></label>
+      <button class="btn" data-act="fakeLogin">Se connecter</button>
+    </div>
+    <div><h2>Comptes de démonstration</h2><p class="sub">Choisissez un rôle pour parcourir le prototype.</p></div>
+    <div class="roles">${Object.values(USERS).map(u=>`<button data-act="login" data-role="${u.role}"><b>${u.label}</b><small>${u.hint}</small>${S.mustChange[u.role]?'<span class="pill s" style="align-self:flex-start;margin-top:6px">1re connexion</span>':''}</button>`).join('')}</div>
+    <div class="proto"><span class="demo">DÉMO</span> Prototype v4 · données et montants de démonstration · ${themeBtn()}</div>
+  </div></div>`;
+}
+function vChangePw(){
+  return `<div class="login"><div class="lbox">
+    <div class="brand"><div class="ball" aria-hidden="true">TC</div><div><b>TCSAY</b><span>Tennis Club de Sayada</span></div></div>
+    <div><h1>Choisissez votre mot de passe</h1><p class="sub">Bonjour ${esc(S.user.first)}, vous utilisez un mot de passe temporaire reçu par email. Remplacez-le pour continuer.</p></div>
+    <div class="card" style="gap:12px">
+      <label class="lb">Mot de passe temporaire<input class="fld" id="pw0" type="password" value="temporaire"></label>
+      <label class="lb">Nouveau mot de passe (8 caractères minimum)<input class="fld" id="pw1" type="password"></label>
+      <label class="lb">Confirmation<input class="fld" id="pw2" type="password"></label>
+      <button class="btn" data-act="savePw">Enregistrer et continuer</button>
+    </div>
+    <div class="pills"><span class="pill s">mustChangePassword = true</span></div>
+  </div></div>`;
+}
+function themeBtn(){ return `<button class="btn2" data-act="theme" aria-label="Changer de thème" style="padding:6px 12px;font-size:12.5px">${document.documentElement.dataset.theme==='dark'?'☀ Clair':'☾ Sombre'}</button>`; }
+
+/* ===================== Shell ===================== */
+function shell(content){
+  const u=S.user, menu=MENUS[u.role];
+  return `<div class="app">
+  <aside class="side ${S.drawer?'open':''}" id="side" aria-label="Menu principal">
+    <div class="brand"><div class="ball" aria-hidden="true">TC</div><div><b>TCSAY</b><span>Tennis Club de Sayada</span></div></div>
+    <div class="navt">MAIN</div>
+    <nav class="nav">${menu.map(([id,l,soon])=>`<button class="${S.view===id?'on':''}" data-go="${id}" ${S.view===id?'aria-current="page"':''}><span>${l}</span>${soon?'<span class="badge">À venir</span>':''}</button>`).join('')}</nav>
+    <div class="ucard"><div class="who"><div class="av" aria-hidden="true">${initials(u.first,u.last)}</div><div><b style="font-weight:600">${esc(u.first+' '+u.last)}</b><div class="mut" style="font-size:12.5px">${u.label}</div></div></div>
+      <button class="btn2" data-act="logout">Déconnexion</button></div>
+  </aside>
+  <div class="veil ${S.drawer?'open':''}" data-act="drawer"></div>
+  <main class="main">
+    <div class="top"><button class="mbtn" data-act="drawer" aria-label="Ouvrir le menu"><i></i><i></i><i></i><i></i></button><span class="sp"></span>
+      <span class="demo">PROTOTYPE · MONTANTS DÉMO</span>${themeBtn()}</div>
+    ${content}
+  </main></div>`;
+}
+
+/* ===================== Joueur / Parent ===================== */
+function vHome(){
+  const pid=currentPid(), p=player(pid), g=groupOf(pid);
+  const next = g ? sessionsFor([g.id],TODAY,addD(TODAY,14)).filter(s=>sessStart(s)>NOW)[0] : null;
+  const due = INST.filter(i=>i.pid===pid&&i.season===SEASON&&i.paid<i.amount);
+  return `<div class="hello"><div class="bigav" aria-hidden="true">${initials(S.user.first,S.user.last)}</div><div><h1>Bienvenue ${esc(S.user.first)} 👋</h1><p class="sub">Saison ${SEASON} · ${S.user.role==='parent'?'Suivi de '+S.user.kids.length+' joueurs':esc(cat(p.cat).name)}</p></div></div>
+  ${S.user.role==='parent'?`<div class="filters">${kidSelect()}</div>`:''}
+  <div class="hero">
+    <span class="eb">PROCHAINE SÉANCE${S.user.role==='parent'?' · '+esc(p.first.toUpperCase()):''}</span>
+    ${next?`<h2>${esc(next.g.name)}</h2><div class="pills"><span class="pill b">${fD(next.date,{weekday:'long',day:'numeric',month:'long'})}</span><span class="pill b">${next.g.start} – ${next.g.end}</span><span class="pill g">${court(next.g.court).name}</span></div><div style="opacity:.9;font-size:14px">Coach ${esc(coach(next.g.coach).first+' '+coach(next.g.coach).last)}</div>`:`<h2>Aucune séance prévue</h2><div style="opacity:.9">${esc(p.first)} n’est inscrit dans aucun groupe.</div>`}
+    <div class="notch"><button data-go="ses" aria-label="Voir mes séances">→</button></div>
+  </div>
+  <div class="sect"><h2>En bref</h2><div class="cards">
+    <div class="card"><span class="cs">Paiements</span>${due.length?`<div class="pills"><span class="pill r">${due.length} tranche${due.length>1?'s':''} à payer</span></div><span class="kpi">${DT(due.reduce((a,i)=>a+i.amount-i.paid,0))}</span><span class="mut" style="font-size:13px">Restant sur la saison <span class="demo">DÉMO</span></span>`:`<div class="pills"><span class="pill g">À jour</span></div><span class="mut">Toutes les tranches sont payées.</span>`}<div class="acts"><button class="btn2" data-go="pay">Mes paiements</button></div></div>
+    <div class="card"><span class="cs">Mes réservations</span><span class="kpi">${RES.filter(r=>r.pid===pid&&fromIso(r.date)>=TODAY).length}</span><span class="mut" style="font-size:13px">créneaux à venir</span><div class="acts"><button class="btn2" data-go="book">Réserver un terrain</button></div></div>
+    <div class="card"><span class="cs">Absences cette saison</span><span class="kpi">${Object.entries(ATT).filter(([k,v])=>k.endsWith('|'+pid)&&v===false).length}</span><span class="mut" style="font-size:13px">séances manquées</span><div class="acts"><button class="btn2" data-go="abs">Voir le détail</button></div></div>
+  </div></div>
+  <div class="sect"><h2>Événements</h2>${EVENTS.length?`<div class="cards">${EVENTS.map(e=>`<div class="card"><div class="row"><h3>${esc(e.title)}</h3><span class="pill s">${e.tag}</span></div><div class="pills"><span class="pill b">${fD(e.date,{weekday:'long',day:'numeric',month:'long'})}</span><span class="pill g">${esc(e.place)}</span></div></div>`).join('')}</div>`:`<div class="empty">Aucun événement pour le moment.</div>`}</div>`;
+}
+
+function vPay(){
+  const pid=currentPid(), list=INST.filter(i=>i.pid===pid&&i.season===S.season).sort((a,b)=>a.n-b.n);
+  const tot=list.reduce((a,i)=>a+i.amount,0), paid=list.reduce((a,i)=>a+i.paid,0);
+  return pageHead('Mes paiements','Découvrez vos cotisations et l’état de chaque tranche.')+
+  `<div class="filters">${kidSelect()}${sel('seasonSel',SEASONS.filter(s=>s.status!=='DRAFT').map(s=>[s.name,'Saison '+s.name]),S.season,'Choisir la saison')}</div>
+  ${list.length?`<div class="pills" style="margin:10px 0 16px"><span class="pill b">Total ${DT(tot)}</span><span class="pill g">Payé ${DT(paid)}</span><span class="pill ${tot-paid?'r':'g'}">Restant ${DT(tot-paid)}</span><span class="demo">DÉMO</span></div>
+  <div class="cards">${list.map(i=>{const rest=i.amount-i.paid; const late=rest&&fromIso(i.due)<TODAY; return `<div class="tr ${rest?'topay':'paid'}">
+    <div class="row" style="display:flex;justify-content:space-between;align-items:center"><h3>Tranche ${i.n}/${i.of}</h3><span class="pill ${rest?'r':'g'}">${rest?(late?'En retard':i.paid?'Partiel':'À payer'):'Payée'}</span></div>
+    <div class="pills"><span class="pill b">Échéance ${fD(i.due,{day:'numeric',month:'short',year:'numeric'})}</span></div>
+    <div class="amts"><div><small>Montant payé</small><b>${DT(i.paid)}</b></div><div><small>Montant restant</small><b>${DT(rest)}</b></div></div>
+    <div class="bar" aria-hidden="true"><i style="width:${Math.round(i.paid/i.amount*100)}%"></i></div>
+    ${rest?`<button class="btn" data-act="payOnline">Payer en ligne</button>`:`<button class="btn2" data-act="receipt">Reçu PDF</button>`}
+  </div>`}).join('')}</div>`:`<div class="empty">Aucune cotisation pour cette saison.</div>`}
+  ${note('Le paiement en espèces se fait au club : l’administrateur l’enregistre. Paiement en ligne et reçus PDF arrivent au sprint 6 (passerelle à choisir : Konnect, ClicToPay ou Paymee).')}`;
+}
+
+function calendar(dots){
+  const m=S.calMonth, sel=S.calDay; let days=[];
+  if(S.calMode==='Mois'){ const first=new Date(m.getFullYear(),m.getMonth(),1); const off=(first.getDay()+6)%7; const start=addD(first,-off); for(let i=0;i<42;i++) days.push(addD(start,i)); }
+  else { const d=fromIso(sel); const off=(d.getDay()+6)%7; const start=addD(d,-off); for(let i=0;i<7;i++) days.push(addD(start,i)); }
+  const title = S.calMode==='Mois'? m.toLocaleDateString('fr-FR',{month:'long',year:'numeric'}) : 'Semaine du '+fD(days[0],{day:'numeric',month:'long'});
+  return `<div class="card"><div class="row" style="flex-wrap:wrap"><div style="display:flex;align-items:center;gap:8px"><button class="ico" data-act="calPrev" aria-label="Période précédente">‹</button><h3 style="text-transform:capitalize;min-width:150px;text-align:center">${title}</h3><button class="ico" data-act="calNext" aria-label="Période suivante">›</button></div>
+  <div class="seg" role="group" aria-label="Affichage">${['Mois','Semaine'].map(x=>`<button class="${S.calMode===x?'on':''}" data-act="calMode" data-v="${x}">${x}</button>`).join('')}</div></div>
+  <div class="cal">${['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(w=>`<div class="wd">${w}</div>`).join('')}
+  ${days.map(d=>{const k=iso(d);return `<button class="${S.calMode==='Mois'&&d.getMonth()!==m.getMonth()?'out':''} ${dots.has(k)?'dot':''} ${k===sel?'on':''} ${k===iso(TODAY)?'today':''}" data-act="calDay" data-v="${k}" aria-label="${fD(d,{weekday:'long',day:'numeric',month:'long'})}${dots.has(k)?', séance':''}">${d.getDate()}</button>`}).join('')}</div></div>`;
+}
+function sessCard(s,opts={}){
+  const st=sessStart(s), past=st<NOW, pid=opts.pid, a=pid?ATT[`${s.g.id}|${s.date}|${pid}`]:undefined;
+  const c=coach(s.g.coach);
+  return `<div class="card"><div class="row"><h3>${esc(s.g.name)}</h3>${past?(pid!==undefined?(a===false?'<span class="pill r">Absent</span>':a===true?'<span class="pill g">Présent</span>':'<span class="pill s">Non pointé</span>'):'<span class="pill s">Passée</span>'):'<span class="pill g">Confirmée</span>'}</div>
+  <div class="pills"><span class="pill b">${fD(s.date)}</span><span class="pill b">${s.g.start} – ${s.g.end}</span><span class="pill g">${court(s.g.court).name}</span></div>
+  ${opts.coach?`<span class="mut" style="font-size:13px">${s.g.members.length} joueur${s.g.members.length>1?'s':''} · ${esc(cat(s.g.cat).name)}</span><div class="acts"><button class="btn2" data-act="attendance" data-g="${s.g.id}" data-d="${s.date}" ${past?'':'disabled title="Disponible le jour de la séance"'}>Présences</button></div>`:`<span class="mut" style="font-size:13px">Coach ${esc(c.first+' '+c.last)}</span>`}</div>`;
+}
+function vSes(){
+  const pid=currentPid(), g=groupOf(pid);
+  const all=g?sessionsFor([g.id],addD(TODAY,-21),addD(TODAY,28)):[];
+  const dots=new Set(all.map(s=>s.date));
+  const up=all.filter(s=>sessStart(s)>=NOW).slice(0,6), past=all.filter(s=>sessStart(s)<NOW).reverse().slice(0,6);
+  const daySess=all.filter(s=>s.date===S.calDay);
+  return pageHead('Mes séances','Découvrez vos entraînements à venir et passés.')+
+  `<div class="filters">${kidSelect()}${g?`<span class="pill s">${esc(g.name)}</span><span class="pill b">${g.days.map(d=>['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][d]).join(' & ')} · ${g.start}</span>`:''}</div>
+  ${g?`<div class="book" style="margin-top:10px">${calendar(dots)}<div class="card"><span class="cs">${fD(S.calDay,{weekday:'long',day:'numeric',month:'long'})}</span>${daySess.length?daySess.map(s=>`<h3>${esc(s.g.name)}</h3><div class="pills"><span class="pill b">${s.g.start} – ${s.g.end}</span><span class="pill g">${court(s.g.court).name}</span></div>`).join(''):'<span class="mut">Pas de séance ce jour.</span>'}</div></div>
+  <div class="sect"><h2>À venir</h2><div class="cards">${up.map(s=>sessCard(s)).join('')}</div></div>
+  <div class="sect"><h2>Passées</h2><div class="cards">${past.map(s=>sessCard(s,{pid})).join('')}</div></div>`:`<div class="empty">Aucun groupe d’entraînement pour ce joueur.</div>`}`;
+}
+function vAbs(){
+  const pid=currentPid(); const list=Object.entries(ATT).filter(([k,v])=>k.endsWith('|'+pid)&&v===false).map(([k])=>{const [gid,d]=k.split('|');return {g:group(gid),date:d,reason:ABS_REASON[k]||'Non justifiée'}});
+  return pageHead('Mes absences','Découvrez les séances manquées cette saison.')+
+  `<div class="filters">${kidSelect()}<span class="pill r">${list.length} absence${list.length>1?'s':''}</span></div>
+  ${list.length?`<div class="cards">${list.map(a=>`<div class="card"><div class="row"><h3>${esc(a.g.name)}</h3><span class="pill r">Absent</span></div><div class="pills"><span class="pill b">${fD(a.date)}</span><span class="pill b">${a.g.start}</span></div><span class="mut" style="font-size:13px">Motif : ${esc(a.reason)}</span></div>`).join('')}</div>`:`<div class="empty">Aucune absence. Bravo !</div>`}
+  ${note('Les présences sont pointées par le coach à chaque séance.')}`;
+}
+function vSoon(t){ return pageHead(t,'Ce module est prévu dans une prochaine version.')+`<div class="empty" style="margin-top:20px"><span class="pill s">À venir</span><p>${t==='Import historique'?'Numérisation des cahiers depuis 2010 : envoi des scans, extraction par IA, validation humaine ligne par ligne (sprint 9, pilote de 30 à 50 pages).':'Vos résultats et participations aux tournois apparaîtront ici.'}</p></div>`; }
+
+/* ===================== Réservation ===================== */
+function slotState(date,c,h){
+  const d=fromIso(date); d.setHours(h); if(d<NOW) return ['past','—'];
+  if(c.maint) return ['sand','Entretien'];
+  if(!c.lit&&h>=18) return ['sand','Sans éclairage'];
+  const r=RES.find(r=>r.date===date&&r.hour===h&&r.court===c.id);
+  if(r){ const mine = S.user.role==='coach'? r.coach===S.user.cid : S.user.role==='admin'?false : r.pid===currentPid(); return mine?['mine','Moi']:['taken','Pris']; }
+  const gr=GROUPS.find(g=>g.court===c.id&&g.days.includes(d.getDay())&&h>=+g.start.slice(0,2)&&h<Math.ceil(+g.end.slice(0,2)+(+g.end.slice(3)/60)));
+  if(gr) return ['taken','Groupe'];
+  const n=d.getDate()*7+COURTS.indexOf(c)*13+h*5; if(n%9===0) return ['taken','Pris'];
+  if(S.pick&&S.pick.date===date&&S.pick.court===c.id&&S.pick.hour===h) return ['chosen','Choisi'];
+  return ['free','Libre'];
+}
+function vBook(){
+  const isCoach=S.user.role==='coach', type=isCoach?'Séance privée':'Loisir';
+  const days=[...Array(14)].map((_,i)=>addD(TODAY,i));
+  const hours=[...Array(14)].map((_,i)=>8+i);
+  const mine=RES.filter(r=>(isCoach?r.coach===S.user.cid:r.pid===currentPid())).sort((a,b)=>(a.date+pad(a.hour)).localeCompare(b.date+pad(b.hour)));
+  const p=S.pick;
+  return pageHead(isCoach?'Réserver un terrain':'Réserver un terrain',isCoach?'Réservez un court pour une séance privée avec un élève.':'Choisissez un jour, puis un créneau libre.')+
+  `<div class="filters">${isCoach?sel('studentSel',PLAYERS.map(x=>[x.id,'Élève : '+pname(x)]),S.f.student,'Choisir l’élève'):kidSelect()}<span class="pill s">${type}</span></div>
+  <div class="days" role="listbox" aria-label="Jours">${days.map(d=>`<button class="dchip ${iso(d)===S.day?'on':''}" data-act="day" data-v="${iso(d)}" role="option" aria-selected="${iso(d)===S.day}"><small>${fD(d,{weekday:'short'})}</small><b>${d.getDate()}</b><small>${fD(d,{month:'short'})}</small></button>`).join('')}</div>
+  <div class="legend"><span class="pill" style="background:var(--fld);color:var(--fg)">Libre</span><span class="pill r">Pris</span><span class="pill g">Mes réservations</span><span class="pill s">Entretien / sans éclairage</span><span class="pill b">☀ éclairé · ☾ nuit dès 18h</span></div>
+  <div class="book">
+    <div class="gwrap"><div class="grid" id="bgrid" style="grid-template-columns:64px repeat(${COURTS.length},minmax(84px,1fr))">
+      <div></div>${COURTS.map(c=>`<div class="gh">${c.name}${c.lit?' ☀':''}</div>`).join('')}
+      ${hours.map((h,r)=>`<div class="hr">${pad(h)}h${h>=18?' ☾':''}</div>`+COURTS.map((c,ci)=>{const [st,lab]=slotState(S.day,c,h);const dis=st!=='free'&&st!=='chosen';return `<button class="slot ${st==='past'?'past':st==='sand'?'sand':st}" data-act="slot" data-c="${c.id}" data-h="${h}" data-r="${r}" data-ci="${ci}" ${dis?'aria-disabled="true"':''} tabindex="${r===0&&ci===0?0:-1}" aria-label="${c.name}, ${h}h, ${lab}">${st==='free'?'':lab}</button>`}).join('')).join('')}
+    </div></div>
+    <div class="card"><h3>Récapitulatif</h3>
+      ${p?`<div><div class="kv"><span>Terrain</span><b>${court(p.court).name}</b></div><div class="kv"><span>Date</span><b>${fD(p.date)}</b></div><div class="kv"><span>Heure</span><b>${pad(p.hour)}:00 – ${pad(p.hour+1)}:00</b></div><div class="kv"><span>Période</span><b>${p.hour>=18?'Nuit ☾':'Jour'}</b></div><div class="kv"><span>Type</span><b>${type}</b></div>${isCoach?`<div class="kv"><span>Élève</span><b>${esc(pname(player(S.f.student)))}</b></div>`:''}${S.user.role==='parent'?`<div class="kv"><span>Pour</span><b>${esc(player(S.kid).first)}</b></div>`:''}</div>
+      <div class="row"><span class="mut">Prix</span><span class="kpi" style="font-size:24px">${DT(price(type,p.hour))} <span class="demo">DÉMO</span></span></div>
+      <button class="btn" data-act="reserve">Réserver</button>`:`<span class="mut">Sélectionnez un créneau libre dans la grille (flèches du clavier pour vous déplacer).</span>`}
+    </div>
+  </div>
+  <div class="sect"><h2>Mes réservations</h2>${mine.length?`<div class="cards">${mine.map(r=>{const st=fromIso(r.date);st.setHours(r.hour);const past=st<NOW;return `<div class="card"><div class="row"><h3>${court(r.court).name}</h3><span class="pill ${past?'s':'g'}">${past?'Passée':'Confirmée'}</span></div><div class="pills"><span class="pill b">${fD(r.date)}</span><span class="pill b">${pad(r.hour)}:00</span><span class="pill s">${r.type}</span></div>${isCoach?`<span class="mut" style="font-size:13px">Élève : ${esc(pname(player(r.pid)))}</span>`:''}<div class="acts">${past?'':`<button class="btn2 danger" data-act="cancelRes" data-id="${r.id}">Annuler</button>`}</div></div>`}).join('')}</div>`:`<div class="empty">Aucune réservation.</div>`}</div>
+  ${note(`Annulation possible jusqu’à <b>24 h</b> avant le créneau (R10). Un court sans éclairage n’est pas réservable la nuit.${S.user.role==='parent'?' Réservation par un parent pour son enfant : <b>à confirmer avec le bureau</b>.':''}`)}`;
+}
+
+/* ===================== Coach ===================== */
+function vCSes(){
+  const gids=GROUPS.filter(g=>g.coach===S.user.cid).map(g=>g.id);
+  const all=sessionsFor(gids,addD(TODAY,-14),addD(TODAY,14));
+  const dots=new Set(all.map(s=>s.date));
+  const up=all.filter(s=>sessStart(s)>=NOW).slice(0,8), past=all.filter(s=>sessStart(s)<NOW).reverse().slice(0,8);
+  return pageHead('Mes séances','Découvrez vos groupes et pointez les présences.')+
+  `<div class="filters">${GROUPS.filter(g=>gids.includes(g.id)).map(g=>`<span class="pill s">${esc(g.name)} · ${g.members.length}/${g.cap}</span>`).join('')}</div>
+  <div class="book" style="margin-top:10px">${calendar(dots)}<div class="card"><span class="cs">${fD(S.calDay,{weekday:'long',day:'numeric',month:'long'})}</span>${all.filter(s=>s.date===S.calDay).map(s=>`<h3>${esc(s.g.name)}</h3><div class="pills"><span class="pill b">${s.g.start} – ${s.g.end}</span><span class="pill g">${court(s.g.court).name}</span></div>`).join('')||'<span class="mut">Pas de séance ce jour.</span>'}</div></div>
+  <div class="sect"><h2>À venir</h2><div class="cards">${up.map(s=>sessCard(s,{coach:1})).join('')}</div></div>
+  <div class="sect"><h2>Passées</h2><div class="cards">${past.map(s=>sessCard(s,{coach:1})).join('')}</div></div>`;
+}
+function vCSal(){
+  const list=SALARIES.filter(s=>s.coach===S.user.cid&&s.paid);
+  return pageHead('Mes salaires','Découvrez les salaires qui vous ont été versés.')+
+  `<div class="pills" style="margin:18px 0"><span class="pill g">Total versé ${DT(list.reduce((a,s)=>a+s.amount,0))}</span><span class="demo">DÉMO</span></div>
+  <div class="cards">${list.map(s=>`<div class="card"><div class="row"><h3>${s.period}</h3><span class="pill g">Versé</span></div><span class="kpi">${DT(s.amount)}</span><div class="pills"><span class="pill b">Versé le ${fD(s.date,{day:'numeric',month:'short',year:'numeric'})}</span></div></div>`).join('')}</div>
+  ${note('Les salaires sont saisis par l’administrateur. Mode de calcul (mensuel, horaire ou forfait) : à confirmer avec le bureau.')}`;
+}
+
+/* ===================== Admin ===================== */
+function vDash(){
+  const act=PLAYERS.filter(p=>!p.archived).length, cash=PAYMENTS.reduce((a,p)=>a+p.amount,0);
+  const late=INST.filter(i=>i.season===SEASON&&i.paid<i.amount&&fromIso(i.due)<TODAY);
+  const tom=iso(addD(TODAY,1)), rs=RES.filter(r=>r.date===tom);
+  return pageHead('Dashboard','Vue d’ensemble de la saison '+SEASON+'.',`<span class="pill g">Saison active ${SEASON}</span>`)+
+  `<div class="cards" style="margin-top:20px">
+    <div class="card"><span class="cs">Joueurs actifs</span><span class="kpi">${act}</span><span class="mut" style="font-size:13px">${GROUPS.length} groupes · ${COACHES.length} entraîneurs</span></div>
+    <div class="card"><span class="cs">Encaissé cette saison <span class="demo">DÉMO</span></span><span class="kpi">${DT(cash)}</span><span class="mut" style="font-size:13px">${PAYMENTS.length} paiements en espèces</span></div>
+    <div class="card"><span class="cs">Tranches en retard</span><span class="kpi">${late.length}</span><div class="pills">${late.length?`<span class="pill r">${DT(late.reduce((a,i)=>a+i.amount-i.paid,0))} dus</span>`:'<span class="pill g">Aucune</span>'}</div></div>
+    <div class="card"><span class="cs">Réservations demain</span><span class="kpi">${rs.length}</span><span class="mut" style="font-size:13px">${fD(tom,{weekday:'long',day:'numeric',month:'long'})}</span></div>
+  </div>
+  <div class="sect"><h2>Tranches à relancer</h2><div class="cards">${late.map(i=>{const p=player(i.pid);return `<div class="card"><div class="row"><h3>${esc(pname(p))}</h3><span class="pill r">En retard</span></div><div class="pills"><span class="pill b">Tranche ${i.n}/${i.of}</span><span class="pill b">Échéance ${fD(i.due,{day:'numeric',month:'short'})}</span></div><span class="mut" style="font-size:13px">Restant ${DT(i.amount-i.paid)}</span><div class="acts"><button class="btn2" data-go="apay">Encaisser</button><button class="btn2" data-act="remind" data-id="${i.id}">Envoyer un rappel</button></div></div>`}).join('')||'<div class="empty">Aucune tranche en retard.</div>'}</div></div>
+  <div class="sect"><h2>Groupes</h2><div class="cards">${GROUPS.map(g=>`<div class="card"><div class="row"><h3>${esc(g.name)}</h3><span class="pill ${g.members.length>=g.cap?'r':'g'}">${g.members.length}/${g.cap}</span></div><div class="bar"><i style="width:${g.members.length/g.cap*100}%"></i></div></div>`).join('')}</div></div>`;
+}
+function vPlayers(){
+  const q=S.f.q.toLowerCase();
+  const list=PLAYERS.filter(p=>(S.f.cat==='arch'?p.archived:!p.archived)&&(S.f.cat==='all'||S.f.cat==='arch'||p.cat===S.f.cat)&&(!q||pname(p).toLowerCase().includes(q)));
+  return pageHead('Joueurs','Découvrez les joueurs inscrits pour la saison '+SEASON+'.',`<button class="btn" data-act="newPlayer">+ Nouveau joueur</button>`)+
+  `<div class="filters"><input class="fld" id="qPlayers" style="width:220px" placeholder="Rechercher un joueur" value="${esc(S.f.q)}" aria-label="Rechercher">${sel('catFilter',[['all','Toutes les catégories'],...CATS.filter(c=>PLAYERS.some(p=>p.cat===c.id)).map(c=>[c.id,c.name]),['arch','Archivés']],S.f.cat,'Filtrer par catégorie')}<span class="pill b">${list.length} joueur${list.length>1?'s':''}</span></div>
+  <div class="cards" style="margin-top:10px">${list.map(p=>{const g=groupOf(p.id),par=parentsOf(p.id),age=2026-fromIso(p.birth).getFullYear();return `<div class="card"><div class="row"><div style="display:flex;gap:10px;align-items:center;min-width:0"><div class="av" aria-hidden="true">${initials(p.first,p.last)}</div><div style="min-width:0"><h3>${esc(pname(p))}</h3><span class="mut" style="font-size:13px">${age} ans · ${p.g==='M'?'Garçon / Homme':'Fille / Femme'}</span></div></div></div>
+    <div class="pills"><span class="pill s">${esc(cat(p.cat).name)}</span>${g?`<span class="pill g">${esc(g.name)}</span>`:'<span class="pill r">Sans groupe</span>'}${p.derog?'<span class="pill s">Dérogation</span>':''}</div>
+    <span class="mut" style="font-size:13px">${age<18?'Parent : '+(par.map(u=>esc(u.first+' '+u.last)).join(', ')||'—'):esc(p.email)}</span>
+    <div class="acts">${p.archived?'<span class="pill s">Archivé</span>':`<button class="btn2" data-act="editPlayer" data-id="${p.id}">Modifier</button><button class="btn2 danger" data-act="archivePlayer" data-id="${p.id}">Archiver</button>`}</div></div>`}).join('')||'<div class="empty">Aucun joueur.</div>'}</div>
+  ${note('Suppression = <b>archivage</b> (R8). Nom, naissance, genre et catégorie : modifiables par l’admin seulement (R9). Un mineur a toujours au moins un parent lié.')}`;
+}
+function playerForm(p){
+  const e=p||{};
+  modal(`<div class="mh"><h2>${p?'Modifier le joueur':'Nouveau joueur'}</h2><button class="ico" data-close aria-label="Fermer">✕</button></div>
+  <form class="form" id="pform" novalidate>
+    <label class="lb">Prénom<input class="fld" id="pf-first" value="${esc(e.first||'')}" required></label>
+    <label class="lb">Nom<input class="fld" id="pf-last" value="${esc(e.last||'')}" required></label>
+    <label class="lb">Date de naissance<input class="fld" type="date" id="pf-birth" value="${e.birth||''}"></label>
+    <label class="lb">Genre (obligatoire)<select class="sel" id="pf-g"><option value="">—</option><option value="M" ${e.g==='M'?'selected':''}>Garçon / Homme</option><option value="F" ${e.g==='F'?'selected':''}>Fille / Femme</option></select></label>
+    <div class="full" id="pf-sugg"></div>
+    <label class="lb">Email${''}<input class="fld" type="email" id="pf-email" value="${esc(e.email||'')}" placeholder="obligatoire pour un majeur"></label>
+    <label class="lb">Téléphone<input class="fld" id="pf-phone" value="${esc(e.phone||'')}"></label>
+    <label class="lb full">Parent lié (obligatoire pour un mineur)<select class="sel" id="pf-parent"><option value="">— Aucun —</option>${PARENTS.map(u=>`<option value="${u.id}" ${p&&u.kids.includes(p.id)?'selected':''}>${esc(u.first+' '+u.last)}</option>`).join('')}</select></label>
+    <label class="lb full">Dérogation de catégorie (motif, facultatif)<input class="fld" id="pf-derog" value="${esc(e.derog||'')}" placeholder="Ex. niveau adapté à un autre groupe"></label>
+    <div class="full pills" style="justify-content:flex-end"><button type="button" class="btn2" data-close>Annuler</button><button class="btn" type="submit">${p?'Enregistrer':'Créer et envoyer les identifiants'}</button></div>
+  </form>`,o=>{
+    const upd=()=>{ const r=suggestCat(o.querySelector('#pf-birth').value,o.querySelector('#pf-g').value); const box=o.querySelector('#pf-sugg');
+      box.innerHTML = !r?'<span class="pill b">Saisissez la naissance et le genre : la catégorie est proposée automatiquement.</span>' : r.err?`<span class="pill r">${r.err}</span>` : `<div class="pills"><span class="pill g">Catégorie proposée : ${esc(r.cat.name)}</span><span class="pill b">${r.age} ans au 31/12/2026</span>${r.alt?`<span class="pill s">Possible aussi : ${esc(cat(r.alt).name)}</span>`:''}<span class="pill s">${r.age<18?'Mineur : parent obligatoire':'Majeur : email obligatoire'}</span></div>`; };
+    ['#pf-birth','#pf-g'].forEach(s=>o.querySelector(s).addEventListener('input',upd)); upd();
+    o.querySelector('#pform').addEventListener('submit',ev=>{ ev.preventDefault();
+      const v=k=>o.querySelector('#pf-'+k).value.trim();
+      if(!v('first')||!v('last')) return toast('Prénom et nom sont obligatoires.');
+      if(!v('g')) return toast('Le genre est obligatoire.');
+      const r=suggestCat(v('birth'),v('g')); if(!r) return toast('La date de naissance est obligatoire.'); if(r.err) return toast(r.err);
+      if(r.age<18&&!v('parent')) return toast('Un mineur doit avoir au moins un parent lié (R9).');
+      if(r.age>=18&&!v('email')) return toast('L’email est obligatoire pour un joueur majeur.');
+      if(p){ const before=pname(p)+' · '+cat(p.cat).name; Object.assign(p,{first:v('first'),last:v('last'),birth:v('birth'),g:v('g'),email:v('email'),phone:v('phone'),derog:v('derog'),cat:p.derog&&p.cat?p.cat:r.cat.id});
+        PARENTS.forEach(u=>{u.kids=u.kids.filter(k=>k!==p.id)}); if(v('parent')) PARENTS.find(u=>u.id===v('parent')).kids.push(p.id);
+        audit('Joueur modifié',pname(p),before,pname(p)+' · '+cat(p.cat).name); closeModal(); toast('Joueur enregistré.'); render(); return; }
+      const np={id:'J'+(PLAYERS.length+1),first:v('first'),last:v('last'),birth:v('birth'),g:v('g'),email:v('email'),phone:v('phone'),cat:r.cat.id,derog:v('derog')};
+      PLAYERS.push(np); if(v('parent')) PARENTS.find(u=>u.id===v('parent')).kids.push(np.id);
+      const to = r.age<18 ? PARENTS.find(u=>u.id===v('parent')).email : np.email;
+      EMAILS.unshift({to,subject:'Vos identifiants TCSAY',kind:'Identifiants',date:'2026-10-06 23:45',status:'Envoyé'});
+      audit('Joueur créé',pname(np),'—',cat(np.cat).name); closeModal(); toast('Joueur créé. Identifiants et mot de passe temporaire envoyés à '+to+'.'); render();
+    });
+  });
+}
+function vParents(){
+  return pageHead('Parents','Découvrez les parents et les joueurs qui leur sont liés.',`<button class="btn" data-act="toastNew" data-v="parent">+ Nouveau parent</button>`)+
+  `<div class="cards" style="margin-top:20px">${PARENTS.map(u=>`<div class="card"><div class="row"><div style="display:flex;gap:10px;align-items:center"><div class="av" aria-hidden="true">${initials(u.first,u.last)}</div><h3>${esc(u.first+' '+u.last)}</h3></div></div><div class="pills">${u.kids.map(k=>`<span class="pill g">${esc(pname(player(k)))}</span>`).join('')}</div><span class="mut" style="font-size:13px">${esc(u.email)} · ${esc(u.phone)}</span><div class="acts"><button class="btn2" data-act="toastNew" data-v="lier">Lier un joueur</button><button class="btn2" data-act="deactivate" data-v="${esc(u.first+' '+u.last)}">Désactiver le compte</button></div></div>`).join('')}</div>
+  ${note('Un parent peut suivre plusieurs joueurs ; un joueur peut avoir plusieurs parents. Les comptes sont désactivés, jamais supprimés.')}`;
+}
+function vCoaches(){
+  return pageHead('Entraîneurs','Découvrez les entraîneurs et leurs groupes.',`<button class="btn" data-act="toastNew" data-v="coach">+ Nouvel entraîneur</button>`)+
+  `<div class="cards" style="margin-top:20px">${COACHES.map(c=>{const gs=GROUPS.filter(g=>g.coach===c.id);return `<div class="card"><div class="row"><div style="display:flex;gap:10px;align-items:center"><div class="av" aria-hidden="true">${initials(c.first,c.last)}</div><h3>${esc(c.first+' '+c.last)}</h3></div><span class="pill g">Actif</span></div><div class="pills">${gs.map(g=>`<span class="pill s">${esc(g.name)}</span>`).join('')}</div><span class="mut" style="font-size:13px">${esc(c.email)} · ${esc(c.phone)}</span><span class="mut" style="font-size:13px">Rémunération : ${c.mode}</span><div class="acts"><button class="btn2" data-go="sal">Salaires</button><button class="btn2" data-act="deactivate" data-v="${esc(c.first+' '+c.last)}">Désactiver</button></div></div>`}).join('')}</div>`;
+}
+function vGroups(){
+  return pageHead('Groupes','Découvrez les groupes d’entraînement de la saison '+SEASON+'.',`<button class="btn" data-act="newGroup">+ Nouveau groupe</button>`)+
+  `<div class="cards" style="margin-top:20px">${GROUPS.map(g=>{const c=coach(g.coach);return `<div class="card"><div class="row"><h3>${esc(g.name)}</h3><span class="pill ${g.members.length>=g.cap?'r':'g'}">${g.members.length}/${g.cap}${g.members.length>=g.cap?' · complet':''}</span></div>
+  <div class="pills"><span class="pill s">${esc(cat(g.cat).name)}</span><span class="pill b">${g.days.map(d=>['Dim','Lun','Mar','Mer','Jeu','Ven','Sam'][d]).join(' & ')} ${g.start}–${g.end}</span><span class="pill g">${court(g.court).name}</span></div>
+  <span class="mut" style="font-size:13px">Coach ${esc(c.first+' '+c.last)} · ${g.members.map(m=>esc(player(m).first)).join(', ')}</span>
+  <div class="acts"><button class="btn2" data-act="addMember" data-id="${g.id}">Ajouter un joueur</button></div></div>`}).join('')}</div>
+  ${note('Capacité et catégorie vérifiées à chaque ajout (R4, dérogation avec motif). Aucun conflit de terrain, de créneau ou d’entraîneur (R5).')}`;
+}
+function vCourts(){
+  return pageHead('Terrains','Découvrez les terrains et leur disponibilité.',`<button class="btn" data-act="toastNew" data-v="terrain">+ Nouveau terrain</button>`)+
+  `<div class="cards" style="margin-top:20px">${COURTS.map(c=>{const fut=RES.filter(r=>r.court===c.id&&fromIso(r.date)>=TODAY).length;return `<div class="card"><div class="row"><h3>${c.name}</h3><span class="pill ${c.maint?'s':c.active?'g':'r'}">${c.maint?'Entretien':c.active?'Actif':'Désactivé'}</span></div><div class="pills"><span class="pill b">${c.surface}</span><span class="pill ${c.lit?'g':'s'}">${c.lit?'☀ Éclairé':'Sans éclairage'}</span></div><span class="mut" style="font-size:13px">${fut} réservation${fut>1?'s':''} à venir</span><div class="acts"><button class="btn2" data-act="maint" data-id="${c.id}">${c.maint?'Fin d’entretien':'Mettre en entretien'}</button><button class="btn2 danger" data-act="disableCourt" data-id="${c.id}">Désactiver</button></div></div>`}).join('')}</div>
+  ${note('Un terrain avec des réservations futures ne peut pas être désactivé (R11).')}`;
+}
+function vCats(){
+  const fams=['Jeunes','Adultes','Vétérans','Entreprise','Padel'];
+  const list=CATS.filter(c=>S.f.fam==='all'||c.fam===S.f.fam);
+  return pageHead('Catégories','Découvrez les 29 catégories, par paires garçon / fille.')+
+  `<div class="filters">${sel('famSel',[['all','Toutes'],...fams.map(f=>[f,f])],S.f.fam,'Filtrer par famille')}<span class="pill b">${list.length} catégorie${list.length>1?'s':''}</span></div>
+  <div class="cards" style="margin-top:10px">${list.map(c=>`<div class="card"><div class="row"><h3>${esc(c.name)}</h3><span class="pill b">${c.pair}</span></div><div class="pills"><span class="pill s">${c.fam}</span><span class="pill g">${c.gender==='M'?'Masculin':c.gender==='F'?'Féminin':'Mixte'}</span><span class="pill b">${PLAYERS.filter(p=>p.cat===c.id&&!p.archived).length} joueur(s)</span></div>${c.note?`<span class="pill r" style="align-self:flex-start">${c.note}</span>`:''}</div>`).join('')}</div>
+  ${note('Calcul provisoire : âge selon l’année de naissance au 31/12 de la saison. <b>À confirmer avec le bureau</b> (âge atteint ou année de naissance, date de référence).')}`;
+}
+function vSeasons(){
+  return pageHead('Saisons','Découvrez les saisons du club, de l’historique à la prochaine.',`<button class="btn" data-act="toastNew" data-v="saison">+ Nouvelle saison</button>`)+
+  `<div class="cards" style="margin-top:20px">${SEASONS.map(s=>{const [l,c]=ST[s.status];return `<div class="card"><div class="row"><h3>Saison ${s.name}</h3><span class="pill ${c}">${l}</span></div><span class="mut" style="font-size:13px">${s.status==='ACTIVE'?'Saison en cours : inscriptions et paiements ouverts.':s.status==='DRAFT'?'Préparation : tarifs et groupes en cours.':s.status==='CLOSED'?'Verrouillée : aucune modification sans réouverture.':'Créée pour l’import des cahiers.'}</span><div class="acts">${s.status==='DRAFT'?`<button class="btn2" data-act="activate" data-id="${s.id}">Activer</button>`:''}${s.status==='ACTIVE'?`<button class="btn2" data-act="closeSeason" data-id="${s.id}">Clôturer</button>`:''}${s.status==='CLOSED'||s.status==='HISTORICAL'?`<button class="btn2" data-act="reopen" data-id="${s.id}">Rouvrir (motif)</button>`:''}</div></div>`}).join('')}</div>
+  ${note('Une seule saison active (R2). Saison clôturée ou historique verrouillée ; réouverture par l’admin avec motif (R1).')}`;
+}
+function vFees(){
+  return pageHead('Tarifs d’entraînement','Découvrez les tarifs par catégorie et par groupe.',`<button class="btn" data-act="toastNew" data-v="tarif">+ Nouveau tarif</button>`)+
+  `<div class="filters">${sel('feeSeason',[['2026-2027','Saison 2026-2027'],['2025-2026','Saison 2025-2026 (clôturée)']],'2026-2027','Saison')}<span class="demo">MONTANTS DÉMO</span></div>
+  <div class="cards" style="margin-top:10px">${FEES.map(f=>`<div class="card"><div class="row"><h3>${esc(cat(f.cat).name)}</h3><span class="pill s">${esc(group(f.group).name)}</span></div><span class="kpi">${DT(f.amount)}</span><div class="pills"><span class="pill b">${f.n} tranches de ${DT(Math.round(f.amount/f.n))}</span></div><div class="acts"><button class="btn2" data-act="editFee">Modifier</button></div></div>`).join('')}</div>
+  ${note('Tarifs réels, tranches et réductions famille : <b>à confirmer avec le bureau</b>. Sur une saison clôturée, motif obligatoire et anciennes valeurs conservées (R6).')}`;
+}
+function vCtar(){
+  return pageHead('Tarifs terrains','Découvrez les tarifs horaires de réservation.')+
+  `<div class="cards" style="margin-top:20px">${CTARIFS.map(t=>`<div class="card"><div class="row"><h3>${t.type}</h3><span class="pill ${t.period==='Nuit'?'b':'g'}">${t.period==='Nuit'?'☾ Nuit':'☀ Jour'}</span></div><span class="kpi">${DT(t.price)} <span class="mut" style="font-size:14px;font-weight:500">/ heure</span></span><span class="demo" style="align-self:flex-start">DÉMO</span><div class="acts"><button class="btn2" data-act="toastNew" data-v="modif">Modifier</button></div></div>`).join('')}</div>
+  ${note('Nuit à partir de <b>18h</b> (début à confirmer). Délai d’annulation : <b>24 h</b> (paramétrable).')}`;
+}
+function vAres(){
+  const days=[...Array(14)].map((_,i)=>addD(TODAY,i)), list=RES.filter(r=>r.date===S.f.ares).sort((a,b)=>a.hour-b.hour);
+  return pageHead('Réservations','Découvrez les réservations par jour.')+
+  `<div class="days" style="margin-top:18px">${days.map(d=>`<button class="dchip ${iso(d)===S.f.ares?'on':''}" data-act="aday" data-v="${iso(d)}"><small>${fD(d,{weekday:'short'})}</small><b>${d.getDate()}</b><small>${fD(d,{month:'short'})}</small></button>`).join('')}</div>
+  <div class="cards" style="margin-top:14px">${list.map(r=>`<div class="card"><div class="row"><h3>${court(r.court).name} · ${pad(r.hour)}:00</h3><span class="pill g">Confirmée</span></div><div class="pills"><span class="pill s">${r.type}</span><span class="pill b">${fD(r.date)}</span></div><span class="mut" style="font-size:13px">${esc(pname(player(r.pid)))} · réservé par ${esc(r.by)}</span><div class="acts"><button class="btn2 danger" data-act="forceCancel" data-id="${r.id}">Annulation forcée</button></div></div>`).join('')||'<div class="empty">Aucune réservation ce jour.</div>'}</div>
+  ${note('L’admin peut forcer une annulation à moins de 24 h, avec motif. Pas de double réservation : clé unique terrain + heure.')}`;
+}
+function vSal(){
+  return pageHead('Salaires','Découvrez les salaires des entraîneurs.',`<button class="btn" data-act="toastNew" data-v="salaire">+ Saisir un salaire</button>`)+
+  `<div class="cards" style="margin-top:20px">${SALARIES.map((s,i)=>{const c=coach(s.coach);return `<div class="card"><div class="row"><h3>${esc(c.first+' '+c.last)}</h3><span class="pill ${s.paid?'g':'r'}">${s.paid?'Versé':'À verser'}</span></div><div class="pills"><span class="pill b">${s.period}</span></div><span class="kpi">${DT(s.amount)} <span class="demo">DÉMO</span></span><div class="acts">${s.paid?`<span class="mut" style="font-size:13px">Versé le ${fD(s.date,{day:'numeric',month:'short'})}</span>`:`<button class="btn" data-act="paySal" data-i="${i}">Marquer versé</button>`}</div></div>`}).join('')}</div>`;
+}
+function vApay(){
+  const list=INST.filter(i=>i.season===SEASON);
+  return pageHead('Paiements','Découvrez les tranches de la saison et encaissez les paiements en espèces.')+
+  `<div class="pills" style="margin:18px 0"><span class="pill g">Encaissé ${DT(list.reduce((a,i)=>a+i.paid,0))}</span><span class="pill r">Restant ${DT(list.reduce((a,i)=>a+i.amount-i.paid,0))}</span><span class="demo">DÉMO</span></div>
+  <div class="cards">${list.map(i=>{const p=player(i.pid),rest=i.amount-i.paid;return `<div class="tr ${rest?'topay':'paid'}"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h3>${esc(pname(p))}</h3><span class="pill ${rest?'r':'g'}">${rest?(fromIso(i.due)<TODAY?'En retard':'À payer'):'Payée'}</span></div><div class="pills"><span class="pill b">Tranche ${i.n}/${i.of}</span><span class="pill b">${fD(i.due,{day:'numeric',month:'short'})}</span></div><div class="amts"><div><small>Montant payé</small><b>${DT(i.paid)}</b></div><div><small>Montant restant</small><b>${DT(rest)}</b></div></div>${rest?`<button class="btn" data-act="cash" data-id="${i.id}">Encaisser en espèces</button>`:`<button class="btn2" data-act="editPayment">Modifier le paiement</button>`}</div>`}).join('')}</div>
+  ${note('Un paiement encaissé n’est jamais modifié ni supprimé : remboursement ou écriture corrective (R7). Le coach n’a jamais accès à cet écran (403).')}`;
+}
+function vMails(){
+  return pageHead('Emails envoyés','Découvrez les emails envoyés par la plateforme.')+
+  `<div class="cards" style="margin-top:20px">${EMAILS.map(m=>`<div class="card"><div class="row"><h3 style="min-width:0;overflow-wrap:anywhere">${esc(m.subject)}</h3></div><div class="pills"><span class="pill s">${m.kind}</span><span class="pill g">${m.status}</span><span class="pill b">${m.date}</span></div><span class="mut" style="font-size:13px;overflow-wrap:anywhere">À : ${esc(m.to)}</span></div>`).join('')}</div>
+  ${note('En développement, les emails sont capturés par Mailpit (interface sur le port 8025).')}`;
+}
+function vAudit(){
+  return pageHead('Journal d’audit','Découvrez qui a modifié quoi, quand et pourquoi.')+
+  `<div class="cards" style="margin-top:20px">${AUDIT.map(a=>`<div class="card"><div class="row"><h3>${esc(a.action)}</h3></div><div class="pills"><span class="pill b">${a.when}</span><span class="pill s">${esc(a.who)}</span></div><span style="font-size:14px">${esc(a.target)}</span><div class="pills"><span class="pill r">Avant : ${esc(a.before)}</span><span class="pill g">Après : ${esc(a.after)}</span></div>${a.motif?`<span class="mut" style="font-size:13px">Motif : ${esc(a.motif)}</span>`:''}</div>`).join('')}</div>
+  ${note('Lecture seule. Chaque modification sensible y est enregistrée automatiquement.')}`;
+}
+
+/* ===================== Rendu & routage ===================== */
+const VIEWS = {home:vHome,pay:vPay,ses:vSes,abs:vAbs,book:vBook,tour:()=>vSoon('Historique des tournois'),cses:vCSes,csal:vCSal,
+  dash:vDash,players:vPlayers,parents:vParents,coaches:vCoaches,groups:vGroups,courts:vCourts,cats:vCats,seasons:vSeasons,fees:vFees,ctar:vCtar,ares:vAres,sal:vSal,apay:vApay,mails:vMails,audit:vAudit,import:()=>vSoon('Import historique')};
+function render(){
+  if(!S.user){ app.innerHTML=vLogin(); return; }
+  if(S.mustChange[S.user.role]){ app.innerHTML=vChangePw(); return; }
+  app.innerHTML=shell(VIEWS[S.view]());
+}
+function go(v){ S.view=v; S.drawer=false; S.pick=null; render(); window.scrollTo(0,0); document.querySelector('.main h1')?.focus?.(); }
+
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g){ go(g.dataset.go); return; }
+  if(e.target.closest('[data-close]')){ closeModal(); return; }
+  const a=e.target.closest('[data-act]'); if(!a) return;
+  const act=a.dataset.act, id=a.dataset.id;
+  const H={
+    theme(){ const r=document.documentElement; const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme=dark?'light':'dark'; render(); },
+    fakeLogin(){ toast('Prototype : choisissez un compte de démonstration ci-dessous.'); },
+    login(){ S.user=USERS[a.dataset.role]; S.view=MENUS[S.user.role][0][0]; render(); },
+    savePw(){ const p1=document.getElementById('pw1').value,p2=document.getElementById('pw2').value; if(p1.length<8) return toast('Le mot de passe doit contenir au moins 8 caractères.'); if(p1!==p2) return toast('Les deux mots de passe ne correspondent pas.'); S.mustChange[S.user.role]=false; toast('Mot de passe enregistré. Bienvenue !'); render(); },
+    logout(){ S.user=null; S.drawer=false; render(); },
+    drawer(){ S.drawer=!S.drawer; document.getElementById('side').classList.toggle('open',S.drawer); document.querySelector('.veil').classList.toggle('open',S.drawer); },
+    payOnline(){ toast('Paiement en ligne : passerelle à choisir (Konnect, ClicToPay ou Paymee). Prévu au sprint 6.'); },
+    receipt(){ toast('Reçu PDF : prévu au sprint 6.'); },
+    calMode(){ S.calMode=a.dataset.v; render(); },
+    calDay(){ S.calDay=a.dataset.v; render(); },
+    calPrev(){ if(S.calMode==='Mois') S.calMonth=new Date(S.calMonth.getFullYear(),S.calMonth.getMonth()-1,1); else S.calDay=iso(addD(fromIso(S.calDay),-7)); render(); },
+    calNext(){ if(S.calMode==='Mois') S.calMonth=new Date(S.calMonth.getFullYear(),S.calMonth.getMonth()+1,1); else S.calDay=iso(addD(fromIso(S.calDay),7)); render(); },
+    day(){ S.day=a.dataset.v; S.pick=null; render(); },
+    slot(){ const c=court(a.dataset.c),h=+a.dataset.h,[st,lab]=slotState(S.day,c,h);
+      if(st==='free'||st==='chosen'){ S.pick=st==='chosen'?null:{date:S.day,court:c.id,hour:h}; render(); const b=document.querySelector(`.slot[data-c="${c.id}"][data-h="${h}"]`); b&&(document.querySelectorAll('.slot').forEach(x=>x.tabIndex=-1),b.tabIndex=0,b.focus()); }
+      else if(st==='sand') toast(lab==='Sans éclairage'?'Ce terrain n’est pas éclairé : réservation impossible la nuit.':'Terrain en entretien.');
+      else if(st==='past') toast('Créneau passé : modification impossible (R10).');
+      else toast('Créneau déjà pris : pas de double réservation.'); },
+    reserve(){ const isC=S.user.role==='coach'; const r={id:'R'+Date.now(),pid:isC?S.f.student:currentPid(),coach:isC?S.user.cid:undefined,...S.pick,type:isC?'Séance privée':'Loisir',by:S.user.first+' '+S.user.last}; RES.push(r); S.pick=null; toast(`Réservation confirmée : ${court(r.court).name}, ${fD(r.date)} à ${pad(r.hour)}h.`); render(); },
+    cancelRes(){ const r=RES.find(x=>x.id===id); const st=fromIso(r.date); st.setHours(r.hour); if(st-NOW<24*3600e3) return toast('R10 · Annulation impossible à moins de 24 h du créneau. Contactez le club.');
+      confirmBox('Annuler la réservation ?',`${court(r.court).name}, ${fD(r.date)} à ${pad(r.hour)}h. Le créneau redeviendra libre.`,'Annuler la réservation',()=>{RES=RES.filter(x=>x.id!==id); toast('Réservation annulée.'); render();}); },
+    attendance(){ const g=group(a.dataset.g), d=a.dataset.d;
+      modal(`<div class="mh"><h2>Présences</h2><button class="ico" data-close aria-label="Fermer">✕</button></div><div class="pills"><span class="pill s">${esc(g.name)}</span><span class="pill b">${fD(d)}</span><span class="pill b">${g.start}</span></div>
+      <div>${g.members.map(m=>{const v=ATT[`${g.id}|${d}|${m}`];return `<div class="att"><span>${esc(pname(player(m)))}</span><div class="seg" role="group" aria-label="Présence de ${esc(player(m).first)}"><button type="button" data-m="${m}" data-v="1" class="${v!==false?'on':''}">Présent</button><button type="button" data-m="${m}" data-v="0" class="${v===false?'on':''}">Absent</button></div></div>`}).join('')}</div>
+      <div class="pills" style="justify-content:flex-end"><button class="btn2" data-close>Annuler</button><button class="btn" id="saveAtt">Enregistrer</button></div>`,o=>{
+        o.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{ b.parentNode.querySelectorAll('button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); });
+        o.querySelector('#saveAtt').onclick=()=>{ o.querySelectorAll('.seg button.on').forEach(b=>ATT[`${g.id}|${d}|${b.dataset.m}`]=b.dataset.v==='1'); closeModal(); toast('Présences enregistrées.'); render(); };
+      }); },
+    newPlayer(){ playerForm(); },
+    editPlayer(){ playerForm(player(id)); },
+    archivePlayer(){ const p=player(id); confirmBox('Archiver ce joueur ?',`${esc(pname(p))} a des inscriptions et des paiements liés : il sera archivé, pas supprimé (R8).`,'Archiver',()=>{ p.archived=true; GROUPS.forEach(g=>g.members=g.members.filter(m=>m!==id)); audit('Joueur archivé',pname(p),'Actif','Archivé'); toast('Joueur archivé.'); render(); }); },
+    toastNew(){ toast('Prototype : formulaire identique à « Nouveau joueur », construit au sprint correspondant.'); },
+    deactivate(){ confirmBox('Désactiver ce compte ?',`${a.dataset.v} ne pourra plus se connecter. Le compte et son historique sont conservés.`,'Désactiver',()=>toast('Compte désactivé.')); },
+    newGroup(){ toast('R5 · Conflit : Court 1 est déjà occupé le lundi à 17:00 par « Benjamins A ».'); },
+    addMember(){ const g=group(id); if(g.members.length>=g.cap) return toast(`R4 · Groupe « ${g.name} » complet (${g.cap}/${g.cap}).`);
+      const cand=PLAYERS.filter(p=>!p.archived&&!groupOf(p.id));
+      modal(`<div class="mh"><h2>Ajouter à ${esc(g.name)}</h2><button class="ico" data-close aria-label="Fermer">✕</button></div><label class="lb">Joueur sans groupe<select class="sel" id="addP">${cand.map(p=>`<option value="${p.id}">${esc(pname(p))} · ${esc(cat(p.cat).name)}</option>`).join('')}</select></label><label class="lb">Motif de dérogation (si catégorie différente)<input class="fld" id="addM"></label><div class="pills" style="justify-content:flex-end"><button class="btn2" data-close>Annuler</button><button class="btn" id="addOk">Ajouter</button></div>`,o=>{
+        o.querySelector('#addOk').onclick=()=>{ const p=player(o.querySelector('#addP').value), m=o.querySelector('#addM').value.trim(); if(!p) return closeModal();
+          if(p.cat!==g.cat&&!m) return toast(`R4 · ${p.first} est en ${cat(p.cat).name} : motif de dérogation obligatoire.`);
+          g.members.push(p.id); if(m){p.derog=m; audit('Dérogation de catégorie',pname(p)+' → '+g.name,cat(p.cat).name,g.name,m);} closeModal(); toast(`${p.first} ajouté à ${g.name}.`); render(); };
+      }); },
+    maint(){ const c=court(id); c.maint=!c.maint; audit(c.maint?'Terrain en entretien':'Fin d’entretien',c.name,c.maint?'Actif':'Entretien',c.maint?'Entretien':'Actif'); toast(c.maint?c.name+' en entretien.':c.name+' de nouveau disponible.'); render(); },
+    disableCourt(){ const c=court(id); const fut=RES.filter(r=>r.court===c.id&&fromIso(r.date)>=TODAY).length; if(fut) return toast(`R11 · ${c.name} a ${fut} réservation(s) à venir : désactivation impossible.`); confirmBox('Désactiver ce terrain ?',c.name+' ne sera plus réservable.','Désactiver',()=>{c.active=false; toast('Terrain désactivé.'); render();}); },
+    activate(){ toast('R2 · Une seule saison active : clôturez d’abord la saison 2026-2027.'); },
+    closeSeason(){ confirmBox('Clôturer la saison 2026-2027 ?','Elle sera verrouillée (R1). Aucune modification ne sera possible sans réouverture motivée.','Clôturer',()=>toast('Prototype : clôture non appliquée pour garder la démo utilisable.')); },
+    reopen(){ const s=SEASONS.find(x=>x.id===id); confirmBox('Rouvrir la saison '+s.name+' ?','La réouverture est tracée dans le journal d’audit (R1).','Rouvrir',m=>{ audit('Saison rouverte',s.name,ST[s.status][0],'Rouverte',m); toast('Saison rouverte. Motif enregistré dans le journal d’audit.'); },true); },
+    editFee(){ if(document.getElementById('feeSeason').value==='2025-2026') return confirmBox('Modifier un tarif de saison clôturée','Les anciennes valeurs seront conservées (R6).','Continuer',m=>{audit('Tarif modifié (saison clôturée)','2025-2026','—','—',m);toast('Motif enregistré.');},true); toast('Prototype : formulaire de tarif au sprint 5.'); },
+    aday(){ S.f.ares=a.dataset.v; render(); },
+    forceCancel(){ const r=RES.find(x=>x.id===id); confirmBox('Annulation forcée',`${court(r.court).name}, ${fD(r.date)} à ${pad(r.hour)}h pour ${esc(pname(player(r.pid)))}. Le joueur sera prévenu par email.`,'Forcer l’annulation',m=>{ RES=RES.filter(x=>x.id!==id); audit('Réservation annulée (forcée)',court(r.court).name+' '+r.date+' '+r.hour+'h','Confirmée','Annulée',m); toast('Réservation annulée. Email envoyé.'); render(); },true); },
+    paySal(){ const s=SALARIES[+a.dataset.i]; s.paid=true; s.date='2026-10-06'; const c=coach(s.coach); audit('Salaire marqué versé',c.first+' '+c.last+' · '+s.period,'À verser','Versé'); EMAILS.unshift({to:c.email,subject:`Votre salaire (${s.period}) est versé`,kind:'Salaire',date:'2026-10-06 23:45',status:'Envoyé'}); toast('Salaire marqué versé.'); render(); },
+    cash(){ const i=INST.find(x=>x.id===id), p=player(i.pid), rest=i.amount-i.paid;
+      modal(`<div class="mh"><h2>Encaisser en espèces</h2><button class="ico" data-close aria-label="Fermer">✕</button></div><div class="pills"><span class="pill s">${esc(pname(p))}</span><span class="pill b">Tranche ${i.n}/${i.of}</span><span class="pill r">Restant ${DT(rest)}</span></div><label class="lb">Montant reçu (DT)<input class="fld" id="cashAmt" type="number" min="1" max="${rest}" value="${rest}"></label><p class="mut" style="margin:0;font-size:13px">Une fois encaissé, ce paiement ne pourra plus être modifié ni supprimé (R7).</p><div class="pills" style="justify-content:flex-end"><button class="btn2" data-close>Annuler</button><button class="btn" id="cashOk">Encaisser</button></div>`,o=>{
+        o.querySelector('#cashOk').onclick=()=>{ const v=+o.querySelector('#cashAmt').value; if(!v||v<=0) return toast('Saisissez un montant positif.'); if(v>rest) return toast(`Montant supérieur au restant (${DT(rest)}).`);
+          i.paid+=v; PAYMENTS.push({inst:i.id,amount:v,date:'2026-10-06',mode:'Espèces',by:'Admin Bureau'}); audit('Paiement encaissé (espèces)',pname(p)+' · Tranche '+i.n+'/'+i.of,DT(i.paid-v),DT(i.paid)); closeModal(); toast(`${DT(v)} encaissés pour ${p.first}.`); render(); };
+      }); },
+    editPayment(){ toast('R7 · Un paiement encaissé ne peut pas être modifié. Créez un remboursement ou une écriture corrective.'); },
+    remind(){ const i=INST.find(x=>x.id===id),p=player(i.pid),to=(parentsOf(p.id)[0]||{}).email||p.email; EMAILS.unshift({to,subject:`Rappel : tranche ${i.n}/${i.of} de ${p.first} en retard`,kind:'Rappel',date:'2026-10-06 23:45',status:'Envoyé'}); toast('Rappel envoyé à '+to+'.'); },
+  };
+  H[act]&&H[act]();
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.id==='kidSel'){ S.kid=t.value; S.pick=null; render(); }
+  else if(t.id==='seasonSel'){ S.season=t.value; render(); }
+  else if(t.id==='catFilter'){ S.f.cat=t.value; render(); }
+  else if(t.id==='famSel'){ S.f.fam=t.value; render(); }
+  else if(t.id==='studentSel'){ S.f.student=t.value; render(); }
+});
+document.addEventListener('input',e=>{ if(e.target.id==='qPlayers'){ S.f.q=e.target.value; const pos=e.target.selectionStart; render(); const q=document.getElementById('qPlayers'); q.focus(); q.setSelectionRange(pos,pos); } });
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ if(document.getElementById('ov')) closeModal(); else if(S.drawer){ S.drawer=false; render(); } }
+  const s=e.target.closest?.('.slot'); if(!s) return;
+  const mv={ArrowRight:[0,1],ArrowLeft:[0,-1],ArrowDown:[1,0],ArrowUp:[-1,0]}[e.key]; if(!mv) return; e.preventDefault();
+  const r=Math.max(0,Math.min(13,+s.dataset.r+mv[0])), c=Math.max(0,Math.min(COURTS.length-1,+s.dataset.ci+mv[1]));
+  const n=document.querySelector(`.slot[data-r="${r}"][data-ci="${c}"]`); if(n){ s.tabIndex=-1; n.tabIndex=0; n.focus(); }
+});
+render();
+</script>
+</body>
+</html>

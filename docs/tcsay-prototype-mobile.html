@@ -1,0 +1,676 @@
+<title>TCSAY Mobile</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap">
+<style>
+/* Mise en page : un téléphone au centre (cadre sur ordinateur, plein écran sur téléphone), barre de choix d'espace au-dessus.
+   Jetons repris du design system TCSAY (CLAUDE.md §9). */
+:root {
+  --bg: #fafafa; --fg: #1a1a1a; --mut: #8a8a8f; --card: #fff; --line: #e6e6ea; --fld: #f3f4f8; --btn: #ebebeb;
+  --pri: #5a5acd; --sel: #0000e0; --dr: #f7f8fb; --day: #f1f2f6; --paid: #e9f7e1; --topay: #ffe8e8;
+  --pb: #c9e9fb; --pg: #dff3a8; --pr: #fdb3b0; --ps: #f0d9a8; --ink: #111;
+  --stage: #e9e9ef; --bezel: #1b1b1f; --overlay: rgba(0,0,0,.45); --danger: #c0392b; --ok: #3cb043;
+  --font: "Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121212; --fg: #f2f2f2; --mut: #9a9aa0; --card: #1c1c1e; --line: #333; --fld: #26272b; --btn: #2e2e32;
+  --dr: #17181b; --day: #2a2b30; --paid: #1f2e1a; --topay: #3a2224; --stage: #0b0b0d; --bezel: #000; --overlay: rgba(0,0,0,.6); --danger: #ff8a7a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121212; --fg: #f2f2f2; --mut: #9a9aa0; --card: #1c1c1e; --line: #333; --fld: #26272b; --btn: #2e2e32;
+  --dr: #17181b; --day: #2a2b30; --paid: #1f2e1a; --topay: #3a2224; --stage: #0b0b0d; --bezel: #000; --overlay: rgba(0,0,0,.6); --danger: #ff8a7a; color-scheme: dark }
+
+* { box-sizing: border-box }
+html, body { height: 100% }
+body { margin: 0; background: var(--stage); color: var(--fg); font-family: var(--font); font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px; }
+button { font: inherit; color: inherit; border: 0; background: none; cursor: pointer }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--pri); outline-offset: 2px }
+input, select, textarea { font: inherit; color: var(--fg) }
+
+/* Barre au-dessus du téléphone */
+.top { max-width: 900px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center }
+.top h1 { margin: 0; font-size: 17px; font-weight: 600; text-wrap: balance }
+.top .demo { font-size: 12px; color: var(--mut) }
+.seg { display: inline-flex; background: var(--btn); border-radius: 99px; padding: 3px; flex-wrap: wrap }
+.seg button { padding: 7px 13px; border-radius: 99px; font-size: 13px; font-weight: 500 }
+.seg button[aria-pressed="true"] { background: #222; color: #fff }
+
+/* Téléphone */
+.phone { width: 390px; max-width: 100%; height: 820px; max-height: calc(100vh - 110px); min-height: 560px; margin: 0 auto;
+  border: 10px solid var(--bezel); border-radius: 48px; background: var(--bg); position: relative; overflow: hidden; display: flex; flex-direction: column }
+@media (max-width: 460px) { body { padding-block: 10px } .phone { border-width: 0; border-radius: 22px; height: calc(100vh - 120px) } }
+.status { height: 34px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 26px; font-size: 13px; font-weight: 600 }
+.screen { flex: 1; overflow-y: auto; padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: none }
+.screen::-webkit-scrollbar { display: none }
+.screen > * { flex-shrink: 0 }
+.tabs { flex: none; display: flex; border-top: 1.5px solid var(--line); background: var(--card); padding: 6px 4px 14px }
+.tabs button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11px; font-weight: 500; color: var(--mut); padding: 4px 0; position: relative }
+.tabs button[aria-current="page"] { color: var(--pri) }
+.tabs svg { width: 23px; height: 23px }
+.badge { position: absolute; top: 0; left: 52%; background: var(--pr); color: var(--ink); font-size: 10px; font-weight: 600; border-radius: 99px; padding: 1px 6px }
+
+/* Typo */
+.h1 { font-size: 23px; font-weight: 600; margin: 0; line-height: 1.25; text-wrap: balance }
+.sub { color: var(--mut); margin: 4px 0 0; line-height: 1.45 }
+.h2 { font-size: 17px; font-weight: 500; margin: 8px 0 0 }
+.mut { color: var(--mut) }
+.small { font-size: 13px }
+.xs { font-size: 12px }
+.num { font-variant-numeric: tabular-nums }
+
+/* Composants */
+.card { background: var(--card); border: 1.5px solid var(--line); border-radius: 24px; padding: 18px; display: flex; flex-direction: column; gap: 10px }
+.card.tap { cursor: pointer }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.row > :first-child { min-width: 0 }
+.ct { font-size: 16px; font-weight: 500; margin: 0 }
+.cs { font-size: 13px; font-weight: 600; color: var(--mut); margin: 0 }
+.kpi { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums }
+.pills { display: flex; flex-wrap: wrap; gap: 6px }
+.pill { display: inline-block; border-radius: 99px; padding: 5px 13px; font-size: 13px; font-weight: 500; color: var(--ink); max-width: 100% }
+.b { background: var(--pb) } .g { background: var(--pg) } .r { background: var(--pr) } .s { background: var(--ps) }
+.btn { background: var(--pri); color: #fff; border-radius: 99px; padding: 13px 22px; font-weight: 600; align-self: flex-start }
+.btn.full { align-self: stretch; text-align: center }
+.btn2 { background: var(--btn); border-radius: 99px; padding: 10px 18px; font-size: 14px; font-weight: 500; align-self: flex-start }
+.btn2.danger { background: var(--pr); color: var(--ink) }
+.ico { width: 42px; height: 42px; border-radius: 50%; background: var(--btn); display: grid; place-items: center; flex: none }
+.ico.p { background: var(--pri); color: #fff }
+.ico svg { width: 20px; height: 20px }
+.field { display: flex; flex-direction: column; gap: 6px }
+.field label { font-size: 12px; font-weight: 500; color: var(--mut) }
+.field input, .field select, .field textarea { background: var(--fld); border: 2px solid transparent; border-radius: 20px; padding: 12px 18px }
+.field input:focus, .field textarea:focus { border-color: var(--pri); outline: 0 }
+.chips { display: flex; gap: 8px; flex-wrap: wrap }
+.chip { background: var(--fld); border-radius: 99px; padding: 9px 16px; font-size: 14px; font-weight: 500 }
+.chip[aria-pressed="true"] { background: #222; color: #fff }
+.note { background: var(--dr); border: 1.5px solid var(--line); border-radius: 18px; padding: 14px; font-size: 13px; color: var(--mut); line-height: 1.5 }
+.empty { border: 1.5px dashed var(--line); border-radius: 24px; padding: 22px; text-align: center; color: var(--mut) }
+.bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden }
+.bar i { display: block; height: 100%; background: var(--pri); border-radius: 99px }
+.avatar { width: 40px; height: 40px; border-radius: 20px; background: var(--btn); display: grid; place-items: center; font-weight: 600; font-size: 14px; flex: none }
+.avatar.big { width: 60px; height: 68px; border-radius: 22px; font-size: 20px; position: relative }
+.avatar.big::after { content: ""; position: absolute; right: -2px; bottom: 4px; width: 14px; height: 14px; border-radius: 7px; background: var(--ok); border: 2px solid var(--bg) }
+.list { padding: 4px 18px }
+.mrow { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1.5px solid var(--line); width: 100%; text-align: start; font-weight: 500 }
+.mrow:last-child { border-bottom: 0 }
+.mrow span:nth-child(2) { flex: 1 }
+.mrow svg { width: 22px; height: 22px }
+.soon { background: var(--ps); color: var(--ink); border-radius: 99px; font-size: 11px; padding: 3px 9px; font-weight: 600 }
+
+/* Accueil */
+.hero { border-radius: 36px; padding: 26px 26px 34px; color: #fff; position: relative; overflow: visible; min-height: 196px;
+  background: linear-gradient(150deg, #14532d 0%, #2f7a4d 60%, #c2410c 100%); display: flex; flex-direction: column; gap: 12px }
+.hero .eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .12em; opacity: .85 }
+.hero h2 { margin: 0; font-size: 23px; font-weight: 600 }
+.notch { position: absolute; right: -6px; bottom: -6px; width: 78px; height: 78px; border-radius: 50%; background: var(--bg); display: grid; place-items: center }
+.notch button { width: 58px; height: 58px; border-radius: 50%; background: var(--sel); color: #fff; font-size: 22px }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
+
+/* Jours */
+.days { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px }
+.day { flex: none; width: 54px; padding: 10px 0; border-radius: 20px; background: var(--day); display: flex; flex-direction: column; align-items: center; gap: 2px }
+.day b { font-size: 17px; font-weight: 600 }
+.day small { font-size: 12px; color: var(--mut); font-weight: 500 }
+.day i { width: 5px; height: 5px; border-radius: 3px; background: transparent }
+.day.dot i { background: var(--pri) }
+.day[aria-pressed="true"] { background: var(--sel); color: #fff }
+.day[aria-pressed="true"] small { color: #fff }
+.day[aria-pressed="true"].dot i { background: #fff }
+
+/* Tranches */
+.tr { border-radius: 24px; padding: 18px; border: 1.5px solid var(--line); display: flex; flex-direction: column; gap: 12px }
+.tr.paid { background: var(--paid) } .tr.due { background: var(--topay) }
+.amounts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.amounts b { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums }
+
+/* Grille de réservation */
+.grid { display: grid; grid-template-columns: 50px repeat(4, 1fr); gap: 5px; font-size: 12px }
+.grid .h { text-align: center; font-weight: 600; color: var(--mut); padding: 4px 0 }
+.grid .t { color: var(--mut); font-weight: 500; display: flex; align-items: center; font-variant-numeric: tabular-nums }
+.slot { border-radius: 12px; padding: 9px 2px; text-align: center; font-weight: 500; font-size: 11px; color: var(--ink) }
+.slot.free { background: var(--pg) } .slot.taken { background: var(--pr) } .slot.off { background: var(--ps) }
+.slot.mine { background: var(--sel); color: #fff }
+
+/* Score */
+.score { background: var(--card); border: 1.5px solid var(--line); border-radius: 24px; padding: 14px 18px; display: grid; grid-template-columns: 1fr repeat(3, 34px) 44px; gap: 6px 4px; align-items: center; font-variant-numeric: tabular-nums }
+.score .n { font-weight: 600 }
+.score .c { text-align: center; font-weight: 600 }
+.score .pt { text-align: center; background: var(--pb); border-radius: 10px; padding: 3px 0; font-weight: 600; color: var(--ink) }
+.srv { display: inline-block; width: 8px; height: 8px; border-radius: 4px; background: var(--ok); margin-inline-start: 6px }
+.live { display: inline-flex; align-items: center; gap: 6px }
+.live::before { content: ""; width: 8px; height: 8px; border-radius: 4px; background: #e53935; animation: blink 1.4s infinite }
+@keyframes blink { 50% { opacity: .25 } }
+@media (prefers-reduced-motion: reduce) { .live::before { animation: none } }
+
+/* Notation */
+.stars { display: flex; gap: 6px }
+.stars button { width: 36px; height: 36px; border-radius: 12px; background: var(--fld); font-weight: 600 }
+.stars button[aria-pressed="true"] { background: var(--pri); color: #fff }
+
+/* Feuilles et toasts */
+.veil { position: absolute; inset: 0; background: var(--overlay); display: flex; align-items: flex-end; z-index: 5 }
+.sheet { background: var(--card); width: 100%; border-radius: 28px 28px 0 0; padding: 18px 20px 26px; display: flex; flex-direction: column; gap: 12px; max-height: 88%; overflow-y: auto }
+.grip { width: 40px; height: 4px; border-radius: 2px; background: var(--line); align-self: center }
+.toast { position: absolute; left: 50%; bottom: 92px; transform: translateX(-50%); background: var(--fg); color: var(--bg); border-radius: 99px; padding: 12px 20px; font-size: 14px; font-weight: 500; max-width: 88%; text-align: center; z-index: 9 }
+.back { display: inline-flex; align-items: center; gap: 4px; color: var(--pri); font-weight: 500; font-size: 14px; align-self: flex-start; padding: 2px 0 }
+.chart { width: 100%; height: auto; display: block }
+.chart text { fill: var(--mut); font-size: 10px; font-family: var(--font) }
+</style>
+
+<div class="top">
+  <h1>TCSAY Mobile · prototype</h1>
+  <div class="seg" role="group" aria-label="Voir l’application comme">
+    <button data-role="parent" aria-pressed="true">Parent</button>
+    <button data-role="coach" aria-pressed="false">Entraîneur</button>
+    <button data-role="admin" aria-pressed="false">Administration</button>
+    <button data-role="login" aria-pressed="false">Connexion</button>
+  </div>
+  <span class="demo">Données et montants de démonstration</span>
+</div>
+
+<div class="phone" id="phone">
+  <div class="status"><span class="num" id="clock">17:42</span><span aria-hidden="true">●●● 5G ▮</span></div>
+  <main class="screen" id="screen" tabindex="-1"></main>
+  <nav class="tabs" id="tabs" aria-label="Navigation principale"></nav>
+</div>
+
+<script>
+/* ───── Icônes faites main (mêmes tracés que l'application) ───── */
+const P = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/>',
+  card: '<rect x="3" y="5.5" width="18" height="13" rx="2.5"/><path d="M3 10h18M7 15h4"/>',
+  bell: '<path d="M6 9a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4S6 14 6 9z"/><path d="M10 19a2 2 0 0 0 4 0"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/>',
+  clip: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/>',
+  wallet: '<path d="M19 7V5.5A1.5 1.5 0 0 0 17.5 4h-12A2.5 2.5 0 0 0 3 6.5v11A2.5 2.5 0 0 0 5.5 20H19a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2H5.5"/><circle cx="16.5" cy="13.5" r="1.2"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  court: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16M3 12h18M7 4v16M17 4v16"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H4.5a3 3 0 0 0 3.5 4M16 6h3.5a3 3 0 0 1-3.5 4M12 13v4M8 20h8"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.5 3.2-5.5 6.5-5.5s5.9 2 6.5 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.8c1.7.8 2.7 2.6 3 5.2"/>',
+  racket: '<ellipse cx="10" cy="9" rx="6" ry="6.5"/><path d="m14.5 13.5 6 6M7 6l6 6M13 6l-6 6"/>',
+  trend: '<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>',
+  off: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c.6-3.5 3.2-5.5 6.5-5.5 1.3 0 2.5.3 3.5.9M16 15l5 5M21 15l-5 5"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  set: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
+  out: '<path d="M10 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20H10M15 8l-4 4 4 4M11 12h10"/>',
+  swap: '<path d="M7 7h12l-3-3M17 17H5l3 3"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  send: '<path d="M21 3 10 14M21 3l-7 18-4-7-7-4z"/>',
+  receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  coin: '<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.5c-.5-1-1.5-1.5-2.5-1.5-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2c-1 0-2-.5-2.5-1.5M12 6.5v11"/>',
+  star: '<path d="m12 4 2.4 5 5.4.6-4 3.7 1.1 5.3L12 16l-4.9 2.6 1.1-5.3-4-3.7 5.4-.6z"/>',
+};
+const ic = (n) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const pill = (t, c) => `<span class="pill ${c}">${t}</span>`;
+const DT = (n) => n.toLocaleString('fr-FR').replace(/\s/g, ' ') + ' DT';
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ───── Données de démonstration ───── */
+const D = {
+  kids: [
+    { id: 'y', name: 'Yassine', full: 'Yassine Ben Ali', cat: 'Benjamins (-12)', group: 'Benjamins G', slots: 'Mar 17:30 · Jeu 19:00 · Sam 14:00', coach: 'Coach Aziz',
+      next: { day: 'jeudi 15 octobre', time: '19:00 – 20:30', court: 'Court 2' },
+      inst: [{ n: 1, due: '15 oct. 2026', amount: 500, paid: 500, receipt: '0004127' }, { n: 2, due: '15 janv. 2027', amount: 500, paid: 0 }],
+      absences: [{ date: 'sam. 3 oct.', group: 'Benjamins G', st: 'Absent', why: 'Malade' }, { date: 'mar. 22 sept.', group: 'Benjamins G', st: 'En retard', why: '' }],
+      avg: 3.9, attendance: 92 },
+    { id: 'l', name: 'Lina', full: 'Lina Ben Ali', cat: 'Poussines (-10)', group: 'Poussines A', slots: 'Lun 17:00 · Mer 17:00', coach: 'Coach Iheb',
+      next: { day: 'vendredi 16 octobre', time: '17:00 – 18:00', court: 'Court 1' },
+      inst: [{ n: 1, due: '15 oct. 2026', amount: 400, paid: 200, receipt: '0004131' }, { n: 2, due: '15 janv. 2027', amount: 400, paid: 0 }],
+      absences: [], avg: 4.3, attendance: 100 },
+  ],
+  sessions: [
+    { d: 0, g: 'Benjamins G', t: '19:00 – 20:30', c: 'Court 2', st: ['Confirmée', 'g'] },
+    { d: 2, g: 'Benjamins G', t: '14:00 – 15:30', c: 'Court 3', st: ['Confirmée', 'g'] },
+    { d: 5, g: 'Benjamins G', t: '17:30 – 19:00', c: 'Court 2', st: ['Déplacée : tournoi', 's'] },
+    { d: -2, g: 'Benjamins G', t: '17:30 – 19:00', c: 'Court 2', st: ['Présent', 'g'], past: 1 },
+    { d: -5, g: 'Benjamins G', t: '14:00 – 15:30', c: 'Court 3', st: ['Absent', 'r'], past: 1 },
+  ],
+  notifs: [
+    { t: 'Tranche 2 bientôt due', b: 'La tranche 2 de Yassine (500 DT) est à régler avant le 15 janvier.', k: ['Paiement', 'r'], when: 'aujourd’hui 09:12', unread: 1 },
+    { t: 'Match en direct', b: 'Yassine joue contre Karim Haddad sur le Court 1. Suivez le score.', k: ['Match', 'b'], when: 'aujourd’hui 16:05', unread: 1, link: 'match' },
+    { t: 'Séance déplacée', b: 'Mardi 20 octobre : le Court 2 est pris par le tournoi d’automne. Séance sur le Court 4.', k: ['Information', 's'], when: 'hier 18:40' },
+    { t: 'Bilan du 1er trimestre partagé', b: 'Le bilan de Lina est disponible dans Suivi.', k: ['Message du club', 'b'], when: '12/10/2026', link: 'suivi' },
+  ],
+  roster: ['Yassine Ben Ali', 'Adam Trabelsi', 'Rayen Jaziri', 'Mehdi Gharbi', 'Skander Mansour', 'Youssef Ayari'],
+  players: [
+    { n: 'Yassine Ben Ali', code: '26TCSAY014', cat: 'Benjamins', st: ['1 tranche à payer', 'r'] },
+    { n: 'Lina Ben Ali', code: '26TCSAY015', cat: 'Poussines', st: ['Partiel', 'r'] },
+    { n: 'Adam Trabelsi', code: '26TCSAY021', cat: 'Benjamins', st: ['À jour', 'g'] },
+    { n: 'Nour Hammami', code: '26TCSAY030', cat: 'Minimes F.', st: ['En retard', 'r'] },
+    { n: 'Rayen Jaziri', code: '26TCSAY033', cat: 'Benjamins', st: ['À jour', 'g'] },
+    { n: 'Sarra Bouzid', code: '26TCSAY041', cat: 'Cadettes', st: ['À jour', 'g'] },
+  ],
+};
+const DAYN = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const BASE = new Date(Date.UTC(2026, 9, 15)); // jeudi 15 octobre 2026 (démo)
+const dayOf = (i) => { const d = new Date(BASE); d.setUTCDate(d.getUTCDate() + i); return d; };
+
+/* ───── État ───── */
+const S = { role: 'parent', tab: null, sub: null, kid: 'y', day: 0, notifFilter: 'unread', marks: {}, rate: {}, booking: null, live: { a: [6, 3, 2], b: [4, 5, 1], pa: '30', pb: '15', srv: 'a' }, dark: null };
+const kid = () => D.kids.find((k) => k.id === S.kid);
+
+/* ───── Onglets par espace ───── */
+const TABS = {
+  parent: [['accueil', 'Accueil', 'home'], ['seances', 'Séances', 'cal'], ['paiements', 'Paiements', 'card'], ['reserver', 'Réserver', 'court'], ['menu', 'Menu', 'grid']],
+  coach: [['cseances', 'Séances', 'cal'], ['presences', 'Présences', 'clip'], ['matchs', 'Matchs', 'trophy'], ['salaires', 'Salaires', 'wallet'], ['menu', 'Menu', 'grid']],
+  admin: [['dash', 'Accueil', 'chart'], ['apay', 'Paiements', 'coin'], ['joueurs', 'Joueurs', 'users'], ['alertes', 'Alertes', 'bell'], ['menu', 'Menu', 'grid']],
+};
+const MENU = {
+  parent: [['Mon activité', [['suivi', 'Suivi et progression', 'trend'], ['exercices', 'Exercices', 'racket'], ['matchs', 'Matchs', 'trophy'], ['absences', 'Mes absences', 'off'], ['dispos', 'Disponibilités', 'clock']]],
+    ['Club', [['tournois', 'Tournois', 'trophy'], ['alertes', 'Notifications', 'bell']]]],
+  coach: [['Entraînement', [['bilans', 'Bilans des joueurs', 'star'], ['exercices', 'Exercices', 'racket'], ['cabs', 'Mes absences', 'off'], ['dispos', 'Mes disponibilités', 'clock'], ['reserver', 'Réserver (séances privées)', 'court']]],
+    ['Club', [['tournois', 'Tournois', 'trophy'], ['alertes', 'Notifications', 'bell']]]],
+  admin: [['Utilisateurs', [['joueurs', 'Joueurs', 'users'], ['soon', 'Parents', 'users'], ['soon', 'Entraîneurs', 'users']]],
+    ['Entraînement', [['groupes', 'Groupes', 'racket'], ['planning', 'Planning des terrains', 'cal'], ['matchs', 'Matchs', 'trophy'], ['tournois', 'Tournois', 'trophy']]],
+    ['Finances', [['apay', 'Paiements', 'coin'], ['soon', 'Reçus', 'receipt'], ['depenses', 'Dépenses', 'wallet'], ['stats', 'Statistiques', 'chart']]],
+    ['Suivi', [['message', 'Envoyer un message', 'send'], ['alertes', 'Notifications', 'bell']]]],
+};
+const USER = { parent: ['SB', 'Sana BEN ALI', 'sana.benali@exemple.tn', 'Parent'], coach: ['IM', 'Iheb MEJRI', 'iheb@exemple.tn', 'Entraîneur'], admin: ['PB', 'Président BUREAU', 'admin@tcsay.tn', 'Administration'] };
+
+/* ───── Rendu ───── */
+const $screen = document.getElementById('screen');
+const $tabs = document.getElementById('tabs');
+const $phone = document.getElementById('phone');
+let toastTimer;
+function toast(m) {
+  document.querySelector('.toast')?.remove();
+  const t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); t.textContent = m; $phone.appendChild(t);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.remove(), 3500);
+}
+function sheet(title, body, onMount) {
+  closeSheet();
+  const v = document.createElement('div'); v.className = 'veil';
+  v.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="grip"></div><div class="row"><b style="font-size:18px">${title}</b><button class="btn2" data-close>Fermer</button></div>${body}</div>`;
+  v.addEventListener('click', (e) => { if (e.target === v || e.target.closest('[data-close]')) closeSheet(); });
+  $phone.appendChild(v); onMount?.(v.querySelector('.sheet'));
+}
+function closeSheet() { document.querySelector('.veil')?.remove(); }
+
+function go(tab, sub = null) { S.tab = tab; S.sub = sub; render(); $screen.scrollTop = 0; }
+
+function render() {
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.role === S.role)));
+  if (S.role === 'login') { $tabs.hidden = true; $screen.innerHTML = vLogin(); return bind(); }
+  $tabs.hidden = false;
+  const tabs = TABS[S.role];
+  if (!S.tab) S.tab = tabs[0][0];
+  const unread = D.notifs.filter((n) => n.unread).length;
+  $tabs.innerHTML = tabs.map(([k, l, i]) => `<button data-go="${k}" ${S.tab === k ? 'aria-current="page"' : ''}>${ic(i)}${l}${k === 'alertes' && unread ? `<span class="badge">${unread}</span>` : ''}</button>`).join('');
+  const V = VIEWS[S.tab] ?? VIEWS.soon;
+  $screen.innerHTML = V();
+  bind();
+}
+
+/* Petits blocs */
+const header = (t, s) => `<div><h2 class="h1">${t}</h2>${s ? `<p class="sub">${s}</p>` : ''}</div>`;
+const kidChips = () => S.role === 'parent' ? `<div class="chips" role="group" aria-label="Choisir le joueur">${D.kids.map((k) => `<button class="chip" data-kid="${k.id}" aria-pressed="${S.kid === k.id}">${k.name}</button>`).join('')}</div>` : '';
+const back = (to, label = 'Retour') => `<button class="back" data-go="${to}">‹ ${label}</button>`;
+const days = (dots) => `<div class="days" role="group" aria-label="14 prochains jours">${Array.from({ length: 14 }, (_, i) => { const d = dayOf(i); return `<button class="day ${dots.includes(i) ? 'dot' : ''}" data-day="${i}" aria-pressed="${S.day === i}"><small>${DAYN[d.getUTCDay()]}</small><b>${d.getUTCDate()}</b><i></i></button>`; }).join('')}</div>`;
+
+/* ───── Écrans ───── */
+function vLogin() {
+  return `<div style="display:flex;align-items:center;gap:14px;margin-top:26px">
+      <svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true"><circle cx="29" cy="29" r="27" fill="#14532d"/><circle cx="29" cy="29" r="19" fill="#dff3a8"/><path d="M14 22c8 4 22 4 30 0M14 36c8-4 22-4 30 0" stroke="#14532d" stroke-width="2.5" fill="none"/></svg>
+      <div><b style="font-size:20px">TCSAY</b><p class="sub" style="margin:0">Tennis Club de Sayada</p></div></div>
+    ${header('Connexion', 'Les comptes sont créés par l’administrateur du club.')}
+    <form class="card" id="loginForm">
+      <div class="field"><label for="lg-id">Identifiant (email ou CIN)</label><input id="lg-id" autocomplete="username" value="sana.benali@exemple.tn"></div>
+      <div class="field"><label for="lg-pw">Mot de passe</label><input id="lg-pw" type="password" value="temporaire"></div>
+      <label class="row" style="justify-content:flex-start;gap:10px"><input id="lg-rem" type="checkbox" checked style="width:20px;height:20px;accent-color:var(--pri)"> <span>Rester connecté <span class="mut">(30 jours, appareil personnel)</span></span></label>
+      <button class="btn full" type="submit">Se connecter</button>
+      <button class="back" type="button" style="align-self:center" data-toast="Un code à 6 chiffres est envoyé par email (valable 15 min).">Mot de passe oublié ?</button>
+    </form>
+    <button class="xs mut" style="align-self:center" data-toast="Adresse du serveur : https://tcsay-demo.onrender.com (modifiable).">Serveur : tcsay-demo.onrender.com · modifier</button>
+    <div class="note">Prototype : la connexion ouvre l’espace Parent. Les autres espaces se choisissent en haut de la page.</div>`;
+}
+
+function vAccueil() {
+  const k = kid();
+  const due = k.inst.reduce((s, i) => s + i.amount - i.paid, 0);
+  return `<div class="row" style="justify-content:flex-start;gap:14px"><div class="avatar big">SB</div><div><h2 class="h1">Bienvenue Sana 👋</h2><p class="sub" style="margin:2px 0 0">Saison 2026-2027 · Suivi de 2 joueurs</p></div></div>
+    ${kidChips()}
+    <div class="hero"><span class="eyebrow">PROCHAINE SÉANCE · ${k.name.toUpperCase()}</span><h2>${k.group}</h2>
+      <div class="pills">${pill(k.next.day, 'b')}${pill(k.next.time, 'b')}${pill(k.next.court, 'g')}</div>
+      <span class="small" style="opacity:.9">${k.coach}</span>
+      <div class="notch"><button data-go="seances" aria-label="Voir mes séances">→</button></div></div>
+    <h3 class="h2">En bref</h3>
+    <div class="card"><p class="cs">Paiements</p>${due ? `<div class="pills">${pill('1 tranche à payer', 'r')}</div><span class="kpi">${DT(due)}</span><span class="small mut">Restant sur la saison</span>` : `<div class="pills">${pill('À jour', 'g')}</div>`}
+      <button class="btn2" data-go="paiements">Mes paiements</button></div>
+    <div class="two"><div class="card tap" data-go="reserver"><p class="cs">Réservations</p><span class="kpi">1</span><span class="small mut">créneau à venir</span></div>
+      <div class="card tap" data-go="absences"><p class="cs">Absences</p><span class="kpi">${k.absences.length}</span><span class="small mut">séances manquées ›</span></div></div>
+    <div class="card tap" data-go="match"><div class="row"><p class="ct">Match en direct</p><span class="pill r live">En cours</span></div><span class="small mut">Yassine – Karim Haddad · Court 1</span></div>
+    <h3 class="h2">Événements</h3>
+    <div class="card"><div class="row"><p class="ct">Tournoi d’automne</p>${pill('Tournoi', 's')}</div><div class="pills">${pill('samedi 24 octobre', 'b')}${pill('Courts 1 à 4', 'g')}</div></div>`;
+}
+
+function vSeances() {
+  const k = kid();
+  const ses = S.kid === 'y' ? D.sessions : [{ d: 1, g: 'Poussines A', t: '17:00 – 18:00', c: 'Court 1', st: ['Confirmée', 'g'] }, { d: 5, g: 'Poussines A', t: '17:00 – 18:00', c: 'Court 1', st: ['Confirmée', 'g'] }, { d: -1, g: 'Poussines A', t: '17:00 – 18:00', c: 'Court 1', st: ['Présent', 'g'], past: 1 }];
+  const card = (s) => { const d = dayOf(s.d); return `<div class="card"><div class="row"><p class="ct">${s.g}</p>${pill(s.st[0], s.st[1])}</div><div class="pills">${pill(`${DAYN[d.getUTCDay()].toLowerCase()}. ${d.getUTCDate()} oct.`, 'b')}${pill(s.t, 'b')}${pill(s.c, 'g')}</div><span class="small mut">${k.coach}</span></div>`; };
+  const today = ses.filter((s) => s.d === S.day);
+  return `${header('Mes séances', 'Découvrez vos entraînements à venir et passés.')}${kidChips()}
+    <div class="pills">${pill(`${k.group} · ${k.slots}`, 's')}</div>
+    ${days(ses.filter((s) => s.d >= 0).map((s) => s.d))}
+    <div class="card"><p class="cs">${DAYN[dayOf(S.day).getUTCDay()]} ${dayOf(S.day).getUTCDate()} octobre</p>${today.length ? today.map((s) => `<div class="pills">${pill(s.g, 's')}${pill(s.t, 'b')}${pill(s.c, 'g')}</div>`).join('') : '<span class="mut">Pas de séance ce jour.</span>'}</div>
+    <h3 class="h2">À venir</h3>${ses.filter((s) => !s.past).map(card).join('')}
+    <h3 class="h2">Passées</h3>${ses.filter((s) => s.past).map(card).join('')}`;
+}
+
+function vPaiements() {
+  const k = kid();
+  const total = k.inst.reduce((s, i) => s + i.amount, 0), paid = k.inst.reduce((s, i) => s + i.paid, 0);
+  return `${header('Mes paiements', 'Découvrez vos cotisations et l’état de chaque tranche.')}${kidChips()}
+    <button class="chip" style="align-self:flex-start" data-toast="Saisons : 2026-2027, 2025-2026">Saison 2026-2027 ▾</button>
+    <div class="pills">${pill('Total ' + DT(total), 'b')}${pill('Payé ' + DT(paid), 'g')}${pill('Restant ' + DT(total - paid), total - paid ? 'r' : 'g')}</div>
+    ${k.inst.map((i) => { const rest = i.amount - i.paid; return `<div class="tr ${rest ? 'due' : 'paid'}"><div class="row"><p class="ct">Tranche ${i.n}/${k.inst.length}</p>${pill(rest ? (i.paid ? 'Partiel' : 'À payer') : 'Payée', rest ? 'r' : 'g')}</div>
+      <div class="pills">${pill('Échéance ' + i.due, 'b')}</div>
+      <div class="amounts"><div><span class="xs mut">Montant payé</span><br><b>${DT(i.paid)}</b></div><div><span class="xs mut">Montant restant</span><br><b>${DT(rest)}</b></div></div>
+      <div class="bar"><i style="width:${Math.round(i.paid / i.amount * 100)}%"></i></div>
+      ${i.receipt ? `<div class="pills">${pill('Reçu n° ' + i.receipt, 'g')}</div>` : ''}
+      ${rest ? `<button class="btn" data-toast="Paiement en ligne au sprint 6 (Konnect, ClicToPay ou Paymee).">Payer en ligne</button>` : ''}</div>`; }).join('')}
+    <div class="note">Le paiement en espèces ou par chèque se fait au club : l’administrateur l’enregistre et vous remet le reçu numéroté.</div>`;
+}
+
+function vAbsences() {
+  const k = kid();
+  return `${back('menu', 'Menu')}${header('Mes absences', 'Découvrez les séances manquées et les retards.')}${kidChips()}
+    ${k.absences.length ? `<div class="pills">${pill(k.absences.filter((a) => a.st === 'Absent').length + ' absence(s)', 'r')}${pill(k.absences.filter((a) => a.st !== 'Absent').length + ' retard(s)', 'b')}</div>` + k.absences.map((a) => `<div class="card"><div class="row"><p class="ct">${a.group}</p>${pill(a.st, a.st === 'Absent' ? 'r' : 'b')}</div><div class="pills">${pill(a.date, 'b')}</div>${a.why ? `<span class="small mut">${a.why}</span>` : ''}</div>`).join('') : '<div class="empty">Aucune absence cette saison. Bravo !</div>'}`;
+}
+
+function vReserver() {
+  const courts = ['Court 1 ☀', 'Court 2 ☀', 'Court 3', 'Court 4 ☀'];
+  const hours = ['16:00', '16:30', '17:00', '17:30', '18:00 ☾', '18:30 ☾', '19:00 ☾', '19:30 ☾'];
+  const taken = { '0-2': 1, '0-3': 1, '1-0': 1, '1-1': 1, '1-2': 1, '1-3': 1, '3-6': 1, '3-7': 1 };
+  const b = S.booking;
+  const cells = hours.map((h, hi) => `<span class="t">${h}</span>` + courts.map((c, ci) => {
+    const key = `${ci}-${hi}`;
+    const off = ci === 2 && hi >= 4;
+    const mine = b && b.c === ci && hi >= b.h && hi < b.h + b.len;
+    const cls = mine ? 'mine' : off ? 'off' : taken[key] ? 'taken' : 'free';
+    const label = mine ? 'Choisi' : off ? 'Sans éclairage' : taken[key] ? 'Pris' : 'Libre';
+    return `<button class="slot ${cls}" ${cls === 'free' || cls === 'mine' ? `data-slot="${ci}-${hi}"` : 'disabled'} aria-label="${c} ${h} : ${label}">${off ? '☾' : taken[key] ? 'Pris' : mine ? '✓' : 'Libre'}</button>`;
+  }).join('')).join('');
+  const price = b ? b.len * 0.5 * (hours[b.h].includes('☾') ? 20 : 15) : 0;
+  return `${header(S.role === 'coach' ? 'Réserver (séances privées)' : 'Réserver un terrain', 'Choisissez le jour, puis une demi-heure libre : 1 h par défaut, touchez la suivante pour prolonger.')}
+    ${S.role === 'coach' ? `<div class="field"><label for="rv-p">Élève</label><select id="rv-p"><option>Adam Trabelsi</option><option>Rayen Jaziri</option></select></div>` : kidChips()}
+    ${days([])}
+    <div class="grid" role="grid" aria-label="Grille de réservation"><span></span>${courts.map((c) => `<span class="h">${c.replace('Court ', 'C')}</span>`).join('')}${cells}</div>
+    <div class="pills">${pill('Libre', 'g')}${pill('Pris', 'r')}${pill('Sans éclairage', 's')}${pill('☾ nuit dès 18h', 'b')}</div>
+    ${b ? `<div class="card"><p class="cs">Récapitulatif</p><div class="pills">${pill(courts[b.c].replace(' ☀', ''), 'g')}${pill(hours[b.h].replace(' ☾', '') + ' · ' + (b.len * 30) + ' min', 'b')}</div><div class="row"><span class="kpi">${DT(price)}</span><button class="btn" data-book>Réserver</button></div></div>` : '<div class="empty">Touchez une case « Libre » pour choisir un créneau.</div>'}
+    <h3 class="h2">Mes réservations</h3>
+    <div class="card"><div class="row"><p class="ct">Court 4</p>${pill('Confirmée', 'g')}</div><div class="pills">${pill('sam. 17 oct.', 'b')}${pill('10:00 – 11:00', 'b')}</div><button class="btn2 danger" data-cancel>Annuler</button></div>
+    <div class="note">Annulation possible jusqu’à 24 h avant le créneau. Tarifs jour / nuit de démonstration.</div>`;
+}
+
+function vAlertes() {
+  const rows = D.notifs.filter((n) => S.notifFilter === 'all' || n.unread);
+  return `${header('Notifications', 'Découvrez les messages du club : paiements, séances, matchs.')}
+    <div class="row"><div class="seg" role="group" aria-label="Afficher"><button data-nf="unread" aria-pressed="${S.notifFilter === 'unread'}">Non lues</button><button data-nf="all" aria-pressed="${S.notifFilter === 'all'}">Toutes</button></div><button class="btn2" data-readall>Tout lire</button></div>
+    ${rows.length ? rows.map((n) => { const i = D.notifs.indexOf(n); return `<div class="card ${n.link ? 'tap' : ''}" ${n.link ? `data-go="${n.link}"` : ''} style="${n.unread ? '' : 'opacity:.7'}"><div class="row"><p class="ct">${n.t}</p>${pill(n.k[0], n.k[1])}</div><span class="small">${n.b}</span><div class="row"><span class="xs mut">${n.when}${n.link ? ' · Ouvrir ›' : ''}</span>${n.unread ? `<button class="ico" data-read="${i}" aria-label="Marquer comme lu">${ic('check')}</button>` : ''}</div></div>`; }).join('') : '<div class="empty">Aucune notification non lue.</div>'}`;
+}
+
+function vMenu() {
+  const [ini, name, mail, label] = USER[S.role];
+  return `${header('Menu', 'Tous les modules de votre espace.')}
+    <div class="card"><div class="row" style="justify-content:flex-start;gap:12px"><div class="avatar">${ini}</div><div style="flex:1;min-width:0"><b>${name}</b><div class="small mut">${mail}</div></div>${pill(label, 's')}</div></div>
+    ${MENU[S.role].map(([title, items]) => `<h3 class="h2">${title}</h3><div class="card list">${items.map(([k, l, i]) => `<button class="mrow" data-go="${k}" ${k === 'soon' ? `data-label="${l}"` : ''}>${ic(i)}<span>${l}</span>${k === 'soon' ? '<span class="soon">Lot 3</span>' : '<span class="mut">›</span>'}</button>`).join('')}</div>`).join('')}
+    ${S.role === 'admin' ? '' : ''}
+    <h3 class="h2">Changer d’espace</h3><div class="card list">${['parent', 'coach', 'admin'].map((r) => `<button class="mrow" data-role-switch="${r}">${ic('swap')}<span>${USER[r][3]}</span>${r === S.role ? pill('Actuel', 'g') : '<span class="mut">›</span>'}</button>`).join('')}</div>
+    <h3 class="h2">Compte</h3><div class="card list"><button class="mrow" data-go="params">${ic('set')}<span>Paramètres</span><span class="mut">›</span></button><button class="mrow" data-role-switch="login" style="color:var(--danger)">${ic('out')}<span>Se déconnecter</span><span></span></button></div>`;
+}
+
+function vParams() {
+  return `${back('menu', 'Menu')}${header('Paramètres', 'Votre compte et les préférences de l’application.')}
+    <div class="card"><span class="xs mut">Nom</span><b>${USER[S.role][1]}</b><span class="xs mut">Email</span><span>${USER[S.role][2]}</span><span class="xs mut">Téléphone</span><span>+216 55 000 201</span><span class="xs mut">Nom, naissance et catégorie se modifient au club.</span></div>
+    <div class="card"><p class="cs">Sécurité</p><button class="btn" data-toast="Écran « Nouveau mot de passe » (10 caractères, lettres et chiffres).">Changer le mot de passe</button></div>
+    <div class="card"><p class="cs">Thème</p><div class="seg" role="group" aria-label="Thème"><button data-theme-set="system" aria-pressed="${!S.dark}">Auto</button><button data-theme-set="light" aria-pressed="${S.dark === 'light'}">☀ Clair</button><button data-theme-set="dark" aria-pressed="${S.dark === 'dark'}">☾ Sombre</button></div>
+      <p class="cs" style="margin-top:6px">Langue</p><div class="seg" role="group" aria-label="Langue"><button aria-pressed="true">Français</button><button data-toast="English : lot suivant">English</button><button data-toast="العربية : lot suivant">العربية</button></div></div>
+    <div class="card"><p class="cs">Notifications sur ce téléphone</p>${pill('Activées', 'g')}<button class="btn2" data-toast="Notification d’essai envoyée.">Envoyer un essai</button></div>`;
+}
+
+function vSuivi() {
+  const k = kid();
+  const pts = [3.2, 3.5, 3.4, 3.8, 3.7, k.avg];
+  const W = 300, H = 120, x = (i) => 20 + i * (W - 40) / 5, y = (v) => H - 20 - (v - 1) / 4 * (H - 36);
+  const line = pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  return `${back('menu', 'Menu')}${header('Suivi et progression', 'Assiduité, notes des séances et bilans de l’entraîneur.')}${kidChips()}
+    <div class="two"><div class="card"><p class="cs">Assiduité</p><span class="kpi">${k.attendance} %</span><span class="small mut">depuis septembre</span></div><div class="card"><p class="cs">Moyenne du mois</p><span class="kpi">${k.avg.toFixed(1).replace('.', ',')}/5</span>${pill('↗ en hausse', 'g')}</div></div>
+    <div class="card"><p class="cs">Note moyenne par semaine</p>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Courbe des notes, de 3,2 à ${k.avg}">
+        ${[1, 3, 5].map((v) => `<line x1="20" x2="${W - 20}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="4" y="${y(v) + 3}">${v}</text>`).join('')}
+        <path d="${line} L${x(5)} ${H - 20} L${x(0)} ${H - 20} Z" fill="var(--pri)" opacity=".12"/>
+        <path d="${line}" fill="none" stroke="var(--pri)" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="${x(5)}" cy="${y(k.avg)}" r="4.5" fill="var(--pri)"/>
+        ${['S1', 'S2', 'S3', 'S4', 'S5', 'S6'].map((l, i) => `<text x="${x(i) - 6}" y="${H - 4}">${l}</text>`).join('')}
+      </svg></div>
+    <div class="card"><p class="cs">Par critère</p>${[['Engagement', 4.2], ['Concentration', 3.6], ['Comportement', 4.5], ['Objectif du jour', 3.8], ['Qualité de jeu', 3.5]].map(([l, v]) => `<div class="row small"><span>${l}</span><b class="num">${String(v).replace('.', ',')}</b></div><div class="bar"><i style="width:${v / 5 * 100}%"></i></div>`).join('')}</div>
+    <div class="card"><div class="row"><p class="ct">Mardi 13 octobre</p>${pill('4/5', 'g')}</div><div class="pills">${pill('Objectif : revers lifté', 'b')}${pill('Forme : bonne', 'g')}</div><span class="small">« Très bon engagement, encore un peu tendu au service. » · ${k.coach}</span></div>
+    <div class="card"><div class="row"><p class="ct">Bilan T1 (sept.–déc.)</p>${pill('Partagé', 'g')}</div><span class="small">Niveau validé : <b>Intermédiaire 2</b>. Point fort : coup droit. À travailler : déplacements latéraux.</span></div>`;
+}
+
+function vExercices() {
+  return `${back('menu', 'Menu')}${header('Exercices', S.role === 'coach' ? 'Votre bibliothèque et les exercices donnés.' : 'Les exercices donnés par l’entraîneur.')}${kidChips()}
+    ${[['Corde à sauter : 3 × 1 min', 'Physique', 's', 'avant le 18 oct.', 0], ['Ombre du revers (20 répétitions)', 'Technique', 'b', 'avant le 20 oct.', 0], ['Étirements après séance', 'Récupération', 'g', 'fait le 12 oct.', 1]].map(([t, cat, c, due, done]) => `<div class="card"><div class="row"><p class="ct">${t}</p>${pill(cat, c)}</div><div class="pills">${pill(due, done ? 'g' : 'b')}${pill('10 min', 'b')}</div>${S.role === 'coach' ? `<span class="small mut">Fait par 4/9 joueurs du groupe</span>` : done ? pill('✓ Fait', 'g') : `<button class="btn2" data-toast="Exercice marqué comme fait. L’entraîneur le voit.">Marquer fait</button>`}</div>`).join('')}
+    ${S.role === 'coach' ? '<button class="btn" data-toast="Formulaire : titre, type, consignes, durée, vidéo, groupe ou joueur, échéance.">+ Nouvel exercice</button>' : ''}`;
+}
+
+function vMatchs() {
+  return `${S.role === 'parent' ? back('menu', 'Menu') : ''}${header('Matchs', 'Suivez les scores en direct, même en spectateur.')}
+    <button class="btn" data-toast="Nouveau match : joueurs du club ou noms saisis, format (2 ou 3 sets), tie-break, point décisif.">+ Nouveau match</button>
+    <h3 class="h2">En direct</h3>
+    <div class="card tap" data-go="match"><div class="row"><p class="ct">Yassine Ben Ali – Karim Haddad</p><span class="pill r live">En cours</span></div>
+      <div class="pills">${pill('6-4 · 3-5 · 2-1', 'b')}${pill('Court 1', 'g')}${pill('Amical', 's')}</div></div>
+    <h3 class="h2">À venir</h3>
+    <div class="card"><div class="row"><p class="ct">Adam Trabelsi – Rayen Jaziri</p>${pill('Interne', 's')}</div><div class="pills">${pill('sam. 17 oct. · 10:00', 'b')}${pill('Court 2', 'g')}</div></div>
+    <h3 class="h2">Terminés</h3>
+    <div class="card"><div class="row"><p class="ct">Lina Ben Ali – Ines Kallel</p>${pill('Gagné', 'g')}</div><div class="pills">${pill('6-3 · 6-2', 'b')}${pill('10 oct.', 'b')}</div></div>`;
+}
+
+function vMatch() {
+  const L = S.live;
+  const canScore = S.role !== 'parent' || true;
+  const row = (n, side) => `<span class="n">${n}${L.srv === side ? '<span class="srv" aria-label="au service"></span>' : ''}</span>${L[side].map((g) => `<span class="c">${g}</span>`).join('')}<span class="pt">${side === 'a' ? L.pa : L.pb}</span>`;
+  return `${back('matchs', 'Matchs')}
+    <div class="row"><h2 class="h1" style="font-size:20px">Match amical</h2><span class="pill r live">En direct</span></div>
+    <div class="score" aria-live="polite"><span class="xs mut">Joueur</span><span class="c xs mut">S1</span><span class="c xs mut">S2</span><span class="c xs mut">S3</span><span class="c xs mut">Pts</span>${row('Yassine B.', 'a')}${row('Karim H.', 'b')}</div>
+    <div class="pills">${pill('Balle de break', 'r')}${pill('Court 1', 'g')}${pill('2 sets gagnants · super tie-break', 's')}</div>
+    ${canScore ? `<div class="card"><p class="cs">Saisie du point</p><div class="two"><button class="btn full" data-pt="a">Point Yassine</button><button class="btn full" data-pt="b">Point Karim</button></div>
+      <div class="pills"><button class="btn2" data-toast="Ace enregistré.">Ace</button><button class="btn2" data-toast="Faute de 1re balle.">Faute 1re</button><button class="btn2" data-toast="Double faute : point adverse.">Double faute</button><button class="btn2" data-toast="Dernier point annulé.">↶ Annuler</button></div></div>` : ''}
+    <div class="card"><p class="cs">Statistiques</p>${[['1res balles', '62 %', '55 %'], ['Points gagnés au service', '58 %', '49 %'], ['Coups gagnants', '14', '9'], ['Fautes directes', '11', '16']].map(([l, a, b]) => `<div class="row small"><b class="num">${a}</b><span class="mut">${l}</span><b class="num">${b}</b></div>`).join('')}</div>
+    <div class="note">Le score se recalcule à partir des points. Les familles reçoivent une notification au début et à la fin du match.</div>`;
+}
+
+function vTournois() {
+  return `${back('menu', 'Menu')}${header('Tournois', 'Inscriptions, tableaux et résultats du club.')}
+    <div class="card"><div class="row"><p class="ct">Tournoi d’automne</p>${pill('Inscriptions ouvertes', 'g')}</div><div class="pills">${pill('24–25 octobre', 'b')}${pill('Benjamins, Minimes', 's')}${pill('Élimination directe', 's')}</div>
+      ${S.role === 'parent' ? '<button class="btn" data-toast="Demande d’inscription envoyée pour Yassine. Le directeur technique valide.">Inscrire Yassine</button>' : '<span class="small mut">16 inscrits · tableau publié le 22 octobre</span>'}</div>
+    <div class="card"><p class="cs">Tableau · Benjamins</p>${[['Yassine Ben Ali', 'Adam Trabelsi', '6-3 6-4'], ['Rayen Jaziri', 'Mehdi Gharbi', 'sam. 10:00'], ['Vainqueur 1', 'Vainqueur 2', 'À déterminer']].map(([a, b, r]) => `<div class="row small"><span>${a}<br><span class="mut">${b}</span></span>${pill(r, r.includes('-') ? 'g' : 'b')}</div>`).join('<div style="height:1.5px;background:var(--line)"></div>')}</div>
+    <h3 class="h2">Palmarès</h3><div class="card"><div class="row"><p class="ct">Open de printemps 2026</p>${pill('🏆 Lina Ben Ali', 'g')}</div><span class="small mut">Poussines · finale 6-4 6-2</span></div>`;
+}
+
+function vDispos() {
+  const H = ['8h', '10h', '14h', '16h', '18h'], Dd = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const st = (d, h) => ((d * 3 + h) % 5 === 0 ? 'off' : (d + h) % 3 === 0 ? 'taken' : 'free');
+  return `${back('menu', 'Menu')}${header(S.role === 'coach' ? 'Mes disponibilités' : 'Disponibilités', 'Votre semaine type : touchez une case pour la changer.')}${kidChips()}
+    <div class="grid" style="grid-template-columns:40px repeat(6,1fr)"><span></span>${Dd.map((d) => `<span class="h">${d}</span>`).join('')}${H.map((h, hi) => `<span class="t">${h}</span>` + Dd.map((d, di) => { const s = st(di, hi); return `<button class="slot ${s === 'taken' ? 'off' : s}" data-toast="${d} ${h} : ${s === 'free' ? 'Disponible' : s === 'off' ? 'Indisponible' : 'Peut-être'}" aria-label="${d} ${h}">${s === 'free' ? 'D' : s === 'off' ? 'I' : 'P'}</button>`; }).join('')).join('')}</div>
+    <div class="pills">${pill('D · disponible', 'g')}${pill('P · peut-être', 's')}${pill('I · indisponible', 'r')}</div>
+    <div class="note">La direction utilise ces grilles pour proposer les créneaux des groupes.</div>`;
+}
+
+/* Entraîneur */
+function vCSeances() {
+  return `${header('Mes séances', 'Découvrez vos séances à venir et passées.')}${days([0, 1, 3, 5, 7])}
+    <div class="card"><div class="row"><p class="ct">Poussines A</p><span class="pill g live">En cours</span></div><div class="pills">${pill('17:00 – 18:00', 'b')}${pill('Court 1', 'g')}</div><span class="small mut">9/10 joueurs · Poussines</span><button class="btn" data-go="presences">Présences</button></div>
+    <h3 class="h2">À venir</h3>
+    ${[['Benjamins G', 'jeu. 15 oct.', '19:00 – 20:30', 'Court 2', '8/10'], ['Minimes F.', 'ven. 16 oct.', '18:00 – 19:30', 'Court 4', '6/8'], ['Séance physique', 'sam. 17 oct.', '09:00 – 10:00', 'Salle', '12/12']].map(([g, d, t, c, n]) => `<div class="card"><div class="row"><p class="ct">${g}</p>${pill('À venir', 'b')}</div><div class="pills">${pill(d, 'b')}${pill(t, 'b')}${pill(c, 'g')}</div><span class="small mut">${n} joueurs</span></div>`).join('')}
+    <h3 class="h2">Passées</h3><div class="card"><div class="row"><p class="ct">Poussines A</p>${pill('Pointée', 'g')}</div><div class="pills">${pill('mer. 14 oct.', 'b')}${pill('17:00 – 18:00', 'b')}</div></div>`;
+}
+
+function vPresences() {
+  const names = ['Lina Ben Ali', 'Ines Kallel', 'Maryem Saidi', 'Eya Ferchichi', 'Rania Dridi'];
+  const opt = [['PRESENT', 'Présent'], ['LATE', 'Retard'], ['ABSENT', 'Absent']];
+  const cnt = (v) => names.filter((n) => (S.marks[n] ?? 'PRESENT') === v).length;
+  return `${header('Présences', 'Pointez la séance en cours, puis évaluez-la.')}
+    <div class="pills">${pill('jeudi 15 octobre', 'b')}</div>
+    <div class="card"><p class="cs">Objectif de la séance</p><div class="chips">${['Revers lifté', 'Service', 'Jeu de jambes', 'Volée'].map((o, i) => `<button class="chip" aria-pressed="${i === 0}" data-toast="Objectif : ${o}">${o}</button>`).join('')}</div></div>
+    <div class="card"><div class="row"><p class="ct">Poussines A</p><span class="pill g live">En cours</span></div>
+      <div class="pills">${pill('Pointage ouvert jusqu’à 18:30', 'g')}${pill(cnt('PRESENT') + ' présent(s)', 'g')}${pill(cnt('LATE') + ' en retard', 'b')}${pill(cnt('ABSENT') + ' absent(s)', 'r')}</div>
+      ${names.map((n) => { const v = S.marks[n] ?? 'PRESENT'; return `<div style="display:flex;flex-direction:column;gap:8px;padding:8px 0;border-top:1.5px solid var(--line)"><b style="font-weight:500">${n}</b><div class="seg" role="radiogroup" aria-label="Présence de ${n}">${opt.map(([k, l]) => `<button role="radio" aria-checked="${v === k}" aria-pressed="${v === k}" data-mark="${n}|${k}">${l}</button>`).join('')}</div></div>`; }).join('')}
+      <button class="btn full" data-toast="Présences enregistrées.">Enregistrer les présences</button></div>
+    <div class="card"><div class="row"><p class="ct">Évaluation de la séance</p>${pill('0/4 évalués', 's')}</div><span class="small mut">Une fenêtre par joueur présent : 5 notes, forme du jour, commentaire pour le parent.</span><button class="btn2" data-rate>Évaluer les joueurs</button></div>
+    <div class="note">Le pointage s’ouvre 15 min avant la séance et se ferme 30 min après la fin. Une erreur sur une séance passée se corrige par la direction.</div>`;
+}
+
+function rateSheet() {
+  const crit = ['Engagement', 'Concentration', 'Comportement', 'Objectif du jour', 'Qualité de jeu'];
+  sheet('Lina Ben Ali · 1/4', `${crit.map((c) => `<div style="display:flex;flex-direction:column;gap:6px"><span class="small">${c}</span><div class="stars" role="radiogroup" aria-label="${c}">${[1, 2, 3, 4, 5].map((v) => `<button role="radio" aria-pressed="${S.rate[c] === v}" data-star="${c}|${v}">${v}</button>`).join('')}</div></div>`).join('')}
+    <div class="field"><label for="rt-c">Commentaire pour le parent</label><textarea id="rt-c" rows="2">Très bonne concentration aujourd’hui.</textarea></div>
+    <label class="row" style="justify-content:flex-start;gap:10px"><input type="checkbox" style="width:20px;height:20px"> <span class="small">Douleur signalée (prévient les parents et la direction)</span></label>
+    <button class="btn full" data-close data-toast="Évaluation enregistrée. Joueur suivant : Ines Kallel.">Enregistrer et suivant</button>`, (el) => {
+    el.addEventListener('click', (e) => { const b = e.target.closest('[data-star]'); if (!b) return; const [c, v] = b.dataset.star.split('|'); S.rate[c] = +v; b.parentElement.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); });
+  });
+}
+
+function vSalaires() {
+  return `${header('Mes salaires', 'Découvrez vos salaires à venir et ceux qui vous ont été versés.')}
+    <div class="pills">${pill('Total versé ' + DT(2400), 'g')}</div>
+    <h3 class="h2">À venir</h3>
+    <div class="card"><div class="row"><p class="ct">Octobre 2026</p>${pill('Estimation', 's')}</div><span class="kpi">${DT(1180)}</span><div class="pills">${pill('22 séances · 33 h', 'b')}${pill('1 absence · −1,5 h', 'r')}</div><span class="small mut">Au mois : forfait au prorata des heures animées (règle provisoire).</span></div>
+    <h3 class="h2">Historique</h3>
+    ${[['Septembre 2026', 1200, '5 oct. 2026'], ['Août 2026', 1200, '4 sept. 2026']].map(([m, a, d]) => `<div class="card"><div class="row"><p class="ct">${m}</p>${pill('Versé', 'g')}</div><span class="kpi">${DT(a)}</span><div class="pills">${pill('Versé le ' + d, 'g')}</div></div>`).join('')}
+    <div class="note">Le montant définitif est saisi par l’administrateur.</div>`;
+}
+
+function vBilans() {
+  return `${back('menu', 'Menu')}${header('Bilans des joueurs', 'Trimestre 1 (sept.–déc.) · vos groupes.')}
+    <div class="card" style="border-color:var(--pr)"><div class="row"><p class="ct">Alertes</p>${pill('2', 'r')}</div><span class="small">Rayen Jaziri : 3 absences de suite.<br>Mehdi Gharbi : notes en baisse (−0,8).</span></div>
+    ${[['Lina Ben Ali', 'Poussines A', 'Partagé', 'g'], ['Ines Kallel', 'Poussines A', 'Brouillon', 's'], ['Adam Trabelsi', 'Benjamins G', 'À faire', 'b']].map(([n, g, s, c]) => `<div class="card tap" data-toast="Bilan : 15 critères (technique, tactique, physique, mental), point fort, à travailler, niveau proposé."><div class="row"><p class="ct">${n}</p>${pill(s, c)}</div><span class="small mut">${g}</span></div>`).join('')}`;
+}
+
+/* Administration */
+function vDash() {
+  const bars = [820, 1450, 2300, 1700, 980];
+  const mx = 2500, W = 300, H = 120;
+  return `${header('Dashboard', 'Vue d’ensemble de la saison 2026-2027.')}
+    <div class="two"><div class="card"><p class="cs">Joueurs actifs</p><span class="kpi">88</span><span class="small mut">23 groupes</span></div><div class="card"><p class="cs">Demain</p><span class="kpi">7</span><span class="small mut">réservations</span></div></div>
+    <div class="card"><p class="cs">Encaissé cette saison</p><span class="kpi">${DT(7250)}</span>
+      <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Encaissements de juin à octobre">
+        ${[0, 1000, 2000].map((v) => `<line x1="34" x2="${W - 6}" y1="${H - 18 - v / mx * (H - 30)}" y2="${H - 18 - v / mx * (H - 30)}" stroke="var(--line)"/><text x="0" y="${H - 15 - v / mx * (H - 30)}">${v ? v / 1000 + ' k' : '0'}</text>`).join('')}
+        ${bars.map((v, i) => `<rect x="${44 + i * 52}" y="${H - 18 - v / mx * (H - 30)}" width="30" height="${v / mx * (H - 30)}" rx="6" fill="${i === 4 ? 'var(--pri)' : 'var(--pb)'}"/><text x="${46 + i * 52}" y="${H - 3}">${['juin', 'juil.', 'sept.', 'oct.', 'nov.'][i]}</text>`).join('')}
+      </svg></div>
+    <div class="card tap" data-go="apay"><div class="row"><p class="ct">Tranches en retard</p>${pill('6 · ' + DT(2150), 'r')}</div><span class="small mut">Familles à relancer ›</span></div>
+    <h3 class="h2">Remplissage des groupes</h3>
+    <div class="card">${[['Benjamins G', 8, 10], ['Poussines A', 9, 10], ['Minimes F.', 6, 8], ['Loisirs adultes', 11, 12]].map(([g, m, c]) => `<div class="row small"><span>${g}</span><span class="mut num">${m}/${c}</span></div><div class="bar"><i style="width:${m / c * 100}%"></i></div>`).join('')}</div>`;
+}
+
+function vApay() {
+  const fam = [['Famille Ben Ali', 'Yassine, Lina', 700, 'r', '1 en retard'], ['Famille Hammami', 'Nour', 450, 'r', 'En retard · 34 j'], ['Famille Trabelsi', 'Adam', 0, 'g', 'À jour'], ['Famille Jaziri', 'Rayen', 300, 'b', 'Échéance 15 janv.']];
+  return `${header('Paiements', 'Encaissez une tranche et remettez le reçu numéroté.')}
+    <div class="seg" role="group" aria-label="Grouper par"><button aria-pressed="true">Famille</button><button data-toast="Groupé par joueur">Joueur</button><button data-toast="Groupé par échéance">Échéance</button></div>
+    <div class="pills">${pill('Encaissé ' + DT(7250), 'g')}${pill('Restant ' + DT(5400), 'r')}</div>
+    ${fam.map(([f, k, due, c, st]) => `<div class="card"><div class="row"><p class="ct">${f}</p>${pill(st, c)}</div><span class="small mut">${k}</span><div class="row"><span class="kpi" style="font-size:22px">${DT(due)}</span>${due ? `<div class="row" style="gap:8px"><button class="ico" aria-label="Rappel" data-toast="Rappel envoyé à la famille.">${ic('bell')}</button><button class="ico p" aria-label="Encaisser" data-pay="${f}">${ic('coin')}</button></div>` : ''}</div></div>`).join('')}`;
+}
+
+function paySheet(f) {
+  sheet('Encaisser · ' + f, `<div class="field"><label for="py-t">Tranche</label><select id="py-t"><option>Yassine · Tranche 2/2 · 500 DT</option><option>Lina · Tranche 1/2 · reste 200 DT</option></select></div>
+    <div class="field"><label for="py-a">Montant (DT)</label><input id="py-a" inputmode="decimal" value="500"></div>
+    <div class="field"><label>Mode</label><div class="seg" role="group"><button aria-pressed="true">Espèces</button><button aria-pressed="false">Chèque</button></div></div>
+    <div class="field"><label for="py-r">N° du reçu (carnet pré-imprimé)</label><input id="py-r" inputmode="numeric" value="0004188"></div>
+    <div class="note">Un paiement encaissé n’est jamais modifié ni supprimé (R7) : en cas d’erreur, écriture corrective.</div>
+    <button class="btn full" data-close data-toast="Paiement enregistré · reçu n° 0004188 prêt à imprimer.">Encaisser et émettre le reçu</button>`);
+}
+
+function vJoueurs() {
+  return `${header('Joueurs', 'Découvrez les joueurs inscrits cette saison.')}
+    <div class="field"><label for="jq">Rechercher</label><input id="jq" placeholder="Nom, code TCSAY ou téléphone"></div>
+    <div class="chips"><button class="chip" aria-pressed="true">Tous</button><button class="chip" aria-pressed="false">Jeunes</button><button class="chip" aria-pressed="false">Adultes</button><button class="chip" aria-pressed="false">À relancer</button></div>
+    <div id="jlist" style="display:flex;flex-direction:column;gap:10px">${D.players.map((p) => `<div class="card tap" data-player="${p.n}"><div class="row"><div class="row" style="justify-content:flex-start;gap:12px"><div class="avatar">${p.n.split(' ').map((w) => w[0]).slice(0, 2).join('')}</div><div><p class="ct">${p.n}</p><span class="xs mut num">${p.code} · ${p.cat}</span></div></div>${pill(p.st[0], p.st[1])}</div></div>`).join('')}</div>
+    <button class="btn" data-toast="Formulaire joueur : genre, naissance, catégorie proposée en direct, parent obligatoire pour un mineur.">+ Nouveau joueur</button>`;
+}
+
+function playerSheet(n) {
+  const p = D.players.find((x) => x.n === n);
+  sheet(p.n, `<div class="pills">${pill(p.code, 'b')}${pill(p.cat, 's')}${pill(p.st[0], p.st[1])}</div>
+    <div class="card"><span class="xs mut">Parent</span><b>Sana Ben Ali · +216 55 000 201</b><span class="xs mut">Groupe</span><span>Benjamins G · Mar 17:30, Jeu 19:00, Sam 14:00</span><span class="xs mut">Assiduité</span><span>92 % · 2 absences</span></div>
+    <div class="row" style="justify-content:flex-start;gap:10px"><button class="ico p" aria-label="Encaisser" data-close data-toast="Encaissement ouvert.">${ic('coin')}</button><button class="ico" aria-label="Modifier" data-toast="Nom, naissance et catégorie : admin seulement (R9).">${ic('set')}</button><button class="ico" aria-label="Notifier" data-toast="Message envoyé aux parents.">${ic('send')}</button></div>`);
+}
+
+function vGroupes() {
+  return `${back('menu', 'Menu')}${header('Groupes', 'Découvrez les groupes d’entraînement de la saison.')}
+    ${[['Benjamins G', 'Compétition', 'Mar 17:30 · Jeu 19:00 · Sam 14:00', 'Coach Aziz', 8, 10], ['Poussines A', 'Compétition', 'Lun 17:00 · Mer 17:00', 'Coach Iheb', 9, 10], ['Loisirs adultes', 'Loisirs', 'Mar 19:30 · Jeu 19:30', 'Coach Sami', 11, 12]].map(([g, k, s, c, m, cap]) => `<div class="card"><div class="row"><p class="ct">${g}</p>${pill(k, 's')}</div><div class="pills">${pill(s, 'b')}</div><span class="small mut">${c} · ${m}/${cap} joueurs</span><div class="bar"><i style="width:${m / cap * 100}%"></i></div></div>`).join('')}
+    <div class="note">Ajout dans un groupe : capacité et catégorie respectées (R4), sans conflit de terrain, créneau ou entraîneur (R5).</div>`;
+}
+
+function vPlanning() { S.role === 'admin' && (S.booking = S.booking ?? null); return `${back('menu', 'Menu')}` + vReserver().replace('Réserver un terrain', 'Planning des terrains').replace(kidChips(), ''); }
+
+function vMessage() {
+  return `${back('menu', 'Menu')}${header('Envoyer un message', 'Notification aux familles, aux joueurs ou aux entraîneurs.')}
+    <div class="field"><label>Destinataires</label><div class="chips"><button class="chip" aria-pressed="true">Tous les parents</button><button class="chip" aria-pressed="false">Joueurs</button><button class="chip" aria-pressed="false">Entraîneurs</button><button class="chip" aria-pressed="true">Groupe Benjamins G</button></div></div>
+    <div class="pills">${pill('Sauf : Famille Hammami', 'r')}${pill('64 destinataires', 'b')}</div>
+    <div class="field"><label for="ms-t">Titre</label><input id="ms-t" value="Tournoi d’automne"></div>
+    <div class="field"><label for="ms-b">Message</label><textarea id="ms-b" rows="4">Les inscriptions au tournoi d’automne (24–25 octobre) sont ouvertes jusqu’au 20 octobre.</textarea></div>
+    <label class="row" style="justify-content:flex-start;gap:10px"><input type="checkbox" checked style="width:20px;height:20px;accent-color:var(--pri)"> <span>Envoyer aussi par email</span></label>
+    <button class="btn full" data-toast="Message envoyé à 64 personnes.">Envoyer</button>`;
+}
+
+function vDepenses() {
+  return `${back('menu', 'Menu')}${header('Dépenses', 'Factures, déclarations et justificatifs.')}
+    <div class="pills">${pill('Payé ' + DT(1840), 'g')}${pill('À payer ' + DT(620), 'r')}</div>
+    ${[['Facture STEG', 'Factures', DT(420), 'À payer · 25 oct.', 'r'], ['Balles (12 cartons)', 'Matériel', DT(960), 'Payé', 'g'], ['CNSS · 3e trimestre', 'Déclarations', DT(880), 'Payé', 'g'], ['Réfection Court 3', 'Entretien', DT(200), 'À payer · 30 oct.', 'r']].map(([t, c, a, st, k]) => `<div class="card"><div class="row"><p class="ct">${t}</p>${pill(st, k)}</div><div class="row"><span class="small mut">${c}</span><b class="num">${a}</b></div></div>`).join('')}
+    <button class="btn" data-toast="Nouvelle dépense : catégorie, montant, date limite, justificatif (photo ou PDF).">+ Nouvelle dépense</button>`;
+}
+
+function vStats() {
+  return `${back('menu', 'Menu')}${header('Statistiques', 'Finances de la saison 2026-2027.')}
+    <div class="two"><div class="card"><p class="cs">Recettes</p><span class="kpi" style="font-size:22px">${DT(9850)}</span></div><div class="card"><p class="cs">Dépenses</p><span class="kpi" style="font-size:22px">${DT(6040)}</span></div></div>
+    <div class="card"><p class="cs">Bilan</p><span class="kpi">${DT(3810)}</span><span class="small mut">recettes − salaires versés − dépenses payées</span></div>
+    <div class="card"><p class="cs">Retards par ancienneté</p>${[['moins de 30 j', 3, 'b'], ['30 à 60 j', 2, 's'], ['plus de 60 j', 1, 'r']].map(([l, n, c]) => `<div class="row small"><span>${l}</span>${pill(n + ' famille(s)', c)}</div>`).join('')}</div>`;
+}
+
+function vCabs() {
+  return `${back('menu', 'Menu')}${header('Mes absences', 'Signalez une absence : la direction décide (remplacement, physique, annulation).')}
+    <div class="card"><div class="row"><p class="ct">mar. 20 oct. · Benjamins G</p>${pill('Remplacé', 's')}</div><span class="small mut">Remplaçant : Coach Sami</span></div>
+    <button class="btn" data-toast="Absence signalée à la direction.">+ Signaler une absence</button>`;
+}
+
+function vSoon() { return `${back('menu', 'Menu')}${header(S.sub ?? 'Écran', 'Prévu au lot 3 de l’application mobile.')}<div class="empty">Cet écran existe déjà sur le site. Il arrive dans l’application au lot 3.</div>`; }
+
+const VIEWS = { accueil: vAccueil, seances: vSeances, paiements: vPaiements, absences: vAbsences, reserver: vReserver, alertes: vAlertes, menu: vMenu, params: vParams,
+  suivi: vSuivi, exercices: vExercices, matchs: vMatchs, match: vMatch, tournois: vTournois, dispos: vDispos,
+  cseances: vCSeances, presences: vPresences, salaires: vSalaires, bilans: vBilans, cabs: vCabs,
+  dash: vDash, apay: vApay, joueurs: vJoueurs, groupes: vGroupes, planning: vPlanning, message: vMessage, depenses: vDepenses, stats: vStats, soon: vSoon };
+
+/* ───── Interactions ───── */
+function bind() {
+  document.getElementById('loginForm')?.addEventListener('submit', (e) => { e.preventDefault(); S.role = 'parent'; S.tab = null; render(); toast('Connecté · espace Parent'); });
+  const q = document.getElementById('jq');
+  q?.addEventListener('input', () => { const v = q.value.toLowerCase(); document.querySelectorAll('#jlist [data-player]').forEach((c) => { c.hidden = !c.dataset.player.toLowerCase().includes(v) && !c.textContent.toLowerCase().includes(v); }); });
+}
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('button, [data-go], [data-player]');
+  if (!t) return;
+  const d = t.dataset;
+  if (d.role) { S.role = d.role; S.tab = null; S.booking = null; closeSheet(); return render(); }
+  if (d.roleSwitch) { S.role = d.roleSwitch; S.tab = null; closeSheet(); render(); return toast(d.roleSwitch === 'login' ? 'Déconnecté' : 'Espace ' + (USER[d.roleSwitch]?.[3] ?? '')); }
+  if (d.toast) toast(d.toast);
+  if (d.go) { if (d.go === 'soon') { S.tab = 'soon'; S.sub = d.label; render(); $screen.scrollTop = 0; return; } return go(d.go); }
+  if (d.kid) { S.kid = d.kid; return render(); }
+  if (d.day !== undefined) { S.day = +d.day; return render(); }
+  if (d.nf) { S.notifFilter = d.nf; return render(); }
+  if (d.read !== undefined) { D.notifs[+d.read].unread = 0; render(); return toast('Marquée comme lue.'); }
+  if (d.readall !== undefined) { D.notifs.forEach((n) => (n.unread = 0)); render(); return toast('Toutes les notifications sont lues.'); }
+  if (d.slot) { const [c, h] = d.slot.split('-').map(Number); const b = S.booking; if (b && b.c === c && h === b.h + b.len && b.len < 8) b.len++; else if (b && b.c === c && h >= b.h && h < b.h + b.len) S.booking = null; else S.booking = { c, h, len: 2 }; return render(); }
+  if (d.book !== undefined) { S.booking = null; render(); return toast('Réservation confirmée. Un email de confirmation est envoyé.'); }
+  if (d.cancel !== undefined) return sheet('Annuler la réservation ?', '<span class="mut">Court 4 · samedi 17 octobre · 10:00. Annulation possible jusqu’à 24 h avant.</span><div class="row"><button class="btn2" data-close>Garder</button><button class="btn2 danger" data-close data-toast="Réservation annulée.">Annuler la réservation</button></div>');
+  if (d.mark) { const [n, v] = d.mark.split('|'); S.marks[n] = v; return render(); }
+  if (d.rate !== undefined) return rateSheet();
+  if (d.pt) { const L = S.live, order = ['0', '15', '30', '40']; const me = d.pt === 'a' ? 'pa' : 'pb', ot = d.pt === 'a' ? 'pb' : 'pa'; const i = order.indexOf(L[me]); if (i < 3) L[me] = order[i + 1]; else { L[d.pt][2]++; L.pa = '0'; L.pb = '0'; L.srv = L.srv === 'a' ? 'b' : 'a'; toast('Jeu ' + (d.pt === 'a' ? 'Yassine' : 'Karim')); } if (L[ot] === undefined) L[ot] = '0'; return render(); }
+  if (d.pay) return paySheet(d.pay);
+  if (d.player) return playerSheet(d.player);
+  if (d.themeSet) { S.dark = d.themeSet === 'system' ? null : d.themeSet; if (S.dark) document.documentElement.dataset.theme = S.dark; else delete document.documentElement.dataset.theme; return render(); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+render();
+</script>

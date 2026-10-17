@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TCSAY · Hors ligne</title>
+<style>
+  :root { --bg:#fafafa; --fg:#1a1a1a; --mut:#8a8a8f; --card:#fff; --line:#e6e6ea; --pri:#5a5acd; --btn:#ebebeb; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#f2f2f2; --mut:#9a9aa0; --card:#1c1c1e; --line:#333; --btn:#2e2e32; } }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--fg); font:15px/1.5 Montserrat, system-ui, sans-serif; padding:24px; box-sizing:border-box; }
+  .card { max-width:420px; background:var(--card); border:1.5px solid var(--line); border-radius:26px; padding:24px; text-align:center; }
+  img { width:72px; height:72px; }
+  h1 { font-size:22px; font-weight:600; margin:12px 0 6px; }
+  p { color:var(--mut); margin:0 0 18px; }
+  button { border:0; border-radius:99px; padding:11px 20px; font:inherit; font-weight:600; background:var(--pri); color:#fff; cursor:pointer; }
+  button.b2 { background:var(--btn); color:var(--fg); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <img src="/icons/icon-192.png" alt="TCSAY">
+    <h1>Pas de connexion</h1>
+    <p>Vérifiez le Wi-Fi ou les données mobiles, puis réessayez. Vos informations s’afficheront dès le retour du réseau.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+      <button type="button" onclick="location.reload()">Réessayer</button>
+      <button type="button" class="b2" onclick="history.length > 1 ? history.back() : (location.href = '/')">‹ Retour</button>
+      <button type="button" class="b2" onclick="location.href = '/'">Accueil</button>
+    </div>
+  </div>
+</body>
+</html>

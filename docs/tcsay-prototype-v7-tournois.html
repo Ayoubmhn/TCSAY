@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCSAY · Prototype v7 (tournois, rattrapages, disponibilités)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap">
+<!--
+  Prototype v7 : tournois (critères, inscriptions, tableau, planning des terrains et report des entraînements),
+  historique des tournois du joueur, rattrapages, séances physiques de groupe, disponibilités et assistant de créneau.
+  Maquette HTML/JS vanilla, données FICTIVES. Ne remplace pas docs/tcsay-prototype-v4.html (référence figée).
+-->
+<style>
+:root{
+  --bg:#fafafa;--fg:#1a1a1a;--mut:#8a8a8f;--card:#fff;--line:#e6e6ea;--fld:#f3f4f8;--btn:#ebebeb;
+  --pri:#5a5acd;--sel:#0000e0;--pb:#c9e9fb;--pg:#dff3a8;--pr:#fdb3b0;--ps:#f0d9a8;--ink:#111;--veil:rgba(0,0,0,.45);--toggle:#222;
+  --font:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+:root[data-theme=dark]{--bg:#121212;--fg:#f2f2f2;--mut:#9a9aa0;--card:#1c1c1e;--line:#333;--fld:#26272b;--btn:#2e2e32;--toggle:#f2f2f2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--font)}
+button,select,input{font:inherit;color:inherit}
+.demo{background:var(--ps);color:var(--ink);text-align:center;font-size:12px;font-weight:600;padding:6px 10px;letter-spacing:.04em}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1.5px solid var(--line);background:var(--card)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.ball{width:34px;height:34px;border-radius:50%;background:var(--pg);display:grid;place-items:center;color:var(--ink);font-size:13px}
+.seg{display:inline-flex;background:var(--btn);border-radius:99px;padding:4px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:99px;padding:7px 14px;font-weight:500;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--toggle);color:var(--bg)}
+main{padding:24px clamp(16px,3vw,36px) 60px;max-width:1040px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin:0}
+h2{font-size:18px;font-weight:500;margin:26px 0 12px}
+h3{font-size:16px;font-weight:500;margin:0}
+.sub{color:var(--mut);margin:4px 0 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:18px}
+.list{display:flex;flex-direction:column;gap:8px}
+.li{background:var(--card);border:1.5px solid var(--line);border-radius:20px;padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.li .nm{min-width:220px;font-weight:500}
+.li .acts{margin-inline-start:auto;display:flex;gap:6px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.mut{color:var(--mut);font-size:13.5px}
+.pill{display:inline-block;border-radius:99px;padding:5px 13px;font-size:13px;color:var(--ink);background:var(--pb);white-space:nowrap}
+.pill.g{background:var(--pg)}.pill.r{background:var(--pr)}.pill.s{background:var(--ps)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.btn{border:0;border-radius:99px;padding:11px 18px;font-weight:600;cursor:pointer;background:var(--pri);color:#fff}
+.btn2{border:0;border-radius:99px;padding:10px 16px;font-weight:500;cursor:pointer;background:var(--btn)}
+.btn:disabled,.btn2:disabled{opacity:.45;cursor:default}
+.ico{width:38px;height:38px;border-radius:50%;border:0;background:var(--btn);cursor:pointer;display:grid;place-items:center;font-size:16px}
+.ico.p{background:var(--pri);color:#fff}.ico.d{background:var(--pr);color:var(--ink)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.sel{background:var(--fld);border:0;border-radius:22px;padding:10px 16px}
+.fld{background:var(--fld);border:0;border-radius:20px;padding:11px 16px;width:100%}
+label.lb{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:500;color:var(--mut)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.note{margin-top:18px;background:var(--fld);border-radius:18px;padding:13px 16px;font-size:13.5px;display:flex;gap:10px}
+.kpi{font-size:28px;font-weight:600;line-height:1.1}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:0;border-radius:99px;padding:8px 14px;background:var(--fld);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--sel);color:#fff}
+.steps{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0}
+.steps span{border-radius:99px;padding:6px 13px;background:var(--fld);font-size:13px;font-weight:500}
+.steps span.on{background:var(--toggle);color:var(--bg)}
+.steps span.ok{background:var(--pg);color:var(--ink)}
+/* tableau du tournoi */
+.bracket{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:16px;overflow-x:auto;padding-bottom:6px}
+.round{display:flex;flex-direction:column;justify-content:space-around;gap:12px}
+.round h3{font-size:13px;color:var(--mut);font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.bm{background:var(--card);border:1.5px solid var(--line);border-radius:18px;overflow:hidden}
+.bm button{display:flex;justify-content:space-between;width:100%;border:0;background:none;padding:9px 14px;cursor:pointer;text-align:start;gap:8px}
+.bm button+button{border-top:1.5px solid var(--line)}
+.bm button.w{font-weight:600}.bm button.w::after{content:"✓";color:var(--pri)}
+.bm button:disabled{cursor:default;color:var(--mut)}
+.bm .meta{font-size:12px;color:var(--mut);padding:5px 14px;background:var(--fld)}
+/* grilles horaires */
+.tt{overflow-x:auto}
+.tt table{border-collapse:separate;border-spacing:4px;width:100%;min-width:640px}
+.tt th{font-size:12px;color:var(--mut);font-weight:600;padding:4px}
+.tt td{background:var(--fld);border-radius:12px;height:42px;font-size:12px;padding:4px 8px;vertical-align:middle}
+.tt td.t{background:var(--pri);color:#fff;font-weight:500}
+.tt td.e{background:var(--pg);color:var(--ink)}
+.tt td.x{background:var(--pr);color:var(--ink);font-weight:500}
+.tt td.s{background:var(--ps);color:var(--ink)}
+.av td button{width:100%;height:34px;border:0;border-radius:10px;cursor:pointer;font-size:12px;font-weight:500}
+.av .D{background:var(--pg);color:var(--ink)}.av .P{background:var(--pb);color:var(--ink)}.av .I{background:var(--pr);color:var(--ink)}
+.av td{padding:0;background:none}
+.av .busy{outline:2px solid var(--pri);outline-offset:-2px}
+.veil{position:fixed;inset:0;background:var(--veil);z-index:5}
+.modal{position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(600px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border-radius:28px;padding:22px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:99px;padding:11px 20px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:calc(100vw - 32px);text-align:center}
+.toast.on{opacity:1}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live::before{content:"";width:8px;height:8px;border-radius:50%;background:#e5484d;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+@media (max-width:600px){h1{font-size:23px}.form{grid-template-columns:1fr}.li .nm{min-width:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="demo">PROTOTYPE v7 · TOURNOIS · RATTRAPAGES · SÉANCES PHYSIQUES · DISPONIBILITÉS · DONNÉES FICTIVES</div>
+<header class="top">
+  <div class="brand"><span class="ball">TC</span>TCSAY</div>
+  <div class="seg" role="group" aria-label="Rôle" id="roles"></div>
+  <button class="btn2" id="theme">☾ Sombre</button>
+</header>
+<main id="main"></main>
+<div id="layer"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ───────── Données fictives ─────────
+const PLAYERS = [
+  { n: 'Yassine Ben Ali', cat: 'Benjamins G', y: 2014, g: 'M', lvl: 'Avancé', pts: 82 },
+  { n: 'Adam Sassi', cat: 'Benjamins G', y: 2014, g: 'M', lvl: 'Avancé', pts: 78 },
+  { n: 'Rayen Kefi', cat: 'Minimes G', y: 2012, g: 'M', lvl: 'Confirmé', pts: 90 },
+  { n: 'Omar Jlassi', cat: 'Minimes G', y: 2013, g: 'M', lvl: 'Intermédiaire', pts: 61 },
+  { n: 'Elyes Haddad', cat: 'Benjamins G', y: 2015, g: 'M', lvl: 'Intermédiaire', pts: 55 },
+  { n: 'Aziz Mabrouk', cat: 'Minimes G', y: 2012, g: 'M', lvl: 'Avancé', pts: 74 },
+  { n: 'Firas Chebbi', cat: 'Benjamins G', y: 2014, g: 'M', lvl: 'Débutant', pts: 40 },
+  { n: 'Skander Ayari', cat: 'Minimes G', y: 2013, g: 'M', lvl: 'Intermédiaire', pts: 58 },
+  { n: 'Lina Ben Ali', cat: 'Poussines F', y: 2016, g: 'F', lvl: 'Intermédiaire', pts: 50 },
+  { n: 'Ines Chaabane', cat: 'Minimes F', y: 2012, g: 'F', lvl: 'Confirmé', pts: 88 },
+  { n: 'Nour Hammami', cat: 'Juniors F', y: 2009, g: 'F', lvl: 'Avancé', pts: 70 },
+  { n: 'Malek Gharbi', cat: 'Cadets', y: 2011, g: 'M', lvl: 'Avancé', pts: 76 },
+];
+const COACHES = ['Iheb Gharbi', 'Sami Dridi', 'Mehdi Trabelsi (préparateur physique)'];
+const COURTS = ['Court 1', 'Court 2', 'Court 3', 'Court 4'];
+const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+const HOURS = [9, 10, 11, 14, 15, 16, 17, 18, 19, 20];
+const GROUPS = ['Benjamins G1', 'Benjamins G2', 'Minimes F', 'Minimes G', 'Poussines', 'Loisirs adultes'];
+
+// Entraînements du samedi 24 octobre (terrain, heure de début, fin)
+const TRAINING = [
+  { id: 'e1', group: 'Benjamins G1', coach: 'Iheb Gharbi', court: 'Court 1', from: 9, to: 10.5 },
+  { id: 'e2', group: 'Minimes F', coach: 'Sami Dridi', court: 'Court 2', from: 10.5, to: 12 },
+  { id: 'e3', group: 'Poussines', coach: 'Iheb Gharbi', court: 'Court 3', from: 9, to: 10.5 },
+  { id: 'e4', group: 'Loisirs adultes', coach: 'Sami Dridi', court: 'Court 2', from: 16, to: 17.5 },
+];
+
+const TOURNAMENTS = [
+  {
+    id: 't1', name: 'Open jeunes de Sayada', type: 'Interne', dates: 'sam. 24 – dim. 25 oct.', status: 'Inscriptions',
+    elig: { mode: 'cats', cats: ['Benjamins G', 'Minimes G'], gender: 'M' }, format: 'Élimination directe + consolante',
+    match: '2 sets gagnants · super tie-break à 10', courts: ['Court 1', 'Court 2'], windows: 'Sam 9h–16h · Dim 9h–13h', max: 8,
+    entries: ['Rayen Kefi', 'Yassine Ben Ali', 'Adam Sassi', 'Aziz Mabrouk', 'Omar Jlassi', 'Skander Ayari', 'Elyes Haddad', 'Firas Chebbi'],
+    derog: {}, draw: null, planned: false, conflicts: {},
+  },
+  {
+    id: 't2', name: 'Tournoi interne Dames', type: 'Interne', dates: 'sam. 4 oct.', status: 'Terminé',
+    elig: { mode: 'open', gender: 'F' }, format: 'Poules puis tableau', match: '1 set de 6 jeux', courts: ['Court 1'],
+    windows: 'Sam 9h–14h', max: 8, entries: ['Ines Chaabane', 'Nour Hammami', 'Lina Ben Ali'], winner: 'Ines Chaabane',
+  },
+  {
+    id: 't3', name: 'Championnat d’automne Minimes', type: 'Championnat', dates: 'oct. – nov.', status: 'En cours',
+    elig: { mode: 'age', from: 2012, to: 2013 }, format: 'Championnat (tous contre tous)', match: '2 sets gagnants',
+    courts: ['Court 3'], windows: 'Mer 17h–19h', max: 6, entries: ['Rayen Kefi', 'Omar Jlassi', 'Aziz Mabrouk', 'Skander Ayari'],
+  },
+];
+
+// Historique des tournois de Yassine (vue parent)
+const HISTORY = [
+  { t: 'Open jeunes de Sayada 2025', d: 'oct. 2025', res: 'Vainqueur', tone: 'g', w: 3, l: 0, m: [['Quart', 'Firas Chebbi', '6-1 6-2', 1], ['Demi', 'Omar Jlassi', '6-4 3-6 10-7', 1], ['Finale', 'Adam Sassi', '7-5 6-4', 1]] },
+  { t: 'Tournoi de Monastir U12', d: 'déc. 2025', res: 'Demi-finale', tone: 's', w: 2, l: 1, m: [['1er tour', 'S. Ferjani (Monastir)', '6-2 6-3', 1], ['Quart', 'A. Bouzid (Sousse)', '6-4 6-4', 1], ['Demi', 'M. Kallel (Sfax)', '3-6 4-6', 0]] },
+  { t: 'Championnat interne Benjamins', d: 'mars 2026', res: '2e', tone: 'b', w: 4, l: 1, m: [['Journée 1', 'Elyes Haddad', '6-1 6-1', 1], ['Journée 2', 'Adam Sassi', '4-6 5-7', 0], ['Journée 3', 'Firas Chebbi', '6-0 6-2', 1], ['Journée 4', 'Omar Jlassi', '6-3 6-4', 1], ['Journée 5', 'Skander Ayari', '7-6 6-3', 1]] },
+];
+
+// Disponibilités : D = disponible, P = préféré, I = indisponible
+const AV = {};
+COACHES.forEach((c, ci) => {
+  AV[c] = {};
+  DAYS.forEach((d, di) => HOURS.forEach((h) => {
+    let v = 'D';
+    if (h < 14 && di < 5) v = 'I'; // en semaine le matin : école / travail
+    if (ci === 0 && di === 1) v = 'I'; // Iheb indisponible le mardi
+    if (ci === 1 && h >= 19) v = 'I';
+    if (ci === 0 && di === 2 && h >= 17) v = 'P';
+    if (ci === 2 && (di === 2 || di === 4) && h >= 17 && h <= 18) v = 'P';
+    AV[c][`${d}-${h}`] = v;
+  }));
+});
+const BUSY = { 'Iheb Gharbi': ['Lun-17', 'Mer-17', 'Mer-18', 'Sam-9', 'Sam-10'], 'Sami Dridi': ['Mar-17', 'Jeu-17', 'Sam-10', 'Sam-11', 'Sam-16'], 'Mehdi Trabelsi (préparateur physique)': ['Ven-17'] };
+const EXCEPTIONS = [{ c: 'Iheb Gharbi', from: '2026-11-02', to: '2026-11-06', why: 'Formation fédérale' }];
+
+const CREDITS = [
+  { id: 'c1', p: 'Yassine Ben Ali', group: 'Benjamins G1', origin: 'Séance annulée : entraîneur absent (mar. 7 oct.)', exp: '2026-11-07', st: 'À rattraper' },
+  { id: 'c2', p: 'Adam Sassi', group: 'Benjamins G1', origin: 'Séance annulée : entraîneur absent (mar. 7 oct.)', exp: '2026-11-07', st: 'À rattraper' },
+  { id: 'c3', p: 'Firas Chebbi', group: 'Benjamins G1', origin: 'Absence justifiée : malade (jeu. 9 oct.)', exp: '2026-11-09', st: 'À rattraper' },
+  { id: 'c4', p: 'Ines Chaabane', group: 'Minimes F', origin: 'Absence justifiée : examen (sam. 4 oct.)', exp: '2026-11-04', st: 'Utilisé' },
+  { id: 'c5', p: 'Lina Ben Ali', group: 'Poussines', origin: 'Absence non justifiée (lun. 29 sept.)', exp: '—', st: 'Sans droit' },
+];
+const MAKEUPS = [{ when: 'mer. 22 oct. · 14:00–15:30', court: 'Court 3', coach: 'Iheb Gharbi', places: 6, invited: ['Yassine Ben Ali'] }];
+const FREE_SPOTS = [
+  { group: 'Benjamins G2', when: 'mer. 15 oct. · 17:00–18:30', court: 'Court 1', coach: 'Sami Dridi', free: 2 },
+  { group: 'Benjamins G2', when: 'sam. 18 oct. · 11:00–12:30', court: 'Court 2', coach: 'Sami Dridi', free: 1 },
+];
+const PHYS = [
+  { groups: ['Benjamins G1', 'Benjamins G2'], who: 'Mehdi Trabelsi', where: 'Salle polyvalente', when: 'chaque vendredi · 17:00–18:00', crit: ['Endurance', 'Coordination'] },
+  { groups: ['Minimes F', 'Minimes G'], who: 'Mehdi Trabelsi', where: 'Plage de Sayada', when: 'sam. 18 oct. · 8:00–9:00', crit: ['Vitesse', 'Endurance'] },
+];
+
+// ───────── État ─────────
+const S = { role: 'dt', tab: 'tournois', tid: null, ttab: 'inscrits', wz: null, coach: COACHES[0], modal: null, h2h: 'Adam Sassi' };
+const ROLES = { dt: 'Directeur technique', coach: 'Entraîneur', parent: 'Parent' };
+const TABS = {
+  dt: [['tournois', 'Tournois'], ['dispo', 'Disponibilités'], ['rattrapages', 'Rattrapages'], ['physique', 'Séances physiques']],
+  coach: [['mesdispo', 'Mes disponibilités'], ['seances', 'Mes séances'], ['rattrapages', 'Rattrapages']],
+  parent: [['seances', 'Mes séances'], ['mesratt', 'Mes rattrapages'], ['historique', 'Historique des tournois'], ['tournois', 'Tournois']],
+};
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const pill = (t, tone = '') => `<span class="pill ${tone}">${t}</span>`;
+const hh = (h) => `${Math.floor(h)}:${h % 1 ? '30' : '00'}`;
+const fD = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+const P = (n) => PLAYERS.find((p) => p.n === n);
+const tour = () => TOURNAMENTS.find((t) => t.id === S.tid);
+function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 3800); }
+const statusTone = (s) => ({ Brouillon: 's', Inscriptions: 'b', Tirage: 's', 'En cours': 'r', Terminé: 'g' }[s]);
+
+function eligible(t, p) {
+  const e = t.elig;
+  if (e.gender && p.g !== e.gender) return false;
+  if (e.mode === 'cats') return e.cats.includes(p.cat);
+  if (e.mode === 'age') return p.y >= e.from && p.y <= e.to;
+  return true;
+}
+const eligText = (e) => (e.mode === 'cats' ? e.cats.join(', ') : e.mode === 'age' ? `Nés de ${e.from} à ${e.to}` : 'Ouvert à tous') + (e.gender ? ` · ${e.gender === 'M' ? 'garçons' : 'filles'}` : '');
+
+// ───────── Tournois (DT et familles) ─────────
+function vTournaments() {
+  const dt = S.role === 'dt';
+  return `<div class="row"><div><h1>Tournois</h1><p class="sub">Découvrez les tournois du club, leurs tableaux et leurs résultats.</p></div>
+    ${dt ? '<button class="btn" data-act="wizard">+ Nouveau tournoi</button>' : ''}</div>
+    <div class="list" style="margin-top:18px">${TOURNAMENTS.map((t) => `<div class="li">
+      <span class="nm">${esc(t.name)}</span>
+      <div class="pills">${pill(t.status === 'En cours' ? '<span class="live">En cours</span>' : t.status, statusTone(t.status))}${pill(t.dates)}${pill(esc(eligText(t.elig)), 's')}${pill(`${t.entries.length}/${t.max} inscrits`)}${t.winner ? pill(`🏆 ${t.winner}`, 'g') : ''}</div>
+      <div class="acts"><button class="ico p" title="Ouvrir" aria-label="Ouvrir" data-open="${t.id}">→</button></div></div>`).join('')}</div>
+    <div class="note">ⓘ<span>Créés par la direction technique : une ou plusieurs catégories, une tranche d’âge, un genre, ou ouvert à tous. Chaque rencontre est un match du module Matchs : score en direct et statistiques.</span></div>`;
+}
+
+function vWizard() {
+  const w = S.wz;
+  const names = ['Identité', 'Qui peut jouer', 'Format', 'Terrains et horaires'];
+  const t = { elig: w.elig };
+  const count = PLAYERS.filter((p) => eligible(t, p)).length;
+  let body = '';
+  if (w.step === 0) body = `<div class="form">
+      <label class="lb full">Nom du tournoi<input class="fld" data-w="name" value="${esc(w.name)}" placeholder="ex. Open jeunes de Sayada"></label>
+      <label class="lb">Type<select class="fld" data-w="type">${['Interne', 'Open (joueurs extérieurs)', 'Championnat', 'Amical inter-clubs'].map((x) => `<option ${w.type === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label class="lb">Dates<input class="fld" data-w="dates" value="${esc(w.dates)}" placeholder="ex. sam. 8 – dim. 9 nov."></label>
+      <label class="lb">Frais d’inscription (facultatif)<input class="fld" data-w="fee" value="${esc(w.fee)}" placeholder="Montant fixé par le bureau"></label>
+      <label class="lb">Inscription<select class="fld" data-w="reg"><option>Par la direction technique</option><option>Demande des familles, validée par le DT</option></select></label></div>`;
+  if (w.step === 1) body = `<div class="chips" role="radiogroup">${[['cats', 'Par catégorie'], ['age', 'Par tranche d’âge'], ['open', 'Ouvert à tous']].map(([k, l]) => `<button class="chip" aria-pressed="${w.elig.mode === k}" data-mode="${k}">${l}</button>`).join('')}</div>
+      <div style="margin-top:14px">${w.elig.mode === 'cats' ? `<div class="chips">${[...new Set(PLAYERS.map((p) => p.cat))].map((c) => `<button class="chip" aria-pressed="${w.elig.cats.includes(c)}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
+        : w.elig.mode === 'age' ? `<div class="form"><label class="lb">Nés à partir de<input class="fld" type="number" data-age="from" value="${w.elig.from}"></label><label class="lb">Nés jusqu’à<input class="fld" type="number" data-age="to" value="${w.elig.to}"></label></div>`
+        : '<p class="mut">Tous les joueurs du club, plus des joueurs extérieurs saisis à la main.</p>'}</div>
+      <label class="lb" style="margin-top:14px;max-width:280px">Genre<select class="fld" data-w="gender"><option value="">Mixte</option><option value="M" ${w.elig.gender === 'M' ? 'selected' : ''}>Garçons</option><option value="F" ${w.elig.gender === 'F' ? 'selected' : ''}>Filles</option></select></label>
+      <div class="pills" style="margin-top:14px">${pill(`${count} joueur(s) du club éligible(s)`, count ? 'g' : 'r')}${pill('Hors critères : dérogation avec motif', 's')}</div>`;
+  if (w.step === 2) body = `<div class="form">
+      <label class="lb">Format<select class="fld" data-w="format">${['Élimination directe', 'Élimination directe + consolante', 'Poules puis tableau', 'Championnat (tous contre tous)'].map((x) => `<option ${w.format === x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label class="lb">Places<select class="fld" data-w="max">${[4, 8, 16, 32].map((x) => `<option ${w.max == x ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+      <label class="lb">Matchs<select class="fld"><option>2 sets gagnants · super tie-break à 10</option><option>2 sets gagnants</option><option>1 set de 6 jeux</option><option>Sets de 4 jeux (jeunes)</option></select></label>
+      <label class="lb">Têtes de série<select class="fld"><option>D’après le niveau validé et les résultats</option><option>Tirage au sort intégral</option></select></label></div>`;
+  if (w.step === 3) body = `<p class="mut" style="margin-top:0">Terrains réservés pour le tournoi :</p>
+      <div class="chips">${COURTS.map((c) => `<button class="chip" aria-pressed="${w.courts.includes(c)}" data-court="${c}">${c}</button>`).join('')}</div>
+      <div class="form" style="margin-top:14px">
+        <label class="lb">Plages horaires<input class="fld" data-w="windows" value="${esc(w.windows)}"></label>
+        <label class="lb">Durée prévue d’un match<select class="fld"><option>1 h 30</option><option>1 h</option><option>2 h</option></select></label>
+        <label class="lb">Repos minimum entre deux matchs<select class="fld"><option>1 h</option><option>30 min</option><option>2 h</option></select></label></div>
+      <div class="note">ⓘ<span>Les terrains sont bloqués seulement pendant les matchs planifiés. Si un entraînement tombe sur un de ces créneaux, il apparaît dans « Planning » pour être déplacé, décalé ou reporté.</span></div>`;
+  return `<button class="btn2" data-act="back">← Tournois</button>
+    <h1 style="margin-top:16px">Nouveau tournoi</h1>
+    <div class="steps">${names.map((n, i) => `<span class="${i === w.step ? 'on' : i < w.step ? 'ok' : ''}">${i + 1}. ${n}</span>`).join('')}</div>
+    <div class="card">${body}</div>
+    <div class="row" style="margin-top:14px"><button class="btn2" data-act="wzprev" ${w.step ? '' : 'disabled'}>Précédent</button>
+      ${w.step < 3 ? '<button class="btn" data-act="wznext">Suivant</button>' : '<button class="btn" data-act="wzsave">Ouvrir les inscriptions</button>'}</div>`;
+}
+
+/** Terrain libre (hors tournoi, sans autre entraînement) pendant la séance e. */
+function freeCourt(t, e) {
+  return COURTS.find((c) => !t.courts.includes(c) && !TRAINING.some((o) => o.id !== e.id && o.court === c && o.from < e.to && e.from < o.to)) ?? 'aucun';
+}
+function seeded(t) { return [...t.entries].sort((a, b) => (P(b)?.pts ?? 0) - (P(a)?.pts ?? 0)); }
+function makeDraw(t) {
+  const s = seeded(t);
+  const order = [[0, 7], [3, 4], [2, 5], [1, 6]];
+  t.draw = { qf: order.map(([a, b]) => ({ a: s[a], b: s[b], w: null })), sf: [{ a: null, b: null, w: null }, { a: null, b: null, w: null }], f: { a: null, b: null, w: null } };
+}
+const SLOT = { qf: [['Court 1', 9], ['Court 2', 9], ['Court 1', 10.5], ['Court 2', 10.5]], sf: [['Court 1', 14], ['Court 2', 14]] };
+
+function vTournament() {
+  const t = tour();
+  const dt = S.role === 'dt';
+  const tabs = [['inscrits', `Inscrits · ${t.entries.length}`], ['tableau', 'Tableau'], ...(dt ? [['planning', 'Planning des terrains']] : [])];
+  let body = '';
+  if (S.ttab === 'inscrits') {
+    const others = PLAYERS.filter((p) => !t.entries.includes(p.n));
+    body = `<div class="list">${seeded(t).map((n, i) => { const p = P(n); return `<div class="li"><span class="nm">${i < 4 ? `<b>${i + 1}</b> · ` : ''}${esc(n)}</span>
+        <div class="pills">${p ? pill(p.cat, 's') + pill(`Niveau ${p.lvl}`) : pill('Extérieur', 's')}${i < 4 ? pill('Tête de série', 'g') : ''}${t.derog?.[n] ? pill(`Dérogation : ${esc(t.derog[n])}`, 'r') : ''}</div>
+        ${dt && t.status === 'Inscriptions' ? `<div class="acts"><button class="ico d" title="Retirer" aria-label="Retirer" data-unreg="${esc(n)}">−</button></div>` : ''}</div>`; }).join('')}</div>
+      ${dt && t.status === 'Inscriptions' ? `<div class="row" style="margin-top:14px;justify-content:flex-start">
+        <select class="sel" id="addp"><option value="">Ajouter un joueur…</option>${others.map((p) => `<option value="${esc(p.n)}">${esc(p.n)} · ${esc(p.cat)}${eligible(t, p) ? '' : ' (hors critères)'}</option>`).join('')}<option value="EXT">Joueur extérieur (saisir le nom)…</option></select>
+        <button class="btn2" data-act="addp">Ajouter</button>
+        <button class="btn" data-act="draw" ${t.entries.length >= 2 ? '' : 'disabled'}>Fermer les inscriptions et tirer au sort</button></div>` : ''}`;
+  }
+  if (S.ttab === 'tableau') {
+    if (!t.draw) body = `<div class="card mut">${t.id === 't1' ? 'Le tableau sera visible après le tirage au sort (onglet Inscrits).' : 'Tableau de démonstration disponible sur « Open jeunes de Sayada ».'}</div>`;
+    else {
+      const m = (x, r, i) => {
+        const slot = r === 'f' ? 'Dim 10:00 · Court 1' : SLOT[r] ? `Sam ${hh(SLOT[r][i][1])} · ${SLOT[r][i][0]}` : '';
+        const btn = (side) => { const n = x[side]; return `<button ${!dt || !x.a || !x.b ? 'disabled' : ''} class="${x.w && x.w === n ? 'w' : ''}" data-win="${r}|${i}|${side}">${n ? esc(n) : '<span class="mut">à déterminer</span>'}</button>`; };
+        return `<div class="bm">${btn('a')}${btn('b')}<div class="meta">${slot}${x.a && x.b && !x.w ? ' · <span class="live">à jouer</span>' : ''}</div></div>`;
+      };
+      body = `<div class="bracket">
+        <div class="round"><h3>Quarts</h3>${t.draw.qf.map((x, i) => m(x, 'qf', i)).join('')}</div>
+        <div class="round"><h3>Demi-finales</h3>${t.draw.sf.map((x, i) => m(x, 'sf', i)).join('')}</div>
+        <div class="round"><h3>Finale</h3>${m(t.draw.f, 'f', 0)}${t.draw.f.w ? `<div class="card" style="text-align:center"><div class="kpi">🏆</div><b>${esc(t.draw.f.w)}</b><p class="mut">Vainqueur · familles prévenues</p></div>` : ''}</div></div>
+        <div class="note">ⓘ<span>${dt ? 'Prototype : cliquez sur le vainqueur d’un match pour le faire passer au tour suivant. Dans l’application, le score saisi point par point (module Matchs) désigne le vainqueur tout seul.' : 'Le tableau se met à jour en direct pendant le tournoi.'}</span></div>`;
+    }
+  }
+  if (S.ttab === 'planning') {
+    const slots = [9, 10.5, 12, 14, 15.5];
+    const tm = (court, h) => {
+      if (!t.draw) return null;
+      const qi = SLOT.qf.findIndex(([c, x]) => c === court && x === h);
+      if (qi >= 0) return `Quart · ${t.draw.qf[qi].a.split(' ')[0]} – ${t.draw.qf[qi].b.split(' ')[0]}`;
+      const si = SLOT.sf.findIndex(([c, x]) => c === court && x === h);
+      if (si >= 0) return 'Demi-finale';
+      return null;
+    };
+    const cell = (court, h) => {
+      const tr = TRAINING.find((e) => e.court === court && h >= e.from && h < e.to);
+      const match = tm(court, h);
+      const fix = tr && t.conflicts[tr.id];
+      if (match && tr && !fix) return `<td class="x">⚠ ${match}<br><small>Conflit : ${esc(tr.group)}</small></td>`;
+      if (match) return `<td class="t">${match}</td>`;
+      if (tr && !fix) return `<td class="e">${esc(tr.group)}</td>`;
+      const moved = Object.entries(t.conflicts).find(([id, f]) => f.court === court && f.from === h);
+      if (moved) return `<td class="s">${esc(TRAINING.find((e) => e.id === moved[0]).group)} (déplacé)</td>`;
+      return '<td></td>';
+    };
+    const conflicts = t.draw ? TRAINING.filter((e) => [9, 10.5, 14].some((h) => tm(e.court, h) && h >= e.from && h < e.to)) : [];
+    body = !t.draw ? '<div class="card mut">Le planning est généré au tirage au sort (onglet Inscrits).</div>' : `
+      <div class="pills" style="margin-bottom:10px"><span class="pill" style="background:var(--pri);color:#fff">Match du tournoi</span>${pill('Entraînement', 'g')}${pill('Conflit', 'r')}${pill('Séance déplacée', 's')}</div>
+      <div class="tt"><table><thead><tr><th>Sam 24 oct.</th>${COURTS.map((c) => `<th>${c}${c === 'Court 4' ? ' ☾ sans éclairage' : ''}</th>`).join('')}</tr></thead>
+      <tbody>${slots.map((h) => `<tr><th>${hh(h)}</th>${COURTS.map((c) => cell(c, h)).join('')}</tr>`).join('')}</tbody></table></div>
+      <h2>Entraînements touchés · ${conflicts.length}</h2>
+      <div class="list">${conflicts.map((e) => { const f = t.conflicts[e.id]; return `<div class="li"><span class="nm">${esc(e.group)}</span>
+        <div class="pills">${pill(`Sam ${hh(e.from)}–${hh(e.to)}`)}${pill(e.court, 'r')}${pill(esc(e.coach), 's')}${f ? pill(`✓ ${esc(f.label)}`, 'g') : ''}</div>
+        ${f ? '' : `<div class="acts"><button class="btn2" data-fix="${e.id}|move">Déplacer (${freeCourt(t, e)})</button><button class="btn2" data-fix="${e.id}|shift">Décaler à 12:00</button><button class="btn2" data-fix="${e.id}|report">Reporter (rattrapage)</button><button class="ico d" title="Annuler la séance" aria-label="Annuler la séance" data-fix="${e.id}|cancel">✕</button></div>`}</div>`; }).join('')}</div>
+      <div class="note">ⓘ<span>Les propositions ne gardent que les terrains libres et les heures où l’entraîneur est disponible. Après validation : entraîneur et familles prévenus, audit ; « Reporter » et « Annuler » donnent un droit à rattrapage aux joueurs du groupe.</span></div>`;
+  }
+  return `<button class="btn2" data-act="back">← Tournois</button>
+    <div class="row" style="margin-top:16px"><div><h1>${esc(t.name)}</h1><p class="sub">${esc(t.format)} · ${esc(t.match)}</p></div>${pill(t.status, statusTone(t.status))}</div>
+    <div class="pills" style="margin-top:12px">${pill(t.dates)}${pill(esc(eligText(t.elig)), 's')}${pill(t.courts.join(' · '), 'g')}${pill(t.windows)}</div>
+    <div class="seg" role="tablist" style="margin:18px 0">${tabs.map(([k, l]) => `<button role="tab" aria-pressed="${S.ttab === k}" data-ttab="${k}">${l}</button>`).join('')}</div>${body}`;
+}
+
+// ───────── Disponibilités ─────────
+function avGrid(coach, editable) {
+  const a = AV[coach];
+  const busy = BUSY[coach] ?? [];
+  const lab = { D: 'Dispo', P: 'Préféré', I: 'Indispo' };
+  return `<div class="tt av"><table><thead><tr><th></th>${DAYS.map((d) => `<th>${d}</th>`).join('')}</tr></thead><tbody>
+    ${HOURS.map((h) => `<tr><th>${h}:00</th>${DAYS.map((d) => { const k = `${d}-${h}`; const v = a[k]; return `<td><button class="${v} ${busy.includes(k) ? 'busy' : ''}" ${editable ? `data-av="${k}"` : 'tabindex="-1"'} title="${lab[v]}${busy.includes(k) ? ' · séance prévue' : ''}" aria-label="${d} ${h}h : ${lab[v]}">${busy.includes(k) ? '● ' : ''}${lab[v]}</button></td>`; }).join('')}</tr>`).join('')}
+  </tbody></table></div>
+  <div class="pills" style="margin-top:10px">${pill('Disponible', 'g')}${pill('Préféré')}${pill('Indisponible', 'r')}<span class="pill" style="outline:2px solid var(--pri)">● séance prévue</span></div>`;
+}
+function vMyAvailability() {
+  const c = COACHES[0];
+  return `<h1>Mes disponibilités</h1><p class="sub">Découvrez votre semaine type : cliquez sur une case pour passer de Disponible à Préféré puis Indisponible.</p>
+    <div class="card" style="margin-top:18px">${avGrid(c, true)}</div>
+    <h2>Exceptions</h2>
+    <div class="list">${EXCEPTIONS.filter((e) => e.c === c).map((e) => `<div class="li"><span class="nm">${esc(e.why)}</span><div class="pills">${pill(`du ${fD(e.from)} au ${fD(e.to)}`)}${pill('Indisponible', 'r')}</div></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px;justify-content:flex-start"><button class="btn2" data-act="exception">+ Ajouter une exception (congé, examen…)</button></div>
+    <div class="note">ⓘ<span>La direction ne programme une séance que sur vos créneaux disponibles (sinon dérogation). Une absence déclarée propose tout de suite un remplaçant disponible.</span></div>`;
+}
+function vAvailability() {
+  const results = [];
+  if (S.find) {
+    const g = S.find;
+    DAYS.forEach((d) => HOURS.forEach((h) => {
+      if (h >= 20 || results.some((r) => r.d === d)) return; // un créneau par jour, fin avant 21:30
+      const v = AV[S.coach][`${d}-${h}`];
+      const busy = (BUSY[S.coach] ?? []).includes(`${d}-${h}`) || (BUSY[S.coach] ?? []).includes(`${d}-${h + 1}`);
+      if (v === 'I' || busy || AV[S.coach][`${d}-${h + 1}`] === 'I') return;
+      const court = h >= 18 ? 'Court 2' : 'Court 3';
+      const ratio = 70 + ((d.charCodeAt(0) + h * 7) % 31);
+      results.push({ d, h, v, court, ratio });
+    }));
+    results.sort((a, b) => (b.v === 'P') - (a.v === 'P') || b.ratio - a.ratio);
+    results.splice(5);
+  }
+  return `<h1>Disponibilités</h1><p class="sub">Découvrez les disponibilités des entraîneurs et trouvez un créneau sans conflit.</p>
+    <div class="row" style="margin-top:16px;justify-content:flex-start"><select class="sel" id="coachsel">${COACHES.map((c) => `<option ${c === S.coach ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>
+      ${pill(`${(BUSY[S.coach] ?? []).length} h de séances / semaine`, 's')}${EXCEPTIONS.filter((e) => e.c === S.coach).map((e) => pill(`Absent du ${fD(e.from)} au ${fD(e.to)}`, 'r')).join('')}</div>
+    <div class="card" style="margin-top:12px">${avGrid(S.coach, false)}</div>
+    <h2>Assistant de créneau</h2>
+    <div class="card"><div class="form">
+      <label class="lb">Groupe<select class="fld" id="fgroup">${GROUPS.map((g) => `<option ${S.find === g ? 'selected' : ''}>${g}</option>`).join('')}</select></label>
+      <label class="lb">Durée<select class="fld"><option>1 h 30</option><option>1 h</option><option>2 h</option></select></label></div>
+      <div class="row" style="margin-top:12px"><span class="mut">Entraîneur : ${esc(S.coach)} · terrain libre · joueurs du groupe disponibles</span><button class="btn" data-act="find">Proposer des créneaux</button></div></div>
+    ${S.find ? `<div class="list" style="margin-top:12px">${results.map((r) => `<div class="li"><span class="nm">${r.d} ${r.h}:00 – ${r.h + 1}:30</span>
+      <div class="pills">${pill(r.v === 'P' ? 'Créneau préféré de l’entraîneur' : 'Entraîneur disponible', r.v === 'P' ? '' : 'g')}${pill(`${r.court} libre`, 'g')}${pill(`${r.ratio} % des joueurs disponibles`, r.ratio >= 85 ? 'g' : 's')}${r.h >= 18 ? pill('☾ éclairage requis', 's') : ''}</div>
+      <div class="acts"><button class="btn2" data-pick="${r.d} ${r.h}:00 · ${r.court}">Choisir</button></div></div>`).join('')}</div>` : ''}
+    <div class="note">ⓘ<span>Plus tard : proposition de l’emploi du temps complet de la saison (groupes, entraîneurs, terrains), ajustable puis publié à tous.</span></div>`;
+}
+
+// ───────── Rattrapages ─────────
+function vMakeups() {
+  const tone = { 'À rattraper': 'r', Invité: '', Réservé: '', Utilisé: 'g', 'Sans droit': 's', Expiré: 's' };
+  return `<div class="row"><div><h1>Rattrapages</h1><p class="sub">Découvrez les séances à rattraper et proposez un créneau.</p></div>
+    <button class="btn" data-act="makeup">+ Séance de rattrapage</button></div>
+    <div class="pills" style="margin-top:14px">${pill(`${CREDITS.filter((c) => c.st === 'À rattraper').length} à rattraper`, 'r')}${pill(`${CREDITS.filter((c) => c.st === 'Utilisé').length} utilisé(s)`, 'g')}${pill('Validité 30 jours (réglable)', 's')}</div>
+    <h2>Droits à rattrapage</h2>
+    <div class="list">${CREDITS.map((c) => `<div class="li"><span class="nm">${esc(c.p)}</span>
+      <div class="pills">${pill(esc(c.st), tone[c.st])}${pill(esc(c.group), 's')}${c.exp !== '—' && c.st === 'À rattraper' ? pill(`avant le ${fD(c.exp)}`) : ''}</div><span class="mut">${esc(c.origin)}</span></div>`).join('')}</div>
+    <h2>Séances de rattrapage prévues</h2>
+    <div class="list">${MAKEUPS.map((m) => `<div class="li"><span class="nm">${esc(m.when)}</span><div class="pills">${pill('Rattrapage', 's')}${pill(m.court, 'g')}${pill(esc(m.coach))}${pill(`${m.invited.length}/${m.places} joueurs`)}</div></div>`).join('')}</div>
+    <h2>Places libres dans d’autres groupes</h2>
+    <div class="list">${FREE_SPOTS.map((f, i) => `<div class="li"><span class="nm">${esc(f.group)}</span><div class="pills">${pill(f.when)}${pill(f.court, 'g')}${pill(`${f.free} place(s)`, 'g')}${pill('Même catégorie et niveau', 's')}</div>
+      <div class="acts"><button class="btn2" data-offer="${i}">Proposer aux familles</button></div></div>`).join('')}</div>
+    <div class="note">ⓘ<span>Droit à rattrapage : séance annulée par le club (entraîneur absent, terrain pris par un tournoi, météo) ou absence justifiée. La présence au rattrapage consomme le droit et compte dans l’assiduité (règles à confirmer avec le bureau).</span></div>`;
+}
+function vMyMakeups() {
+  const mine = CREDITS.filter((c) => c.p === 'Yassine Ben Ali');
+  return `<h1>Mes rattrapages</h1><p class="sub">Découvrez les séances à rattraper de Yassine et choisissez un créneau.</p>
+    <div class="list" style="margin-top:18px">${mine.map((c) => `<div class="li"><span class="nm">1 séance à rattraper</span><div class="pills">${pill(esc(c.st), c.st === 'À rattraper' ? 'r' : '')}${c.st === 'À rattraper' ? pill(`avant le ${fD(c.exp)}`) : ''}</div><span class="mut">${esc(c.origin)}</span></div>`).join('')}</div>
+    <h2>Créneaux proposés</h2>
+    <div class="list">${[MAKEUPS[0].when + ' · ' + MAKEUPS[0].court + ' · Rattrapage', ...FREE_SPOTS.map((f) => `${f.when} · ${f.court} · avec ${f.group}`)].map((x, i) => `<div class="li"><span class="nm">${esc(x)}</span><div class="acts"><button class="btn2" data-choose="${i}">Choisir ce créneau</button></div></div>`).join('')}</div>
+    <div class="note">ⓘ<span>L’entraîneur valide la demande ; la séance apparaît ensuite dans « Mes séances » avec la pastille « Rattrapage ».</span></div>`;
+}
+
+// ───────── Séances (coach et parent) ─────────
+function vSessions() {
+  const coach = S.role === 'coach';
+  const rows = coach ? [
+    ['mer. 15 oct. · 17:00–18:30', 'Benjamins G1', [pill('Court 1', 'g')]],
+    ['ven. 17 oct. · 17:00–18:00', 'Benjamins G1 + G2', [pill('Physique', 's'), pill('Salle polyvalente', 'g'), pill('Mehdi Trabelsi')]],
+    ['sam. 24 oct. · 9:00–10:30', 'Benjamins G1', [pill('Déplacé : Court 1 → Court 4', 's'), pill('Tournoi « Open jeunes »', '')]],
+    ['mer. 22 oct. · 14:00–15:30', 'Rattrapage', [pill('Rattrapage', 's'), pill('Court 3', 'g'), pill('1/6 joueur')]],
+  ] : [
+    ['mer. 15 oct. · 17:00–18:30', 'Benjamins G1', [pill('Confirmée', 'g'), pill('Court 1', 'g')]],
+    ['ven. 17 oct. · 17:00–18:00', 'Préparation physique', [pill('Physique', 's'), pill('Salle polyvalente', 'g')]],
+    ['sam. 24 oct. · 9:00–10:30', 'Benjamins G1', [pill('Déplacé : Court 1 → Court 4', 's'), pill('Terrain pris par un tournoi')]],
+    ['mer. 22 oct. · 14:00–15:30', 'Rattrapage', [pill('Rattrapage', 's'), pill('Court 3', 'g')]],
+  ];
+  return `<h1>Mes séances</h1><p class="sub">Découvrez ${coach ? 'vos séances' : 'les séances de Yassine'} : entraînements, séances physiques, reports et rattrapages.</p>
+    <div class="list" style="margin-top:18px">${rows.map(([w, g, p]) => `<div class="li"><span class="nm">${esc(g)}</span><div class="pills">${pill(w)}${p.join('')}</div></div>`).join('')}</div>
+    <div class="note">ⓘ<span>Un report (terrain pris par un tournoi, entraîneur absent) est signalé par notification et email ; l’ancienne et la nouvelle place sont affichées.</span></div>`;
+}
+
+// ───────── Séances physiques ─────────
+function vPhysical() {
+  return `<div class="row"><div><h1>Séances physiques</h1><p class="sub">Découvrez les séances de préparation physique des groupes.</p></div><button class="btn" data-act="phys">+ Séance physique</button></div>
+    <div class="list" style="margin-top:18px">${PHYS.map((p) => `<div class="li"><span class="nm">${esc(p.groups.join(' + '))}</span><div class="pills">${pill(esc(p.when))}${pill(esc(p.where), 'g')}${pill(esc(p.who), 's')}${p.crit.map((c) => pill(c, 's')).join('')}</div></div>`).join('')}</div>
+    <div class="note">ⓘ<span>Présences et objectif comme une séance de tennis ; l’évaluation porte sur des critères physiques qui alimentent la famille « physique » des bilans. Un court n’est réservé que si le lieu choisi est un court.</span></div>`;
+}
+
+// ───────── Historique des tournois (parent / joueur) ─────────
+function vHistory() {
+  const w = HISTORY.reduce((s, h) => s + h.w, 0), l = HISTORY.reduce((s, h) => s + h.l, 0);
+  const h2h = HISTORY.flatMap((h) => h.m.filter((m) => m[1] === S.h2h).map((m) => ({ ...h, m })));
+  const opps = [...new Set(HISTORY.flatMap((h) => h.m.map((m) => m[1])))].filter((o) => PLAYERS.some((p) => p.n === o));
+  return `<h1>Historique des tournois</h1><p class="sub">Découvrez les tournois joués par Yassine Ben Ali, ses résultats et son palmarès.</p>
+    <div class="grid" style="margin-top:18px">
+      <div class="card"><span class="mut">Tournois joués</span><div class="kpi">${HISTORY.length}</div></div>
+      <div class="card"><span class="mut">Victoires / défaites</span><div class="kpi">${w} / ${l}</div><span class="mut">${Math.round((w / (w + l)) * 100)} % de matchs gagnés</span></div>
+      <div class="card"><span class="mut">Palmarès</span><div class="kpi">🏆 1</div><span class="mut">1 titre · 1 demi-finale</span></div>
+      <div class="card"><span class="mut">Statistiques en tournoi</span><div class="pills" style="margin-top:6px">${pill('1re balle 64 %')}${pill('18 aces')}${pill('Balles de break 47 %')}</div></div></div>
+    <h2>Tournois</h2>
+    <div class="list">${HISTORY.map((h, i) => `<div class="li"><span class="nm">${esc(h.t)}</span><div class="pills">${pill(h.res, h.tone)}${pill(h.d)}${pill(`${h.w} V · ${h.l} D`, 's')}</div>
+      <div class="acts"><button class="ico" title="Voir les matchs" aria-label="Voir les matchs" data-hist="${i}">${S.hist === i ? '▴' : '▾'}</button></div>
+      ${S.hist === i ? `<div class="list" style="width:100%">${h.m.map(([r, o, sc, won]) => `<div class="li" style="background:var(--fld);border:0"><span class="nm">${r} · contre ${esc(o)}</span><div class="pills">${pill(sc)}${pill(won ? 'Gagné' : 'Perdu', won ? 'g' : 'r')}</div></div>`).join('')}</div>` : ''}</div>`).join('')}</div>
+    <h2>Face-à-face</h2>
+    <div class="row" style="justify-content:flex-start"><select class="sel" id="h2h">${opps.map((o) => `<option ${o === S.h2h ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+      ${pill(`${h2h.filter((x) => x.m[3]).length} – ${h2h.filter((x) => !x.m[3]).length}`, 'g')}</div>
+    <div class="list" style="margin-top:10px">${h2h.map((x) => `<div class="li"><span class="nm">${esc(x.t)} · ${x.m[0]}</span><div class="pills">${pill(x.m[2])}${pill(x.m[3] ? 'Gagné' : 'Perdu', x.m[3] ? 'g' : 'r')}</div></div>`).join('')}</div>`;
+}
+
+// ───────── Fenêtres ─────────
+function modal() {
+  const m = S.modal;
+  if (!m) return '';
+  let title = '', body = '', ok = 'Enregistrer';
+  if (m.kind === 'derog') { title = 'Inscription hors critères'; body = `<p class="mut" style="margin-top:0">${esc(m.p)} ne correspond pas aux critères du tournoi (${esc(eligText(tour().elig))}).</p><label class="lb">Motif de la dérogation *<input class="fld" id="why" placeholder="ex. niveau suffisant, accord du DT"></label>`; ok = 'Inscrire avec dérogation'; }
+  if (m.kind === 'ext') { title = 'Joueur extérieur'; body = '<label class="lb">Nom et club *<input class="fld" id="why" placeholder="ex. Karim Jaziri (CT Monastir)"></label>'; ok = 'Inscrire'; }
+  if (m.kind === 'makeup') { title = 'Séance de rattrapage'; ok = 'Créer et inviter'; body = `<div class="form">
+      <label class="lb">Date<input class="fld" type="date" value="2026-10-22"></label><label class="lb">Heure<select class="fld"><option>14:00</option><option>17:00</option></select></label>
+      <label class="lb">Terrain<select class="fld"><option>Court 3 (libre)</option><option>Court 4 (libre, jour seulement : sans éclairage)</option></select></label>
+      <label class="lb">Entraîneur<select class="fld"><option>Iheb Gharbi (disponible)</option><option>Sami Dridi (disponible)</option></select></label>
+      <label class="lb">Places<select class="fld"><option>6</option><option>4</option><option>8</option></select></label></div>
+      <p class="mut">Inviter les joueurs qui ont un droit à rattrapage :</p>
+      <div class="chips">${CREDITS.filter((c) => c.st === 'À rattraper').map((c) => `<button class="chip" aria-pressed="true" data-inv="${c.id}">${esc(c.p)}</button>`).join('')}</div>`; }
+  if (m.kind === 'phys') { title = 'Séance physique'; ok = 'Programmer'; body = `<p class="mut" style="margin-top:0">Groupes</p><div class="chips">${GROUPS.map((g, i) => `<button class="chip" aria-pressed="${i < 2}" data-toggle>${g}</button>`).join('')}</div>
+      <div class="form" style="margin-top:12px">
+      <label class="lb">Préparateur<select class="fld"><option>Mehdi Trabelsi (disponible)</option><option>Iheb Gharbi</option></select></label>
+      <label class="lb">Lieu<select class="fld"><option>Salle polyvalente</option><option>Plage de Sayada</option><option>Court 3 (réservé automatiquement)</option></select></label>
+      <label class="lb">Répétition<select class="fld"><option>Chaque semaine</option><option>Une seule fois</option></select></label>
+      <label class="lb">Jour et heure<select class="fld"><option>Vendredi 17:00</option><option>Mercredi 18:00</option></select></label>
+      <label class="lb">Durée<select class="fld"><option>1 h</option><option>45 min</option><option>1 h 30</option></select></label>
+      <label class="lb">Remplace la séance de tennis ?<select class="fld"><option>Non, en plus</option><option>Oui, remplace</option></select></label></div>
+      <p class="mut">Critères évalués</p><div class="chips">${['Endurance', 'Vitesse', 'Coordination', 'Souplesse', 'Force'].map((c, i) => `<button class="chip" aria-pressed="${i < 2}" data-toggle>${c}</button>`).join('')}</div>`; }
+  if (m.kind === 'exception') { title = 'Exception de disponibilité'; ok = 'Ajouter'; body = `<div class="form"><label class="lb">Du<input class="fld" type="date" value="2026-12-20"></label><label class="lb">Au<input class="fld" type="date" value="2026-12-27"></label>
+      <label class="lb full">Motif<input class="fld" id="why" value="Congés"></label></div><p class="mut">Les séances prévues sur cette période passent en « remplaçant à trouver ».</p>`; }
+  return `<div class="veil" data-act="close"></div><div class="modal" role="dialog" aria-modal="true" aria-label="${title}">
+    <div class="row"><h3>${title}</h3><button class="ico" aria-label="Fermer" data-act="close">✕</button></div><div style="margin-top:14px">${body}</div>
+    <div class="row" style="margin-top:18px;justify-content:flex-end"><button class="btn2" data-act="close">Annuler</button><button class="btn" data-act="ok">${ok}</button></div></div>`;
+}
+
+// ───────── Rendu ─────────
+function render() {
+  $('#roles').innerHTML = Object.entries(ROLES).map(([k, l]) => `<button aria-pressed="${S.role === k}" data-role="${k}">${l}</button>`).join('');
+  const tabs = TABS[S.role];
+  let v = '';
+  if (S.tab === 'tournois') v = S.wz ? vWizard() : S.tid ? vTournament() : vTournaments();
+  if (S.tab === 'dispo') v = vAvailability();
+  if (S.tab === 'mesdispo') v = vMyAvailability();
+  if (S.tab === 'rattrapages') v = vMakeups();
+  if (S.tab === 'mesratt') v = vMyMakeups();
+  if (S.tab === 'physique') v = vPhysical();
+  if (S.tab === 'seances') v = vSessions();
+  if (S.tab === 'historique') v = vHistory();
+  $('#main').innerHTML = `<div style="margin-bottom:22px"><nav class="seg" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-pressed="${S.tab === k}" data-tab="${k}">${l}</button>`).join('')}</nav></div>${v}`;
+  $('#layer').innerHTML = modal();
+}
+
+document.addEventListener('click', (ev) => {
+  const b = ev.target.closest('button,[data-act]');
+  if (!b) return;
+  const d = b.dataset;
+  if (d.role) { S.role = d.role; S.tab = TABS[d.role][0][0]; S.tid = null; S.wz = null; S.modal = null; }
+  else if (d.tab) { S.tab = d.tab; S.tid = null; S.wz = null; }
+  else if (d.open) { S.tid = d.open; S.ttab = tour().draw ? 'tableau' : 'inscrits'; }
+  else if (d.ttab) S.ttab = d.ttab;
+  else if (d.mode) { S.wz.elig.mode = d.mode; }
+  else if (d.cat) { const c = S.wz.elig.cats; c.includes(d.cat) ? c.splice(c.indexOf(d.cat), 1) : c.push(d.cat); }
+  else if (d.court) { const c = S.wz.courts; c.includes(d.court) ? c.splice(c.indexOf(d.court), 1) : c.push(d.court); }
+  else if (d.unreg) { const t = tour(); t.entries = t.entries.filter((n) => n !== d.unreg); toast(`${d.unreg} retiré du tournoi.`); }
+  else if (d.win) {
+    const t = tour(); const [r, i, side] = d.win.split('|'); const x = r === 'f' ? t.draw.f : t.draw[r][i]; x.w = x[side];
+    if (r === 'qf') { const sf = t.draw.sf[Math.floor(i / 2)]; sf[i % 2 ? 'b' : 'a'] = x.w; }
+    if (r === 'sf') t.draw.f[i == 1 ? 'b' : 'a'] = x.w;
+    if (r === 'f') { t.status = 'Terminé'; t.winner = x.w; toast(`🏆 ${x.w} remporte le tournoi. Familles prévenues.`); }
+    else toast(`${x.w} passe au tour suivant.`);
+  }
+  else if (d.fix) {
+    const t = tour(); const [id, how] = d.fix.split('|'); const e = TRAINING.find((x) => x.id === id);
+    const fc = freeCourt(t, e);
+    const lab = { move: `Déplacée sur ${fc}, même heure`, shift: 'Décalée à 12:00, même terrain', report: 'Reportée : rattrapage à programmer', cancel: 'Annulée : droit à rattrapage' }[how];
+    t.conflicts[id] = { label: lab, court: how === 'move' ? fc : null, from: how === 'move' ? e.from : null };
+    toast(`${e.group} : ${lab}. ${e.coach.split(' ')[0]} et les familles sont prévenus.`);
+  }
+  else if (d.av) { const a = AV[COACHES[0]]; a[d.av] = { D: 'P', P: 'I', I: 'D' }[a[d.av]]; }
+  else if (d.pick) toast(`Créneau ${d.pick} ajouté au groupe ${S.find} : aucun conflit (R5). Familles prévenues.`);
+  else if (d.offer !== undefined) toast('Proposition envoyée aux familles qui ont un droit à rattrapage.');
+  else if (d.choose !== undefined) { const c = CREDITS.find((x) => x.p === 'Yassine Ben Ali'); c.st = 'Réservé'; toast('Demande envoyée à l’entraîneur : vous serez prévenu de sa réponse.'); }
+  else if (d.hist !== undefined) S.hist = S.hist === Number(d.hist) ? null : Number(d.hist);
+  else if (d.inv || d.toggle !== undefined) { b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); return; }
+  else if (d.act) {
+    const a = d.act;
+    if (a === 'back') { S.tid = null; S.wz = null; }
+    if (a === 'wizard') S.wz = { step: 0, name: '', type: 'Interne', dates: '', fee: '', elig: { mode: 'cats', cats: ['Benjamins G'], from: 2012, to: 2014, gender: '' }, format: 'Élimination directe', max: 8, courts: ['Court 1', 'Court 2'], windows: 'Sam 9h–16h' };
+    if (a === 'wzprev') S.wz.step--;
+    if (a === 'wznext') { if (S.wz.step === 0 && !S.wz.name.trim()) { toast('Nom du tournoi obligatoire.'); return; } S.wz.step++; }
+    if (a === 'wzsave') {
+      if (!S.wz.courts.length) { toast('Choisissez au moins un terrain.'); return; }
+      const w = S.wz; const id = 't' + (TOURNAMENTS.length + 1);
+      TOURNAMENTS.unshift({ id, name: w.name, type: w.type, dates: w.dates || 'à fixer', status: 'Inscriptions', elig: { ...w.elig, cats: [...w.elig.cats], gender: w.elig.gender || undefined }, format: w.format, match: '2 sets gagnants', courts: [...w.courts], windows: w.windows, max: Number(w.max), entries: [], derog: {}, draw: null, conflicts: {} });
+      S.wz = null; S.tid = id; S.ttab = 'inscrits'; toast('Tournoi créé : inscriptions ouvertes.');
+    }
+    if (a === 'addp') {
+      const v = $('#addp').value; const t = tour();
+      if (!v) { toast('Choisissez un joueur.'); return; }
+      if (t.entries.length >= t.max) { toast(`Tableau complet (${t.max} places).`); return; }
+      if (v === 'EXT') S.modal = { kind: 'ext' };
+      else if (!eligible(t, P(v))) S.modal = { kind: 'derog', p: v };
+      else { t.entries.push(v); toast(`${v} inscrit.`); }
+    }
+    if (a === 'draw') { const t = tour(); if (t.entries.length < 8) { toast('Prototype : il faut 8 inscrits pour le tableau de démonstration.'); return; } makeDraw(t); t.status = 'En cours'; S.ttab = 'tableau'; toast('Tirage effectué : têtes de série d’après le niveau. Planning des terrains généré.'); }
+    if (a === 'find') S.find = $('#fgroup').value;
+    if (a === 'makeup') S.modal = { kind: 'makeup' };
+    if (a === 'phys') S.modal = { kind: 'phys' };
+    if (a === 'exception') S.modal = { kind: 'exception' };
+    if (a === 'close') S.modal = null;
+    if (a === 'ok') {
+      const m = S.modal; const why = $('#why')?.value.trim();
+      if (m.kind === 'derog') { if (!why) { toast('R17 · Motif de dérogation obligatoire.'); return; } const t = tour(); t.entries.push(m.p); t.derog[m.p] = why; toast(`${m.p} inscrit avec dérogation (audit).`); }
+      if (m.kind === 'ext') { if (!why) { toast('Nom obligatoire.'); return; } tour().entries.push(why); toast(`${why} inscrit (joueur extérieur).`); }
+      if (m.kind === 'makeup') { const inv = [...document.querySelectorAll('[data-inv][aria-pressed=true]')].map((x) => x.dataset.inv); CREDITS.forEach((c) => { if (inv.includes(c.id)) c.st = 'Invité'; }); MAKEUPS.push({ when: 'mer. 22 oct. · 14:00–15:30', court: 'Court 3', coach: 'Iheb Gharbi', places: 6, invited: inv }); toast(`Séance créée : ${inv.length} famille(s) invitée(s).`); }
+      if (m.kind === 'phys') { PHYS.push({ groups: [...document.querySelectorAll('.modal .chips:first-of-type [aria-pressed=true]')].map((x) => x.textContent), who: 'Mehdi Trabelsi', where: 'Salle polyvalente', when: 'chaque vendredi · 17:00–18:00', crit: ['Endurance', 'Vitesse'] }); toast('Séance physique programmée : groupes et familles prévenus.'); }
+      if (m.kind === 'exception') { EXCEPTIONS.push({ c: COACHES[0], from: '2026-12-20', to: '2026-12-27', why: why || 'Congés' }); toast('Exception ajoutée : la direction est prévenue.'); }
+      S.modal = null;
+    }
+  }
+  else return;
+  render();
+});
+document.addEventListener('input', (ev) => {
+  const e = ev.target;
+  if (e.dataset.w && S.wz) { if (e.dataset.w === 'gender') S.wz.elig.gender = e.value; else S.wz[e.dataset.w] = e.value; if (e.tagName === 'SELECT') render(); }
+  if (e.dataset.age && S.wz) { S.wz.elig[e.dataset.age] = Number(e.value); }
+});
+document.addEventListener('change', (ev) => {
+  const e = ev.target;
+  if (e.id === 'coachsel') { S.coach = e.value; S.find = null; render(); }
+  if (e.id === 'h2h') { S.h2h = e.value; render(); }
+  if (e.dataset.age && S.wz) render();
+});
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && S.modal) { S.modal = null; render(); } });
+$('#theme').addEventListener('click', () => {
+  const dark = document.documentElement.dataset.theme !== 'dark';
+  document.documentElement.dataset.theme = dark ? 'dark' : '';
+  $('#theme').textContent = dark ? '☀ Clair' : '☾ Sombre';
+});
+render();
+</script>
+</body>
+</html>

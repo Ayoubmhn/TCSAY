@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCSAY · Prototype v6 (matchs)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap">
+<!--
+  Prototype v6 : suivi de match point par point (saisie, score en direct, statistiques par match et par set).
+  Maquette HTML/JS vanilla, données FICTIVES. Ne remplace pas docs/tcsay-prototype-v4.html (référence figée).
+-->
+<style>
+:root{
+  --bg:#fafafa;--fg:#1a1a1a;--mut:#8a8a8f;--card:#fff;--line:#e6e6ea;--fld:#f3f4f8;--btn:#ebebeb;
+  --pri:#5a5acd;--sel:#0000e0;--pb:#c9e9fb;--pg:#dff3a8;--pr:#fdb3b0;--ps:#f0d9a8;--ink:#111;--veil:rgba(0,0,0,.45);--toggle:#222;
+  --font:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+:root[data-theme=dark]{--bg:#121212;--fg:#f2f2f2;--mut:#9a9aa0;--card:#1c1c1e;--line:#333;--fld:#26272b;--btn:#2e2e32;--toggle:#f2f2f2}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--font)}
+button,select,input{font:inherit;color:inherit}
+.demo{background:var(--ps);color:var(--ink);text-align:center;font-size:12px;font-weight:600;padding:6px 10px;letter-spacing:.04em}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1.5px solid var(--line);background:var(--card)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.ball{width:34px;height:34px;border-radius:50%;background:var(--pg);display:grid;place-items:center;color:var(--ink);font-size:13px}
+.seg{display:inline-flex;background:var(--btn);border-radius:99px;padding:4px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:99px;padding:7px 14px;font-weight:500;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--toggle);color:var(--bg)}
+main{padding:24px clamp(16px,3vw,36px) 60px;max-width:980px;margin:0 auto}
+h1{font-size:26px;font-weight:600;margin:0}
+h2{font-size:18px;font-weight:500;margin:26px 0 12px}
+h3{font-size:16px;font-weight:500;margin:0}
+.sub{color:var(--mut);margin:4px 0 0}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:18px}
+.list{display:flex;flex-direction:column;gap:8px}
+.mut{color:var(--mut);font-size:13.5px}
+.pill{display:inline-block;border-radius:99px;padding:5px 13px;font-size:13px;color:var(--ink);background:var(--pb);white-space:nowrap}
+.pill.g{background:var(--pg)}.pill.r{background:var(--pr)}.pill.s{background:var(--ps)}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.btn{border:0;border-radius:99px;padding:11px 18px;font-weight:600;cursor:pointer;background:var(--pri);color:#fff}
+.btn2{border:0;border-radius:99px;padding:10px 16px;font-weight:500;cursor:pointer;background:var(--btn)}
+.btn:disabled,.btn2:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.sel{background:var(--fld);border:0;border-radius:22px;padding:10px 16px}
+.fld{background:var(--fld);border:0;border-radius:20px;padding:11px 16px;width:100%}
+label.lb{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:500;color:var(--mut)}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.note{margin-top:18px;background:var(--fld);border-radius:18px;padding:13px 16px;font-size:13.5px;display:flex;gap:10px}
+/* tableau de score */
+.board{border-radius:24px;overflow:hidden;border:1.5px solid var(--line);background:var(--card)}
+.board .pl{display:grid;grid-template-columns:22px 1fr repeat(var(--n),38px) 64px;align-items:center;gap:6px;padding:12px 16px;border-top:1.5px solid var(--line)}
+.board .pl:first-child{border-top:0}
+.board .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.board .st{text-align:center;color:var(--mut);font-weight:500;font-variant-numeric:tabular-nums}
+.board .st.cur{color:var(--fg);font-weight:600}
+.board .st sup{font-size:10px}
+.board .pt{text-align:center;font-weight:600;font-size:20px;background:var(--fld);border-radius:14px;padding:6px 0;font-variant-numeric:tabular-nums}
+.board .win .nm::after{content:" ✓";color:var(--pri)}
+.srv{width:10px;height:10px;border-radius:50%;background:var(--pg);border:2px solid var(--ink);display:inline-block}
+.info{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+/* saisie */
+.pad{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.pad button{border:0;border-radius:22px;padding:18px 10px;font-weight:600;cursor:pointer;font-size:15px;background:var(--fld)}
+.pad .A{background:var(--pri);color:#fff}
+.pad .B{background:var(--toggle);color:var(--bg)}
+.pad .wide{grid-column:1/-1}
+.pad .warn{background:var(--ps);color:var(--ink)}
+.pad .bad{background:var(--pr);color:var(--ink)}
+.pad .good{background:var(--pg);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:0;border-radius:99px;padding:8px 14px;background:var(--fld);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--sel);color:#fff}
+/* stats */
+.stat{padding:10px 0;border-top:1.5px solid var(--line)}
+.stat:first-child{border-top:0}
+.stat .vals{display:grid;grid-template-columns:90px 1fr 90px;align-items:end;gap:8px}
+.stat .vals b{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums}
+.stat .vals small{display:block;color:var(--mut);font-size:12px;font-weight:500}
+.stat .lbl{text-align:center;font-weight:500}
+.stat .r{text-align:end}
+.bars{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:6px}
+.bar{height:8px;background:var(--fld);border-radius:99px;overflow:hidden;display:flex}
+.bar.l{justify-content:flex-end}
+.bar i{display:block;height:100%;border-radius:99px;background:var(--mut)}
+.bar i.lead{background:var(--pri)}
+.legend{display:flex;justify-content:space-between;gap:10px;font-weight:600;margin-bottom:6px}
+.legend span:last-child{text-align:end}
+.pbp .game{display:grid;grid-template-columns:70px 1fr auto;gap:10px;align-items:center;padding:8px 0;border-top:1.5px solid var(--line);font-size:13.5px}
+.pbp .game:first-child{border-top:0}
+.dots{display:flex;flex-wrap:wrap;gap:4px}
+.dot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:10px;font-weight:600}
+.dot.a{background:var(--pri);color:#fff}.dot.b{background:var(--toggle);color:var(--bg)}
+.veil{position:fixed;inset:0;background:var(--veil);z-index:5}
+.modal{position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border-radius:28px;padding:22px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:99px;padding:11px 20px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.live{display:inline-flex;align-items:center;gap:6px}
+.live::before{content:"";width:8px;height:8px;border-radius:50%;background:#e5484d;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
+svg text{font-family:var(--font)}
+@media (max-width:600px){h1{font-size:23px}.form{grid-template-columns:1fr}.board .pl{grid-template-columns:18px 1fr repeat(var(--n),28px) 52px;padding:10px 12px}.stat .vals{grid-template-columns:70px 1fr 70px}}
+</style>
+</head>
+<body>
+<div class="demo">PROTOTYPE v6 · MATCHS POINT PAR POINT · DONNÉES FICTIVES</div>
+<header class="top">
+  <div class="brand"><span class="ball">TC</span>TCSAY · Matchs</div>
+  <div class="seg" role="group" aria-label="Rôle" id="roles"></div>
+  <button class="btn2" id="theme">☾ Sombre</button>
+</header>
+<main id="main"></main>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ───────── Moteur de score (recalculé depuis la liste des points : annuler = retirer le dernier) ─────────
+/**
+ * Point : { server: 0|1, winner: 0|1, firstIn: bool, kind: 'ACE'|'DF'|'WIN'|'UE'|'FE'|'' , shot: string }
+ * Format : { setsToWin: 2|3, games: 6|4, tiebreak: bool, superTB: bool, noAd: bool }
+ */
+function compute(match) {
+  const f = match.format;
+  const sets = [{ g: [0, 0], tb: null }];
+  const setsWon = [0, 0];
+  let pts = [0, 0];
+  let server = match.firstServer;
+  let tb = null; // { p: [0,0], start: serveur du 1er point, target }
+  let winner = null;
+  const annotated = [];
+  const isSuperSet = () => f.superTB && setsWon[0] === f.setsToWin - 1 && setsWon[1] === f.setsToWin - 1;
+
+  // le dernier set peut être un super tie-break (10 points) joué directement
+  const startSetIfSuper = () => {
+    if (isSuperSet()) tb = { p: [0, 0], start: server, target: 10, superTB: true };
+  };
+
+  for (const p of match.points) {
+    if (winner !== null) break;
+    const set = sets.length - 1;
+    const r = 1 - server;
+    let bp = false;
+    let gameLabel = '';
+    if (tb) {
+      gameLabel = tb.superTB ? 'Super tie-break' : 'Tie-break';
+    } else {
+      const s = pts[server], q = pts[r];
+      bp = q >= 3 && (q > s || (f.noAd && q === 3 && s === 3));
+      gameLabel = `Jeu ${sets[set].g[0] + sets[set].g[1] + 1}`;
+    }
+    annotated.push({ ...p, server, set, bp, gameLabel, score: label() });
+    const w = p.winner, o = 1 - w;
+
+    if (tb) {
+      tb.p[w]++;
+      const n = tb.p[0] + tb.p[1];
+      if (tb.p[w] >= tb.target && tb.p[w] - tb.p[o] >= 2) {
+        sets[set].tb = [...tb.p];
+        if (!tb.superTB) sets[set].g[w]++;
+        else sets[set].g = w === 0 ? [1, 0] : [0, 1];
+        setsWon[w]++;
+        server = 1 - tb.start;
+        tb = null;
+        if (setsWon[w] === f.setsToWin) { winner = w; break; }
+        sets.push({ g: [0, 0], tb: null });
+        startSetIfSuper();
+      } else {
+        // 1er point par le serveur désigné, puis alternance tous les 2 points
+        server = Math.floor((n + 1) / 2) % 2 === 0 ? tb.start : 1 - tb.start;
+      }
+      continue;
+    }
+
+    pts[w]++;
+    const gameWon = pts[w] >= 4 && (pts[w] - pts[o] >= 2 || (f.noAd && pts[o] <= 3));
+    if (!gameWon) continue;
+    pts = [0, 0];
+    const g = sets[set].g;
+    g[w]++;
+    server = 1 - server;
+    const G = f.games;
+    if (g[w] >= G && g[w] - g[o] >= 2) {
+      setsWon[w]++;
+      if (setsWon[w] === f.setsToWin) { winner = w; break; }
+      sets.push({ g: [0, 0], tb: null });
+      startSetIfSuper();
+    } else if (f.tiebreak && g[0] === G && g[1] === G) {
+      tb = { p: [0, 0], start: server, target: 7, superTB: false };
+    }
+  }
+
+  function label() {
+    if (tb) return [String(tb.p[0]), String(tb.p[1])];
+    const L = ['0', '15', '30', '40'];
+    const [a, b] = pts;
+    if (a >= 3 && b >= 3) {
+      if (a === b) return f.noAd ? ['40', '40'] : ['40', '40'];
+      return a > b ? ['AV', ''] : ['', 'AV'];
+    }
+    return [L[Math.min(a, 3)], L[Math.min(b, 3)]];
+  }
+
+  const r = 1 - server;
+  const breakPoint = !tb && winner === null && pts[r] >= 3 && (pts[r] > pts[server] || (f.noAd && pts[r] === 3 && pts[server] === 3));
+  const decisive = !tb && f.noAd && pts[0] === 3 && pts[1] === 3;
+  return { sets, setsWon, point: label(), server, tb, winner, annotated, breakPoint, decisive };
+}
+
+// ───────── Statistiques (par match ou par set) ─────────
+function stats(points, set) {
+  const P = set === 'ALL' ? points : points.filter((p) => p.set === set);
+  const out = [0, 1].map((i) => {
+    const served = P.filter((p) => p.server === i);
+    const ret = P.filter((p) => p.server !== i);
+    const firstIn = served.filter((p) => p.firstIn);
+    const second = served.filter((p) => !p.firstIn);
+    const bpFaced = served.filter((p) => p.bp);
+    const bpHad = ret.filter((p) => p.bp);
+    const retFirst = ret.filter((p) => p.firstIn);
+    const retSecond = ret.filter((p) => !p.firstIn);
+    const won = (arr) => arr.filter((p) => p.winner === i).length;
+    // plus longue série de points gagnés
+    let streak = 0, best = 0;
+    for (const p of P) { streak = p.winner === i ? streak + 1 : 0; best = Math.max(best, streak); }
+    return {
+      aces: served.filter((p) => p.kind === 'ACE').length,
+      df: served.filter((p) => p.kind === 'DF').length,
+      firstPct: [firstIn.length, served.length],
+      firstWon: [won(firstIn), firstIn.length],
+      secondWon: [won(second), second.length],
+      bpSaved: [won(bpFaced), bpFaced.length],
+      retFirst: [won(retFirst), retFirst.length],
+      retSecond: [won(retSecond), retSecond.length],
+      bpConv: [won(bpHad), bpHad.length],
+      total: won(P),
+      winners: P.filter((p) => p.winner === i && (p.kind === 'WIN' || p.kind === 'ACE')).length,
+      ue: P.filter((p) => p.winner !== i && p.kind === 'UE').length,
+      streak: best,
+    };
+  });
+  return { list: out, count: P.length };
+}
+
+// ───────── Données fictives ─────────
+const PLAYERS = ['Yassine Ben Ali', 'Adam Trabelsi', 'Rayen Kefi', 'Skander Mhenni', 'Ines Chaabane', 'Nour Hammami'];
+let seed = 7;
+const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+/** Point simulé (démo) : le serveur a l'avantage, un peu plus pour le joueur A. */
+function simPoint(match) {
+  const c = compute(match);
+  const s = c.server;
+  const firstIn = rnd() < (s === 0 ? 0.68 : 0.62);
+  if (firstIn && rnd() < (s === 0 ? 0.09 : 0.04)) return { winner: s, firstIn, kind: 'ACE', shot: '' };
+  if (!firstIn && rnd() < 0.08) return { winner: 1 - s, firstIn, kind: 'DF', shot: '' };
+  const pServer = firstIn ? (s === 0 ? 0.72 : 0.62) : (s === 0 ? 0.52 : 0.48);
+  const w = rnd() < pServer ? s : 1 - s;
+  const kinds = ['WIN', 'UE', 'FE', 'UE'];
+  return { winner: w, firstIn, kind: kinds[Math.floor(rnd() * 4)], shot: ['Coup droit', 'Revers', 'Volée', ''][Math.floor(rnd() * 4)] };
+}
+function simulate(match, max) {
+  for (let i = 0; i < max && compute(match).winner === null; i++) match.points.push(simPoint(match));
+  return match;
+}
+const FORMAT = { setsToWin: 2, games: 6, tiebreak: true, superTB: false, noAd: false };
+const MATCHES = [
+  simulate({ id: 'm1', a: 'Yassine Ben Ali', b: 'Adam Trabelsi', kind: 'Match interne', date: '2026-10-10', court: 'Court 2', format: { ...FORMAT }, firstServer: 0, points: [], scorer: 'Iheb' }, 999),
+  simulate({ id: 'm2', a: 'Ines Chaabane', b: 'Lina Haddad (CT Monastir)', kind: 'Tournoi · Open Sayada U16', date: '2026-10-13', court: 'Court 1', format: { ...FORMAT, superTB: true, noAd: true }, firstServer: 1, points: [], scorer: 'Iheb' }, 70),
+  { id: 'm3', a: 'Rayen Kefi', b: 'Skander Mhenni', kind: 'Match interne', date: '2026-10-15', court: 'Court 3', format: { ...FORMAT, games: 4 }, firstServer: 0, points: [], scorer: 'Iheb', scheduled: true },
+];
+
+// ───────── État et rendu ─────────
+const S = { role: 'coach', screen: 'list', matchId: null, tab: 'score', set: 'ALL', stage: 1, detail: false, pending: null, shot: '', modal: null };
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const match = () => MATCHES.find((m) => m.id === S.matchId);
+const short = (n) => n.split(' ')[0];
+const pill = (t, tone = '') => `<span class="pill ${tone}">${t}</span>`;
+const fD = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 3000); }
+const status = (m) => (m.scheduled ? 'À venir' : compute(m).winner !== null ? 'Terminé' : 'En cours');
+const setScore = (c) => c.sets.filter((s) => s.g[0] + s.g[1] > 0 || s.tb).map((s) => `${s.g[0]}-${s.g[1]}${s.tb ? `(${Math.min(...s.tb)})` : ''}`).join(' ');
+
+function board(m) {
+  const c = compute(m);
+  const n = c.sets.length;
+  const row = (i) => `<div class="pl ${c.winner === i ? 'win' : ''}">
+      <span>${c.winner === null && !m.scheduled && c.server === i ? '<span class="srv" title="Au service"></span>' : ''}</span>
+      <span class="nm">${esc(i ? m.b : m.a)}</span>
+      ${c.sets.map((s, k) => `<span class="st ${k === n - 1 && c.winner === null ? 'cur' : ''}">${s.g[i]}${s.tb ? `<sup>${s.tb[i]}</sup>` : ''}</span>`).join('')}
+      <span class="pt">${c.winner !== null || m.scheduled ? (c.winner === i ? '✓' : '') : c.point[i] || '&nbsp;'}</span>
+    </div>`;
+  return `<div class="board" style="--n:${n}">${row(0)}${row(1)}</div>
+    <div class="info">${m.scheduled ? pill('À venir', 's') : c.winner !== null ? pill('Terminé', 'g') : `<span class="pill r live">En direct</span>`}
+      ${c.tb ? pill(c.tb.superTB ? 'Super tie-break (10 pts)' : 'Tie-break', 's') : ''}
+      ${c.breakPoint ? pill(`Balle de break pour ${short(c.server ? m.a : m.b)}`, 'r') : ''}
+      ${c.decisive ? pill('Point décisif', 's') : ''}
+      ${pill(esc(m.kind))}${pill(fD(m.date))}${pill(esc(m.court), 'g')}</div>`;
+}
+
+const V = {};
+V.list = () => {
+  const groups = [['En cours', MATCHES.filter((m) => status(m) === 'En cours')], ['À venir', MATCHES.filter((m) => status(m) === 'À venir')], ['Terminés', MATCHES.filter((m) => status(m) === 'Terminé')]];
+  return `<div class="row"><div><h1>Matchs</h1><p class="sub">Découvrez les matchs du club en direct, et leurs statistiques.</p></div>
+    ${S.role === 'coach' ? '<button class="btn" data-act="new">+ Nouveau match</button>' : ''}</div>
+    ${groups.map(([t, list]) => list.length ? `<h2>${t}</h2><div class="list">${list.map((m) => {
+      const c = compute(m);
+      return `<button class="card" style="text-align:start;cursor:pointer" data-open="${m.id}">
+        <div class="row"><h3>${esc(m.a)} <span class="mut">contre</span> ${esc(m.b)}</h3>
+        ${status(m) === 'En cours' ? '<span class="pill r live">En direct</span>' : status(m) === 'Terminé' ? pill(`${short(c.winner ? m.b : m.a)} gagne`, 'g') : pill('À venir', 's')}</div>
+        <div class="pills" style="margin-top:8px">${m.scheduled ? '' : pill(setScore(c) + (c.winner === null ? ` · ${c.point.join('-')}` : ''))}${pill(esc(m.kind), 's')}${pill(fD(m.date))}</div></button>`;
+    }).join('')}</div>` : '').join('')}
+    <div class="note"><span>ⓘ</span><div>Tous les acteurs du club voient les matchs ; seuls l’entraîneur (ses joueurs) et la direction saisissent les points. Le parent est prévenu au début et à la fin du match.</div></div>`;
+};
+
+V.match = () => {
+  const m = match();
+  const c = compute(m);
+  const tabs = [['score', S.role === 'coach' && c.winner === null ? 'Saisie' : 'Score'], ['stats', 'Stats'], ['pbp', 'Point par point']];
+  return `<button class="btn2" data-act="back">‹ Matchs</button>
+    <div class="row" style="margin-top:14px"><h1 style="font-size:22px">${esc(m.a)} – ${esc(m.b)}</h1><span class="mut">Saisie : ${m.scorer}</span></div>
+    <div style="margin-top:14px">${board(m)}</div>
+    <div class="seg" role="tablist" style="margin-top:18px">${tabs.map(([k, l]) => `<button role="tab" aria-pressed="${S.tab === k}" data-tab="${k}">${l}</button>`).join('')}</div>
+    <div style="margin-top:16px">${V['tab_' + S.tab](m, c)}</div>`;
+};
+
+V.tab_score = (m, c) => {
+  if (m.scheduled) return `<div class="card"><h3>Match à venir</h3><p class="mut">${S.role === 'coach' ? 'Choisissez qui sert en premier, puis lancez le match.' : 'Le score s’affichera ici dès le premier point.'}</p>
+    ${S.role === 'coach' ? `<div class="pills"><button class="btn2" data-start="0">${short(m.a)} sert</button><button class="btn2" data-start="1">${short(m.b)} sert</button></div>` : ''}</div>`;
+  if (c.winner !== null) return `<div class="card"><h3>🏆 ${esc(c.winner ? m.b : m.a)} gagne ${setScore(c)}</h3><p class="mut">${m.points.length} points joués. Voir l’onglet Stats.</p></div>`;
+  if (S.role !== 'coach') return `<div class="card"><p class="mut" style="margin:0">Score mis à jour automatiquement toutes les 5 secondes (démo : un point simulé arrive régulièrement).</p></div>`;
+  const s = c.server, srvName = short(s ? m.b : m.a);
+  if (S.pending !== null) {
+    const w = S.pending;
+    return `<div class="card"><h3>Point pour ${esc(short(w ? m.b : m.a))} : comment ?</h3>
+      <div class="chips" style="margin-top:12px">${['Coup droit', 'Revers', 'Volée', 'Smash', 'Amorti', 'Lob', 'Passing'].map((x) => `<button class="chip" aria-pressed="${S.shot === x}" data-shot="${x}">${x}</button>`).join('')}</div>
+      <div class="pad"><button class="good" data-kind="WIN">Coup gagnant</button><button class="bad" data-kind="UE">Faute directe adverse</button>
+      <button class="warn" data-kind="FE">Faute provoquée</button><button data-kind="">Autre / passer</button></div></div>`;
+  }
+  return `<div class="card">
+    <div class="row"><h3>Service : ${esc(srvName)} · ${S.stage === 1 ? '1re balle' : '2e balle'}</h3>
+      <label class="mut"><input type="checkbox" data-act="detail" ${S.detail ? 'checked' : ''}> Mode détaillé</label></div>
+    <div class="pad">
+      <button class="A" data-win="0">Point ${esc(short(m.a))}</button>
+      <button class="B" data-win="1">Point ${esc(short(m.b))}</button>
+      <button class="good" data-act="ace">Ace ${esc(srvName)}</button>
+      ${S.stage === 1 ? `<button class="warn" data-act="fault">Faute de 1re balle</button>` : `<button class="bad" data-act="df">Double faute</button>`}
+      <button class="wide" data-act="undo" ${m.points.length ? '' : 'disabled'}>↶ Annuler le dernier point</button>
+    </div></div>
+    <div class="note"><span>ⓘ</span><div>Un point = un toucher. Le score, le serveur, les tie-breaks, les balles de break et le côté sont calculés automatiquement.</div></div>`;
+};
+
+function statRow(label, a, b, fmt) {
+  const val = (x) => (Array.isArray(x) ? (x[1] ? Math.round((x[0] / x[1]) * 100) : 0) : x);
+  const va = val(a), vb = val(b);
+  const max = Math.max(1, va, vb, fmt === 'pct' ? 100 : 0);
+  const txt = (x) => (Array.isArray(x) ? (fmt === 'ratio' ? `${x[0]}/${x[1]}` : `${val(x)} %<small>(${x[0]}/${x[1]})</small>`) : x);
+  return `<div class="stat"><div class="vals"><b>${txt(a)}</b><span class="lbl">${label}</span><b class="r">${txt(b)}</b></div>
+    <div class="bars"><div class="bar l"><i class="${va >= vb ? 'lead' : ''}" style="width:${(va / max) * 100}%"></i></div><div class="bar"><i class="${vb >= va ? 'lead' : ''}" style="width:${(vb / max) * 100}%"></i></div></div></div>`;
+}
+
+V.tab_stats = (m, c) => {
+  const sets = c.sets.map((_, i) => i).filter((i) => c.annotated.some((p) => p.set === i));
+  const st = stats(c.annotated, S.set);
+  if (!st.count) return `<div class="card"><p class="mut" style="margin:0">Aucun point joué.</p></div>`;
+  const [A, B] = st.list;
+  return `<div class="chips">${[['ALL', 'Match'], ...sets.map((i) => [i, `${i + 1}${i ? 'e' : 'er'} set`])].map(([k, l]) => `<button class="chip" aria-pressed="${S.set === k}" data-set="${k}">${l}</button>`).join('')}</div>
+    <h2>Service</h2><div class="card"><div class="legend"><span>${esc(short(m.a))}</span><span>${esc(short(m.b))}</span></div>
+      ${statRow('Aces', A.aces, B.aces)}${statRow('Doubles fautes', A.df, B.df)}${statRow('% 1re balle', A.firstPct, B.firstPct, 'pct')}
+      ${statRow('Pts gagnés sur 1re balle', A.firstWon, B.firstWon, 'pct')}${statRow('Pts gagnés sur 2e balle', A.secondWon, B.secondWon, 'pct')}
+      ${statRow('Balles de break sauvées', A.bpSaved, B.bpSaved, 'ratio')}</div>
+    <h2>Retour</h2><div class="card"><div class="legend"><span>${esc(short(m.a))}</span><span>${esc(short(m.b))}</span></div>
+      ${statRow('Pts gagnés en retour de 1re', A.retFirst, B.retFirst, 'pct')}${statRow('Pts gagnés en retour de 2e', A.retSecond, B.retSecond, 'pct')}
+      ${statRow('Balles de break converties', A.bpConv, B.bpConv, 'ratio')}</div>
+    <h2>Points</h2><div class="card"><div class="legend"><span>${esc(short(m.a))}</span><span>${esc(short(m.b))}</span></div>
+      ${statRow('Points gagnés', A.total, B.total)}${statRow('Coups gagnants (aces compris)', A.winners, B.winners)}${statRow('Fautes directes', A.ue, B.ue)}${statRow('Plus longue série', A.streak, B.streak)}</div>
+    <h2>Élan du match</h2><div class="card">${momentum(c.annotated, m)}</div>`;
+};
+
+/** Courbe de l'élan : écart cumulé de points gagnés (au-dessus = joueur A), séparateurs de set. */
+function momentum(points, m) {
+  const W = 640, H = 170, mid = H / 2;
+  let d = 0;
+  const diffs = points.map((p) => (d += p.winner === 0 ? 1 : -1));
+  const max = Math.max(4, ...diffs.map(Math.abs));
+  const x = (i) => 10 + (i * (W - 20)) / Math.max(1, points.length - 1);
+  const y = (v) => mid - (v / max) * (mid - 14);
+  const seps = points.map((p, i) => (i && p.set !== points[i - 1].set ? `<line x1="${x(i)}" x2="${x(i)}" y1="6" y2="${H - 6}" stroke="var(--line)" stroke-dasharray="4 4"/>` : '')).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Élan du match">
+    <line x1="0" x2="${W}" y1="${mid}" y2="${mid}" stroke="var(--line)" stroke-width="1.5"/>${seps}
+    <polyline points="${diffs.map((v, i) => `${x(i)},${y(v)}`).join(' ')}" fill="none" stroke="var(--pri)" stroke-width="2.5" stroke-linejoin="round"/>
+    <text x="8" y="16" font-size="11" fill="var(--mut)">${esc(short(m.a))} devant</text><text x="8" y="${H - 6}" font-size="11" fill="var(--mut)">${esc(short(m.b))} devant</text></svg>`;
+}
+
+V.tab_pbp = (m, c) => {
+  const games = [];
+  for (const p of c.annotated) {
+    const key = `${p.set}|${p.gameLabel}`;
+    if (!games.length || games[games.length - 1].key !== key) games.push({ key, set: p.set, label: p.gameLabel, server: p.server, pts: [] });
+    games[games.length - 1].pts.push(p);
+  }
+  if (!games.length) return `<div class="card"><p class="mut" style="margin:0">Aucun point joué.</p></div>`;
+  const icon = (p) => (p.kind === 'ACE' ? 'A' : p.kind === 'DF' ? 'D' : p.bp ? 'B' : '');
+  return `<div class="card pbp">${games.reverse().map((g) => {
+    const won = g.pts[g.pts.length - 1].winner;
+    const broke = won !== g.server && !g.label.includes('break');
+    return `<div class="game"><span class="mut">Set ${g.set + 1}<br>${g.label}</span>
+      <div class="dots">${g.pts.map((p) => `<span class="dot ${p.winner ? 'b' : 'a'}" title="${esc(short(p.winner ? m.b : m.a))}${p.kind ? ' · ' + p.kind : ''}${p.shot ? ' · ' + p.shot : ''}">${icon(p)}</span>`).join('')}</div>
+      <span>${broke ? pill('Break', 'r') : pill(`Service ${esc(short(g.server ? m.b : m.a))}`)}</span></div>`;
+  }).join('')}</div>
+  <p class="mut">Pastille : couleur = joueur qui gagne le point (indigo ${esc(short(m.a))}, foncé ${esc(short(m.b))}) · A = ace, D = double faute, B = balle de break.</p>`;
+};
+
+function modal() {
+  if (S.modal !== 'new') return '';
+  return `<div class="veil" data-act="close"></div><div class="modal" role="dialog" aria-modal="true" aria-label="Nouveau match">
+    <div class="row"><h3>Nouveau match</h3><button class="btn2" data-act="close">✕</button></div>
+    <form class="form" style="margin-top:14px" id="newform">
+      <label class="lb">Joueur A<select class="sel" name="a">${PLAYERS.map((p) => `<option>${p}</option>`).join('')}</select></label>
+      <label class="lb">Joueur B (club ou adversaire extérieur)<input class="fld" name="b" value="Omar Trabelsi" list="pl"><datalist id="pl">${PLAYERS.map((p) => `<option value="${p}">`).join('')}</datalist></label>
+      <label class="lb">Type<select class="sel" name="kind"><option>Match interne</option><option>Match amical (extérieur)</option><option>Tournoi</option></select></label>
+      <label class="lb">Sets gagnants<select class="sel" name="sets"><option value="2">2 sets gagnants</option><option value="3">3 sets gagnants</option></select></label>
+      <label class="lb">Jeux par set<select class="sel" name="games"><option value="6">6 jeux</option><option value="4">4 jeux (jeunes)</option></select></label>
+      <label class="lb">Dernier set<select class="sel" name="super"><option value="0">Set normal</option><option value="1">Super tie-break à 10</option></select></label>
+      <label class="mut"><input type="checkbox" name="noAd"> Point décisif à 40-40</label>
+      <label class="mut"><input type="checkbox" name="tb" checked> Tie-break à égalité</label>
+    </form>
+    <div class="row" style="margin-top:16px;justify-content:flex-end"><button class="btn2" data-act="close">Annuler</button><button class="btn" data-act="create">Créer le match</button></div></div>`;
+}
+
+function render() {
+  $('#roles').innerHTML = [['coach', 'Entraîneur (saisie)'], ['parent', 'Parent / joueur (spectateur)']].map(([k, l]) => `<button aria-pressed="${S.role === k}" data-role="${k}">${l}</button>`).join('');
+  $('#main').innerHTML = V[S.screen]();
+  $('#modal').innerHTML = modal();
+}
+
+function record(p) {
+  const m = match();
+  const c = compute(m);
+  m.points.push({ server: c.server, shot: S.shot, ...p });
+  S.stage = 1; S.pending = null; S.shot = '';
+  const after = compute(m);
+  if (after.winner !== null) toast(`Match terminé : ${short(after.winner ? m.b : m.a)} gagne ${setScore(after)}. Parents prévenus.`);
+  else if (after.sets.length > c.sets.length) toast(`Set gagné ! ${setScore(after)}`);
+}
+
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button,[data-act]');
+  if (!b) return;
+  const d = b.dataset;
+  const m = match();
+  if (d.role) { S.role = d.role; S.pending = null; }
+  else if (d.open) { S.matchId = d.open; S.screen = 'match'; S.tab = 'score'; S.set = 'ALL'; S.stage = 1; S.pending = null; }
+  else if (d.tab) S.tab = d.tab;
+  else if (d.set !== undefined) S.set = d.set === 'ALL' ? 'ALL' : Number(d.set);
+  else if (d.start !== undefined) { m.firstServer = Number(d.start); m.scheduled = false; toast('Match lancé : notification envoyée aux parents.'); }
+  else if (d.win !== undefined) {
+    const w = Number(d.win);
+    if (S.detail) S.pending = w;
+    else record({ winner: w, firstIn: S.stage === 1, kind: '' });
+  }
+  else if (d.kind !== undefined) record({ winner: S.pending, firstIn: S.stage === 1, kind: d.kind });
+  else if (d.shot) S.shot = S.shot === d.shot ? '' : d.shot;
+  else if (d.act === 'ace') record({ winner: compute(m).server, firstIn: S.stage === 1, kind: 'ACE' });
+  else if (d.act === 'fault') S.stage = 2;
+  else if (d.act === 'df') record({ winner: 1 - compute(m).server, firstIn: false, kind: 'DF' });
+  else if (d.act === 'undo') { m.points.pop(); S.stage = 1; S.pending = null; toast('Dernier point annulé.'); }
+  else if (d.act === 'detail') { S.detail = b.checked; return; }
+  else if (d.act === 'back') { S.screen = 'list'; S.matchId = null; }
+  else if (d.act === 'new') S.modal = 'new';
+  else if (d.act === 'close') S.modal = null;
+  else if (d.act === 'create') {
+    const f = new FormData($('#newform'));
+    const nm = { id: 'm' + Date.now(), a: f.get('a'), b: String(f.get('b') || 'Adversaire'), kind: f.get('kind'), date: '2026-10-13', court: 'Court 1', scorer: 'Iheb', scheduled: true, firstServer: 0, points: [],
+      format: { setsToWin: Number(f.get('sets')), games: Number(f.get('games')), tiebreak: f.get('tb') === 'on', superTB: f.get('super') === '1', noAd: f.get('noAd') === 'on' } };
+    MATCHES.unshift(nm); S.modal = null; S.matchId = nm.id; S.screen = 'match'; S.tab = 'score';
+    toast('Match créé.');
+  }
+  else if (b.id === 'theme') { const dark = document.documentElement.dataset.theme !== 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; b.textContent = dark ? '☀ Clair' : '☾ Sombre'; return; }
+  else return;
+  render();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.modal) { S.modal = null; render(); } });
+
+// Démo du direct : côté spectateur, un point simulé arrive toutes les 5 secondes sur le match en cours.
+setInterval(() => {
+  if (S.role !== 'parent') return;
+  const live = MATCHES.find((m) => status(m) === 'En cours');
+  if (!live) return;
+  live.points.push(simPoint(live));
+  render();
+}, 5000);
+
+render();
+</script>
+</body>
+</html>

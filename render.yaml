@@ -1,0 +1,53 @@
+# Démo en ligne provisoire (tests par les collègues) sur Render : une base PostgreSQL et l'API (/api/v1).
+# Le site web est sur Vercel (web/vercel.json) ; l'application mobile appelle directement https://….onrender.com.
+# Données de DÉMONSTRATION uniquement (aucune donnée réelle de joueurs ou de mineurs).
+# Mise en route : voir docs/DEMO_EN_LIGNE.md (Render › New › Blueprint › ce dépôt).
+databases:
+  - name: tcsay-db
+    plan: free
+    region: frankfurt
+    databaseName: tcsay
+    user: tcsay
+    ipAllowList: [] # accessible seulement par le service ci-dessous
+
+services:
+  - type: web
+    name: tcsay-demo
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: claude/tcsay-platform-dev-p3t75p
+    # Pas de déploiement automatique à chaque push : déploiement manuel seulement (Render › Manual Deploy).
+    autoDeploy: false
+    # API seule : le site web est hébergé sur Vercel (web/vercel.json renvoie /api vers ce service).
+    buildCommand: cd api && npm ci --include=dev && npm run build
+    startCommand: cd api && npm run start:demo
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Africa/Tunis
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tcsay-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      # Le site web est sur Vercel : l'API ne le sert pas.
+      - key: SERVE_WEB
+        value: "false"
+      # Requêtes du site : navigateur → Vercel → Render (2 intermédiaires) pour lire l'IP réelle.
+      - key: TRUST_PROXY_HOPS
+        value: "2"
+      # Comptes de démo partagés : mot de passe figé, pas de changement obligatoire
+      - key: DEMO_MODE
+        value: "true"
+      # Mettre à true puis redéployer pour remettre les données de démo à zéro (puis remettre à false)
+      - key: RESET_DEMO_DATA
+        value: "false"
+      # Emails : non configurés pour les tests (ils restent « Échec » dans Emails envoyés).
+      # Emails : le plan gratuit bloque les ports SMTP (25, 465, 587). Régler MAIL_TRANSPORT=gmail-api (GMAIL_CLIENT_ID,
+      # GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN) ou brevo (BREVO_API_KEY), plus MAIL_FROM : voir docs/MAILING.md.

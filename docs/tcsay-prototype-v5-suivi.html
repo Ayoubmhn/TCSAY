@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TCSAY · Prototype v5 (suivi des joueurs)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap">
+<!--
+  Prototype v5 : suivi des joueurs (objectif de séance, notes, bilans, progression, exercices,
+  accès après paiement, listes avec boutons icônes). Maquette HTML/JS vanilla, données FICTIVES.
+  Ne remplace pas docs/tcsay-prototype-v4.html (référence figée).
+-->
+<style>
+:root{
+  --bg:#fafafa;--fg:#1a1a1a;--mut:#8a8a8f;--card:#fff;--line:#e6e6ea;--fld:#f3f4f8;--btn:#ebebeb;
+  --pri:#5a5acd;--sel:#0000e0;--paid:#e9f7e1;--topay:#ffe8e8;
+  --pb:#c9e9fb;--pg:#dff3a8;--pr:#fdb3b0;--ps:#f0d9a8;--ink:#111;--veil:rgba(0,0,0,.45);--toggle:#222;
+  --font:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+:root[data-theme=dark]{
+  --bg:#121212;--fg:#f2f2f2;--mut:#9a9aa0;--card:#1c1c1e;--line:#333;--fld:#26272b;--btn:#2e2e32;
+  --paid:#1f2e1a;--topay:#3a2224;--toggle:#f2f2f2;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 var(--font)}
+button,select,input,textarea{font:inherit;color:inherit}
+.demo{background:var(--ps);color:var(--ink);text-align:center;font-size:12px;font-weight:600;padding:6px 10px;letter-spacing:.04em}
+.top{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1.5px solid var(--line);background:var(--card)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600}
+.ball{width:34px;height:34px;border-radius:50%;background:var(--pg);display:grid;place-items:center;color:var(--ink);font-size:13px}
+.seg{display:inline-flex;background:var(--btn);border-radius:99px;padding:4px;flex-wrap:wrap}
+.seg button{border:0;background:none;border-radius:99px;padding:7px 14px;font-weight:500;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--toggle);color:var(--bg)}
+.wrap{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 100px)}
+nav{border-inline-end:1.5px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+nav .t{font-size:11px;font-weight:600;color:var(--mut);letter-spacing:.08em;margin:6px 10px}
+nav button{border:0;background:none;text-align:start;border-radius:18px;padding:10px 14px;cursor:pointer;font-weight:500;display:flex;justify-content:space-between;align-items:center;gap:6px}
+nav button.on{background:var(--btn);font-weight:600}
+nav button .new{font-size:10px;background:var(--pg);color:var(--ink);border-radius:99px;padding:2px 8px}
+main{padding:24px clamp(16px,3vw,36px) 60px;max-width:1150px;width:100%}
+h1{font-size:26px;font-weight:600;margin:0}
+h2{font-size:18px;font-weight:500;margin:28px 0 12px}
+h3{font-size:16px;font-weight:500;margin:0}
+.sub{color:var(--mut);margin:4px 0 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:18px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cs{font-size:13px;font-weight:600;color:var(--mut)}
+.kpi{font-size:28px;font-weight:600;margin:4px 0}
+.mut{color:var(--mut);font-size:13.5px}
+.pill{display:inline-block;border-radius:99px;padding:5px 13px;font-size:13px;color:var(--ink);background:var(--pb);white-space:nowrap}
+.pill.g{background:var(--pg)}.pill.r{background:var(--pr)}.pill.s{background:var(--ps)}
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.btn{border:0;border-radius:99px;padding:10px 18px;font-weight:500;cursor:pointer;background:var(--pri);color:#fff}
+.btn2{border:0;border-radius:99px;padding:9px 16px;font-weight:500;cursor:pointer;background:var(--btn)}
+.ico{width:38px;height:38px;border-radius:50%;border:0;background:var(--btn);display:inline-grid;place-items:center;cursor:pointer}
+.ico svg{width:18px;height:18px}
+.ico.danger{background:var(--pr);color:var(--ink)}
+.ico:focus-visible,.btn:focus-visible,.btn2:focus-visible,button:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.note{margin-top:18px;background:var(--fld);border-radius:18px;padding:13px 16px;font-size:13.5px;display:flex;gap:10px}
+.sel{background:var(--fld);border:0;border-radius:22px;padding:10px 16px}
+textarea,input[type=text]{width:100%;background:var(--fld);border:0;border-radius:20px;padding:11px 16px}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--pri);border-radius:99px}
+.list{display:flex;flex-direction:column;border:1.5px solid var(--line);border-radius:24px;background:var(--card);overflow:hidden}
+.list .li{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:12px 18px;border-top:1.5px solid var(--line)}
+.list .li:first-child{border-top:0}
+.acts{display:flex;gap:6px}
+.av{width:38px;height:38px;border-radius:12px;background:var(--fld);display:grid;place-items:center;font-weight:600;font-size:13px;flex:none}
+.who{display:flex;gap:12px;align-items:center;min-width:0}
+.dots{display:inline-flex;gap:4px}
+.dots button{width:30px;height:30px;border-radius:50%;border:0;background:var(--fld);cursor:pointer;font-size:12px;font-weight:600}
+.dots button.on{background:var(--pri);color:#fff}
+.att{display:inline-flex;gap:4px}
+.att button{border:0;border-radius:99px;padding:6px 12px;cursor:pointer;background:var(--fld);font-size:13px}
+.att button.P.on{background:var(--pg);color:var(--ink)}.att button.R.on{background:var(--pb);color:var(--ink)}.att button.A.on{background:var(--pr);color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:0;border-radius:99px;padding:8px 14px;background:var(--fld);cursor:pointer}
+.chip.on{background:var(--sel);color:#fff}
+.lock{position:relative}
+.lock .veil{position:absolute;inset:0;backdrop-filter:blur(6px);background:color-mix(in srgb,var(--bg) 60%,transparent);border-radius:24px;display:flex;justify-content:center;align-items:flex-start;text-align:center;padding:40px 20px;z-index:2}
+.lock .veil>div{position:sticky;top:40px;background:var(--card);border:1.5px solid var(--line);border-radius:24px;padding:22px;max-width:420px}
+.seg button svg{width:18px;height:18px;display:block}
+.modal-veil{position:fixed;inset:0;background:var(--veil);z-index:5}
+.modal{position:fixed;z-index:6;top:50%;left:50%;transform:translate(-50%,-50%);width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;background:var(--card);border-radius:28px;padding:22px}
+.btn2[disabled]{opacity:.45;cursor:default}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--fg);color:var(--bg);border-radius:99px;padding:11px 20px;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9}
+.toast.on{opacity:1}
+.crit{display:grid;grid-template-columns:minmax(120px,170px) 1fr;gap:8px 12px;align-items:center;margin-top:12px}
+.ex{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start}
+.ex .num{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:20px;background:var(--fld)}
+.done{text-decoration:line-through;color:var(--mut)}
+.kidsel{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+svg text{font-family:var(--font)}
+@media (max-width:860px){.wrap{grid-template-columns:1fr}nav{flex-direction:row;overflow-x:auto;border-inline-end:0;border-bottom:1.5px solid var(--line)}nav .t{display:none}nav button{white-space:nowrap}h1{font-size:23px}.crit{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="demo">PROTOTYPE v5 · SUIVI DES JOUEURS · DONNÉES FICTIVES</div>
+<header class="top">
+  <div class="brand"><span class="ball">TC</span>TCSAY</div>
+  <div class="seg" role="group" aria-label="Rôle" id="roles"></div>
+  <button class="btn2" id="theme">☾ Sombre</button>
+</header>
+<div class="wrap">
+  <nav id="nav" aria-label="Menu"></nav>
+  <main id="main"></main>
+</div>
+<div id="modal"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+// ───────── Données fictives ─────────
+const KIDS = [
+  { id: 'y', name: 'Yassine Ben Ali', cat: 'Benjamins (-12)', group: 'Benjamins 1', coach: 'Iheb', paid: true, level: 'Orange 2', nextLevel: 'Orange 3' },
+  { id: 'l', name: 'Lina Ben Ali', cat: 'Poussines (-10)', group: 'Poussines 1', coach: 'Sami', paid: false, level: 'Rouge 3', nextLevel: 'Orange 1' },
+];
+const OBJECTIVES = ['Coup droit croisé', 'Revers à deux mains', 'Service : lancer de balle', 'Retour de service', 'Volée', 'Jeu de jambes', 'Match à thème'];
+const CRITERIA = ['Engagement', 'Concentration', 'Comportement', 'Objectif du jour', 'Qualité de jeu'];
+const MONTHS = ['oct.', 'nov.', 'déc.', 'janv.', 'févr.', 'mars'];
+const PROGRESS = { y: [2.6, 2.9, 3.1, 3.0, 3.4, 3.7], l: [2.2, 2.4, 2.6, 2.9, 3.0, 3.2] };
+const SKILLS = {
+  y: [['Coup droit', 4, 3], ['Revers', 3, 2], ['Service', 3, 3], ['Volée', 2, 2], ['Jeu de jambes', 4, 3], ['Tactique', 3, 2], ['Physique', 4, 3], ['Mental', 3, 3]],
+  l: [['Coup droit', 3, 2], ['Revers', 2, 2], ['Service', 2, 1], ['Volée', 2, 1], ['Jeu de jambes', 3, 2], ['Tactique', 2, 2], ['Physique', 3, 3], ['Mental', 3, 2]],
+};
+const SESSIONS = [
+  { date: 'jeu. 12 mars', obj: 'Coup droit croisé', status: 'P', mood: '🙂', avg: 4.2, comment: 'Très bonne intensité, coup droit plus long. À travailler : la préparation.' },
+  { date: 'mar. 10 mars', obj: 'Service : lancer de balle', status: 'R', mood: '😐', avg: 3.4, comment: 'Arrivé 10 min en retard. Lancer plus régulier en fin de séance.' },
+  { date: 'jeu. 5 mars', obj: 'Jeu de jambes', status: 'P', mood: '🙂', avg: 3.8, comment: '' },
+  { date: 'mar. 3 mars', obj: 'Match à thème', status: 'A', mood: '', avg: null, comment: 'Absence justifiée (malade).' },
+];
+const GOALS = [
+  { text: 'Tenir 10 échanges croisés en coup droit', state: 'g', label: 'Atteint' },
+  { text: 'Passer 6 premières balles de service sur 10', state: 'b', label: 'En cours · 4/10' },
+  { text: 'Monter au filet après une balle courte', state: 's', label: 'À commencer' },
+];
+const EXERCISES = [
+  { id: 1, kind: 'Échauffement', icon: '🔥', title: 'Échauffement dynamique', dur: '8 min', steps: 'Montées de genoux, talons-fesses, pas chassés, rotations des bras.', due: 'avant chaque séance', done: true },
+  { id: 2, kind: 'Physique', icon: '💪', title: 'Gainage et équilibre', dur: '10 min', steps: '3 × 30 s de planche, 3 × 20 s sur une jambe, 2 × 10 squats.', due: 'à faire 2 fois cette semaine', done: false },
+  { id: 3, kind: 'Technique', icon: '🎾', title: 'Shadow coup droit', dur: '5 min', steps: '30 coups droits sans balle devant un miroir : préparation tôt, fin de geste sur l’épaule.', due: 'à faire avant jeudi · demandé par Iheb', done: false },
+  { id: 4, kind: 'Technique', icon: '🎾', title: 'Lancer de balle du service', dur: '5 min', steps: '20 lancers : la balle doit retomber dans un cerceau devant le pied avant.', due: 'à faire avant mardi', done: false },
+  { id: 5, kind: 'Récupération', icon: '🧘', title: 'Étirements après séance', dur: '6 min', steps: 'Mollets, ischios, quadriceps, épaules : 30 s chacun.', due: 'après chaque séance', done: false },
+];
+const PLAYERS = [
+  { n: 'Yassine Ben Ali', c: '26TCSAY004', cat: 'Benjamins (-12)', g: 'Benjamins 1', pay: 'g' },
+  { n: 'Adam Trabelsi', c: '26TCSAY011', cat: 'Benjamins (-12)', g: 'Benjamins 1', pay: 'r' },
+  { n: 'Mohamed Malek Gadhab', c: '26TCSAY017', cat: 'Benjamins (-12)', g: 'Benjamins 1', pay: 'g' },
+  { n: 'Rayen Hammami', c: '26TCSAY021', cat: 'Benjamins (-12)', g: 'Benjamins 1', pay: 's' },
+  { n: 'Skander Mhenni', c: '26TCSAY025', cat: 'Benjamins (-12)', g: 'Benjamins 1', pay: 'g' },
+];
+
+// ───────── État ─────────
+const S = { evalOpen: null, role: 'parent', screen: 'suivi', kid: 'y', view: 'list', obj: 'Coup droit croisé', att: {}, notes: {}, moods: {}, unpaidDemo: false };
+PLAYERS.forEach((p, i) => { S.att[i] = i === 3 ? 'A' : 'P'; S.notes[i] = {}; S.moods[i] = '🙂'; });
+
+const MENUS = {
+  parent: [['t', 'MAIN'], ['accueil', 'Accueil'], ['suivi', 'Suivi et progression', 1], ['seances', 'Mes séances'], ['exercices', 'Exercices', 1], ['paiements', 'Mes paiements']],
+  coach: [['t', 'MAIN'], ['seance', 'Séance en cours', 1], ['bilan', 'Bilan de période', 1], ['assign', 'Exercices à donner', 1], ['groupe', 'Mon groupe']],
+  admin: [['t', 'MAIN'], ['joueurs', 'Joueurs (liste)', 1], ['acces', 'Accès après paiement', 1], ['suivi-dt', 'Suivi technique', 1]],
+};
+const ROLES = [['parent', 'Parent / joueur'], ['coach', 'Entraîneur'], ['admin', 'Administration']];
+
+// ───────── Outils ─────────
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const kid = () => KIDS.find((k) => k.id === S.kid);
+const locked = () => S.role === 'parent' && (!kid().paid || S.unpaidDemo);
+function toast(t) { const e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('on'), 3200); }
+const IC = {
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>',
+  pay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="6" width="20" height="13" rx="3"/><path d="M2 10h20M6 15h4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  list: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>',
+};
+const ico = (k, label, extra = '', act = '') => `<button class="ico ${extra}" aria-label="${label}" title="${label}" data-act="${act}">${IC[k]}</button>`;
+const bar = (v, max) => `<div class="bar" aria-hidden="true"><i style="width:${Math.round((v / max) * 100)}%"></i></div>`;
+const pill = (t, tone = '') => `<span class="pill ${tone}">${t}</span>`;
+const header = (t, s, action = '') => `<div class="row"><div><h1>${t}</h1><p class="sub">${s}</p></div>${action}</div>`;
+const kidSelect = () => `<div class="kidsel"><select class="sel" id="kid" aria-label="Joueur">${KIDS.map((k) => `<option value="${k.id}" ${k.id === S.kid ? 'selected' : ''}>${k.name}</option>`).join('')}</select>${pill(kid().group)}${pill('Entraîneur ' + kid().coach, 's')}</div>`;
+const lockVeil = () => locked() ? `<div class="veil"><div><div style="font-size:28px">🔒</div><h3 style="margin-top:6px">Disponible après le paiement</h3><p class="mut">La tranche 1/2 de ${esc(kid().name)} (échéance 30 sept.) reste à régler.<br>Paiement au club (espèces ou chèque).</p><button class="btn" data-go="paiements">Voir mes paiements</button></div></div>` : '';
+
+/** Courbe de progression (SVG fait main). */
+function lineChart(values) {
+  const W = 520, H = 170, P = 28;
+  const x = (i) => P + (i * (W - 2 * P)) / (values.length - 1);
+  const y = (v) => H - P - ((v - 1) / 4) * (H - 2 * P);
+  const pts = values.map((v, i) => `${x(i)},${y(v)}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Moyenne mensuelle de ${values[0]} à ${values[values.length - 1]} sur 5">
+    ${[1, 2, 3, 4, 5].map((v) => `<line x1="${P}" x2="${W - P}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="6" y="${y(v) + 4}" font-size="11" fill="var(--mut)">${v}</text>`).join('')}
+    <polyline points="${pts}" fill="none" stroke="var(--pri)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+    ${values.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="var(--card)" stroke="var(--pri)" stroke-width="3"><title>${MONTHS[i]} : ${v}/5</title></circle><text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--mut)">${MONTHS[i]}</text>`).join('')}
+  </svg>`;
+}
+
+// ───────── Écrans parent / joueur ─────────
+const V = {};
+V.accueil = () => `${header('Bienvenue Sana 👋', 'Voici l’essentiel de la semaine pour vos enfants.')}
+  <div class="grid" style="margin-top:20px">${KIDS.map((k) => `<div class="card"><div class="row"><h3>${k.name}</h3>${k.paid ? pill('À jour', 'g') : pill('Tranche à payer', 'r')}</div>
+    <div class="pills">${pill('Prochaine séance jeu. 17h00')}${pill('Niveau ' + k.level, 's')}</div>
+    <p class="mut" style="margin-top:10px">${k.paid ? '2 exercices à faire avant jeudi · moyenne du mois 3,7/5 (+0,3)' : 'Le planning, le suivi et les exercices s’ouvrent après le paiement.'}</p>
+    <div class="pills"><button class="btn2" data-kid="${k.id}" data-go="suivi">Voir le suivi</button></div></div>`).join('')}</div>`;
+
+V.suivi = () => {
+  const k = kid(), p = PROGRESS[k.id], sk = SKILLS[k.id];
+  const diff = (p[p.length - 1] - p[p.length - 2]).toFixed(1);
+  return `${header('Suivi et progression', 'Découvrez l’évolution, les notes et les objectifs de votre enfant.')}${kidSelect()}
+  <div class="lock" style="margin-top:18px">${lockVeil()}
+  <div class="grid">
+    <div class="card"><div class="cs">Assiduité (saison)</div><div class="kpi">92 %</div>${bar(92, 100)}<div class="pills">${pill('23 présences', 'g')}${pill('2 retards')}${pill('1 absence', 'r')}</div></div>
+    <div class="card"><div class="cs">Moyenne des séances (mois)</div><div class="kpi">${String(p[p.length - 1]).replace('.', ',')}/5</div><div class="pills">${pill((diff >= 0 ? '+' : '') + diff.replace('.', ',') + ' vs mois dernier', diff >= 0 ? 'g' : 'r')}</div></div>
+    <div class="card"><div class="cs">Niveau</div><div class="kpi">${k.level}</div><p class="mut">Prochain palier : <b>${k.nextLevel}</b> (bilan de fin de trimestre)</p>${bar(2, 3)}</div>
+    <div class="card"><div class="cs">Forme signalée</div><div class="kpi">🙂</div><p class="mut">Aucune douleur signalée ce mois-ci.</p></div>
+  </div>
+  <h2>Progression mois par mois</h2><div class="card">${lineChart(p)}<p class="mut">Moyenne des 5 critères notés par l’entraîneur à chaque séance.</p></div>
+  <h2>Bilan du trimestre</h2><div class="card"><div class="row"><h3>Bilan de décembre → mars</h3>${pill('Partagé par ' + k.coach, 's')}</div>
+    <div class="crit">${sk.map(([n, now, before]) => `<span>${n}</span><div class="row" style="flex-wrap:nowrap">${bar(now, 5)}<b style="white-space:nowrap">${now}/5 ${now > before ? '<span class="pill g">↑</span>' : ''}</b></div>`).join('')}</div>
+    <div class="note"><span>💬</span><div><b>Point fort :</b> coup droit et engagement. <b>À travailler :</b> la volée et le revers sous pression. — ${k.coach}</div></div></div>
+  <h2>Objectifs de la période</h2><div class="grid">${GOALS.map((g) => `<div class="card"><h3>${g.text}</h3><div class="pills">${pill(g.label, g.state)}</div></div>`).join('')}</div>
+  </div>`;
+};
+
+V.seances = () => `${header('Mes séances', 'Découvrez l’objectif de chaque séance et le retour de l’entraîneur.')}${kidSelect()}
+  <div class="lock" style="margin-top:18px">${lockVeil()}
+  <h2>À venir</h2><div class="card"><div class="row"><h3>Jeudi 19 mars · 17h00 – 18h30</h3>${pill('Court 2', 'g')}</div>
+    <div class="pills">${pill('Objectif : Revers à deux mains')}${pill('Échauffement à faire avant', 's')}</div></div>
+  <h2>Passées</h2><div class="list">${SESSIONS.map((s) => `<div class="li"><div><div class="row" style="justify-content:flex-start"><b>${s.date}</b>${pill(s.obj)}${s.status === 'P' ? pill('Présent', 'g') : s.status === 'R' ? pill('Retard') : pill('Absent', 'r')}${s.mood ? `<span title="Forme du jour">${s.mood}</span>` : ''}</div>${s.comment ? `<p class="mut" style="margin:6px 0 0">💬 ${esc(s.comment)}</p>` : ''}</div><b>${s.avg ? String(s.avg).replace('.', ',') + '/5' : '—'}</b></div>`).join('')}</div>
+  </div>`;
+
+V.exercices = () => {
+  const done = EXERCISES.filter((e) => e.done).length;
+  return `${header('Exercices', 'Découvrez les exercices à faire à la maison et avant la séance.')}${kidSelect()}
+  <div class="lock" style="margin-top:18px">${lockVeil()}
+  <div class="card"><div class="row"><h3>Cette semaine</h3>${pill(done + '/' + EXERCISES.length + ' faits', done === EXERCISES.length ? 'g' : '')}</div><div style="margin-top:10px">${bar(done, EXERCISES.length)}</div></div>
+  ${['Échauffement', 'Technique', 'Physique', 'Récupération'].map((kind) => `<h2>${kind}</h2><div class="grid">${EXERCISES.filter((e) => e.kind === kind).map((e) => `<div class="card ex"><span class="num" aria-hidden="true">${e.icon}</span><div><h3 class="${e.done ? 'done' : ''}">${e.title}</h3><div class="pills">${pill(e.dur)}${pill(e.due, 's')}</div><p class="mut" style="margin:10px 0 0">${e.steps}</p></div><button class="ico" data-ex="${e.id}" aria-pressed="${e.done}" aria-label="${e.done ? 'Marquer non fait' : 'Marquer fait'}" title="${e.done ? 'Fait' : 'Marquer fait'}" style="${e.done ? 'background:var(--pg);color:var(--ink)' : ''}">✓</button></div>`).join('')}</div>`).join('')}
+  <div class="note"><span>ⓘ</span><div>Vidéos courtes possibles plus tard (lien ou fichier ajouté par l’entraîneur). L’entraîneur voit qui a fait ses exercices.</div></div>
+  </div>`;
+};
+
+V.paiements = () => `${header('Mes paiements', 'Découvrez vos tranches et vos reçus.')}${kidSelect()}
+  <div class="grid" style="margin-top:18px">
+    <div class="card" style="background:${kid().paid && !S.unpaidDemo ? 'var(--paid)' : 'var(--topay)'}"><div class="row"><h3>Tranche 1/2</h3>${kid().paid && !S.unpaidDemo ? pill('Payée', 'g') : pill('À payer', 'r')}</div><p class="mut">Échéance 30 sept. · 400 DT (démo)</p></div>
+    <div class="card"><div class="row"><h3>Tranche 2/2</h3>${pill('15 févr.')}</div><p class="mut">400 DT (démo)</p></div>
+  </div>
+  <div class="note"><span>🔒</span><div>Règle proposée : <b>le planning, le suivi et les exercices s’ouvrent quand la tranche échue est payée</b>. Les paiements, les reçus, les notifications et le contact du club restent toujours accessibles.</div></div>
+  <div class="pills"><label class="pill s" style="cursor:pointer"><input type="checkbox" id="unpaid" ${S.unpaidDemo ? 'checked' : ''}> Simuler une tranche impayée</label></div>`;
+
+// ───────── Écrans entraîneur ─────────
+const initials = (n) => n.split(' ').map((w) => w[0]).slice(0, 2).join('');
+const present = () => PLAYERS.map((_, i) => i).filter((i) => S.att[i] !== 'A');
+const avgOf = (i) => { const v = Object.values(S.notes[i]); return v.length === CRITERIA.length ? (v.reduce((t, n) => t + n, 0) / v.length).toFixed(1).replace('.', ',') : null; };
+
+V.seance = () => {
+  const evaluated = present().filter((i) => avgOf(i)).length;
+  return `${header('Séance en cours', 'Benjamins 1 · jeudi 12 mars · 17h00 – 18h30 · Court 2', pill('En cours', 'g'))}
+  <h2>1. Objectif de la séance</h2><div class="card"><div class="chips">${OBJECTIVES.map((o) => `<button class="chip ${o === S.obj ? 'on' : ''}" data-obj="${esc(o)}">${o}</button>`).join('')}</div>
+    <textarea rows="2" style="margin-top:12px" aria-label="Contenu de la séance">Échauffement 10 min · panier coup droit croisé · jeu en 7 points croisés · étirements</textarea>
+    <div class="pills">${pill('Prévu dans le plan de cycle : semaine 3/6', 's')}</div></div>
+  <h2>2. Présences</h2>
+  <div class="list">${PLAYERS.map((p, i) => `<div class="li"><div class="who"><span class="av">${initials(p.n)}</span><b>${p.n}</b></div>
+    <div class="row"><div class="att" role="group" aria-label="Présence de ${p.n}">${[['P', 'Présent'], ['R', 'Retard'], ['A', 'Absent']].map(([k, l]) => `<button class="${k} ${S.att[i] === k ? 'on' : ''}" data-att="${i}|${k}">${l}</button>`).join('')}</div>
+    ${S.att[i] !== 'A' ? `<div class="att" role="group" aria-label="Forme">${['🙂', '😐', '🙁'].map((m) => `<button class="${S.moods[i] === m ? 'P on' : ''}" data-mood="${i}|${m}" aria-label="Forme ${m}">${m}</button>`).join('')}</div>` : ''}</div></div>`).join('')}</div>
+  <div class="pills" style="margin-top:16px"><button class="btn" data-act="save-session">Enregistrer les présences</button></div>
+  <h2>3. Évaluation de la séance</h2>
+  <div class="card"><div class="row"><div><h3>Notes des joueurs présents</h3><p class="mut" style="margin:4px 0 0">Dans une fenêtre à part, un joueur à la fois : 5 notes et un commentaire.</p></div>${pill(evaluated + '/' + present().length + ' évalués', evaluated === present().length ? 'g' : 's')}</div>
+    <div style="margin-top:12px">${bar(evaluated, Math.max(1, present().length))}</div>
+    <div class="pills">${present().map((i) => `<button class="pill ${avgOf(i) ? 'g' : ''}" style="border:0;cursor:pointer" data-eval="${i}">${PLAYERS[i].n.split(' ')[0]} ${avgOf(i) ? '· ' + avgOf(i) : '· à évaluer'}</button>`).join('')}</div>
+    <div class="pills" style="margin-top:14px"><button class="btn" data-eval="${present().find((i) => !avgOf(i)) ?? present()[0]}">Évaluer la séance</button></div></div>
+  <div class="note"><span>ⓘ</span><div>Même module « Séance », mais l’évaluation s’ouvre dans sa propre fenêtre : les présences restent rapides à pointer en début de séance, les notes se font à la fin.</div></div>`;
+};
+
+/** Fenêtre d'évaluation d'un joueur (séparée de la page des présences). */
+function evalModal() {
+  if (S.evalOpen === null || S.evalOpen === undefined) return '';
+  const list = present(), pos = list.indexOf(S.evalOpen), i = S.evalOpen, p = PLAYERS[i];
+  return `<div class="modal-veil" data-act="close-eval"></div><div class="modal" role="dialog" aria-modal="true" aria-label="Évaluation de ${p.n}">
+    <div class="row"><div class="who"><span class="av">${initials(p.n)}</span><div><h3>${p.n}</h3><div class="mut">Joueur ${pos + 1}/${list.length} · ${S.moods[i]} forme du jour</div></div></div><button class="ico" data-act="close-eval" aria-label="Fermer">✕</button></div>
+    <div class="crit">${CRITERIA.map((c, ci) => `<span class="mut">${c === 'Objectif du jour' ? 'Objectif : ' + S.obj : c}</span><div class="dots" role="group" aria-label="${c}">${[1, 2, 3, 4, 5].map((n) => `<button class="${S.notes[i][ci] === n ? 'on' : ''}" data-note="${i}|${ci}|${n}">${n}</button>`).join('')}</div>`).join('')}</div>
+    <textarea rows="2" style="margin-top:14px" placeholder="Commentaire pour le parent (facultatif) : un point fort, un point à travailler"></textarea>
+    <div class="row" style="margin-top:16px"><button class="btn2" data-act="prev-eval" ${pos === 0 ? 'disabled' : ''}>‹ Précédent</button><span class="mut">${avgOf(i) ? 'Moyenne ' + avgOf(i) + '/5' : 'Toutes les notes sont nécessaires'}</span><button class="btn" data-act="next-eval">${pos === list.length - 1 ? 'Terminer' : 'Suivant ›'}</button></div>
+  </div>`;
+}
+
+V.bilan = () => `${header('Bilan de période', 'Évaluation complète du trimestre, partagée avec le parent.')}
+  <div class="kidsel"><select class="sel" aria-label="Joueur">${PLAYERS.map((p) => `<option>${p.n}</option>`).join('')}</select><select class="sel" aria-label="Période"><option>Trimestre 2 (janv. → mars)</option><option>Trimestre 1 (oct. → déc.)</option></select></div>
+  <div class="grid" style="margin-top:18px">${[['Technique', ['Coup droit', 'Revers', 'Service', 'Retour', 'Volée', 'Jeu de jambes']], ['Tactique', ['Construction du point', 'Choix des coups']], ['Physique (tests)', ['Sprint 20 m', 'Spider test', 'Endurance']], ['Mental', ['Combativité', 'Gestion du stress']]].map(([t, items]) => `<div class="card"><h3>${t}</h3><div class="crit">${items.map((it, ii) => `<span class="mut">${it}</span><div class="dots">${[1, 2, 3, 4, 5].map((n) => `<button class="${n === 3 + (ii % 2) ? 'on' : ''}" data-dot>${n}</button>`).join('')}</div>`).join('')}</div></div>`).join('')}</div>
+  <h2>Niveau et objectifs</h2><div class="card"><div class="row"><span>Niveau : <b>Orange 2</b> → proposer</span><select class="sel" aria-label="Nouveau niveau"><option>Orange 2 (inchangé)</option><option selected>Orange 3</option></select></div>
+    <textarea rows="2" style="margin-top:12px" aria-label="Objectifs">Passer 6 premières balles de service sur 10 · monter au filet après une balle courte</textarea>
+    <textarea rows="2" style="margin-top:10px" aria-label="Commentaire">Point fort : coup droit et engagement. À travailler : volée, revers sous pression.</textarea>
+    <div class="pills"><label class="pill s"><input type="checkbox" checked> Partager avec le parent</label>${pill('Changement de niveau validé par le directeur technique', 's')}</div>
+    <div class="pills"><button class="btn" data-act="save-bilan">Enregistrer le bilan</button></div></div>`;
+
+V.assign = () => `${header('Exercices à donner', 'Choisissez des exercices pour un groupe ou un joueur.')}
+  <div class="kidsel"><select class="sel" aria-label="Pour"><option>Groupe Benjamins 1 (5 joueurs)</option><option>Yassine Ben Ali</option></select><select class="sel" aria-label="Échéance"><option>Avant la prochaine séance</option><option>Cette semaine</option></select></div>
+  <div class="list" style="margin-top:18px">${EXERCISES.map((e) => `<div class="li"><div class="who"><span class="av">${e.icon}</span><div><b>${e.title}</b><div class="mut">${e.kind} · ${e.dur}</div></div></div><div class="acts">${ico('eye', 'Voir', '', 'view')}${ico('plus', 'Donner cet exercice', '', 'give')}</div></div>`).join('')}</div>
+  <h2>Suivi</h2><div class="card"><div class="row"><h3>Shadow coup droit · Benjamins 1</h3>${pill('3/5 faits', 'g')}</div>${bar(3, 5)}<p class="mut">Pas encore fait : Adam Trabelsi, Rayen Hammami.</p></div>`;
+
+V.groupe = () => `${header('Mon groupe', 'Benjamins 1 · moyennes du mois et alertes.')}
+  <div class="list" style="margin-top:18px">${PLAYERS.map((p, i) => `<div class="li"><div class="who"><span class="av">${p.n.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span><div><b>${p.n}</b><div class="pills" style="margin-top:4px">${pill(['3,7/5', '3,1/5', '3,9/5', '2,6/5', '3,4/5'][i])}${i === 3 ? pill('3 absences de suite', 'r') : ''}${i === 1 ? pill('Engagement en baisse', 's') : ''}</div></div></div><div class="acts">${ico('eye', 'Voir la progression', '', 'view')}</div></div>`).join('')}</div>
+  <div class="note"><span>ⓘ</span><div>L’entraîneur ne voit jamais les cotisations des joueurs.</div></div>`;
+
+// ───────── Écrans administration ─────────
+V.joueurs = () => {
+  const rows = PLAYERS.map((p) => {
+    const tone = { g: ['À jour', 'g'], r: ['En retard', 'r'], s: ['Sans cotisation', 's'] }[p.pay];
+    const acts = `<div class="acts">${ico('eye', 'Voir la fiche', '', 'view')}${ico('pay', 'Encaisser', '', 'pay')}${ico('edit', 'Modifier', '', 'edit')}${ico('del', 'Archiver', 'danger', 'del')}</div>`;
+    return S.view === 'list'
+      ? `<div class="li"><div class="who"><span class="av">${p.n.split(' ').map((w) => w[0]).slice(0, 2).join('')}</span><div style="min-width:0"><b>${p.n}</b><div class="mut">${p.c} · ${p.cat} · ${p.g}</div></div>${pill(tone[0], tone[1])}</div>${acts}</div>`
+      : `<div class="card"><div class="row"><h3>${p.n}</h3>${pill(tone[0], tone[1])}</div><div class="pills">${pill(p.c, 's')}${pill(p.g)}</div><div class="pills">${acts}</div></div>`;
+  }).join('');
+  return `${header('Joueurs', 'Découvrez les joueurs inscrits cette saison.', `<div class="acts"><div class="seg" role="group" aria-label="Affichage"><button aria-pressed="${S.view === 'list'}" data-view="list" aria-label="Afficher en liste">${IC.list}</button><button aria-pressed="${S.view === 'grid'}" data-view="grid" aria-label="Afficher en cases">${IC.grid}</button></div><button class="ico" style="background:var(--pri);color:#fff" aria-label="Ajouter un joueur" title="Ajouter un joueur" data-act="add">${IC.plus}</button></div>`)}
+  <div class="kidsel"><select class="sel"><option>Toutes les catégories</option></select><select class="sel"><option>Tri : nom (A → Z)</option></select></div>
+  <div style="margin-top:16px">${S.view === 'list' ? `<div class="list">${rows}</div>` : `<div class="grid">${rows}</div>`}</div>
+  <div class="note"><span>ⓘ</span><div><b>Changement proposé partout :</b> affichage en <b>liste par défaut</b> (le choix cases / liste reste mémorisé), boutons <b>icônes ronds</b> avec info-bulle et libellé accessible : 👁 voir, 💳 encaisser, ✏️ modifier, 🗑 archiver (rose, avec confirmation), ＋ ajouter.</div></div>`;
+};
+
+V.acces = () => `${header('Accès après paiement', 'Réglage du président : ce qui est fermé tant que la tranche échue n’est pas payée.')}
+  <div class="list" style="margin-top:18px">${[['Planning et séances', true], ['Suivi, notes et bilans', true], ['Exercices', true], ['Réservation de terrain', true], ['Paiements et reçus', false, 'toujours ouvert'], ['Notifications du club', false, 'toujours ouvert']].map(([t, on, fixed]) => `<div class="li"><b>${t}</b>${fixed ? pill(fixed, 'g') : `<label class="pill ${on ? 'r' : 'g'}"><input type="checkbox" ${on ? 'checked' : ''}> ${on ? 'Fermé si impayé' : 'Ouvert'}</label>`}</div>`).join('')}</div>
+  <div class="card" style="margin-top:14px"><div class="row"><span>Délai de grâce après l’échéance</span><select class="sel"><option>7 jours</option><option>15 jours</option><option>Aucun</option></select></div>
+  <div class="row" style="margin-top:10px"><span>Exception (exonéré, accord du bureau)</span>${pill('Réglable par joueur, avec motif', 's')}</div></div>
+  <div class="note"><span>ⓘ</span><div>L’entraîneur garde toujours le joueur dans sa liste de présences : seul l’affichage côté parent / joueur est fermé. Un rappel est envoyé automatiquement à l’échéance.</div></div>`;
+
+V['suivi-dt'] = () => `${header('Suivi technique', 'Directeur technique : progression par groupe et alertes.')}
+  <div class="grid" style="margin-top:18px">${[['Benjamins 1', 3.5, '+0,2'], ['Poussines 1', 3.1, '+0,4'], ['Minimes 1', 3.8, '−0,1']].map(([g, v, d]) => `<div class="card"><div class="row"><h3>${g}</h3>${pill(d, d.startsWith('−') ? 'r' : 'g')}</div><div class="kpi">${String(v).replace('.', ',')}/5</div>${bar(v, 5)}<p class="mut">Objectifs travaillés ce mois : coup droit, service.</p></div>`).join('')}</div>
+  <h2>Alertes</h2><div class="list">${[['Rayen Hammami', '3 absences de suite', 'r'], ['Adam Trabelsi', 'Engagement en baisse (2 séances)', 's'], ['Lina Ben Ali', 'Douleur signalée au poignet (🙁)', 'r']].map(([n, t, tone]) => `<div class="li"><div class="who"><b>${n}</b>${pill(t, tone)}</div><div class="acts">${ico('eye', 'Voir', '', 'view')}</div></div>`).join('')}</div>`;
+
+// ───────── Rendu ─────────
+function render() {
+  $('#roles').innerHTML = ROLES.map(([k, l]) => `<button aria-pressed="${S.role === k}" data-role="${k}">${l}</button>`).join('');
+  $('#nav').innerHTML = MENUS[S.role].map(([k, l, isNew]) => k === 't' ? `<div class="t">${l}</div>` : `<button class="${S.screen === k ? 'on' : ''}" data-go="${k}">${l}${isNew ? '<span class="new">Nouveau</span>' : ''}</button>`).join('');
+  $('#main').innerHTML = (V[S.screen] || V.accueil)();
+  $('#modal').innerHTML = S.role === 'coach' && S.screen === 'seance' ? evalModal() : '';
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('button,[data-go],[data-act]');
+  if (!b) return;
+  const d = b.dataset;
+  if (d.role) { S.role = d.role; S.screen = MENUS[d.role][1][0]; }
+  else if (d.go) { if (d.kid) S.kid = d.kid; S.screen = d.go; window.scrollTo(0, 0); }
+  else if (d.obj) S.obj = d.obj;
+  else if (d.att) { const [i, k] = d.att.split('|'); S.att[i] = k; }
+  else if (d.mood) { const [i, m] = d.mood.split('|'); S.moods[i] = m; if (m === '🙁') toast('Douleur signalée : le parent et le directeur technique seront prévenus.'); }
+  else if (d.note) { const [i, c, n] = d.note.split('|').map(Number); S.notes[i][c] = n; }
+  else if (d.dot !== undefined) { b.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b)); return; }
+  else if (d.ex) { const x = EXERCISES.find((x) => x.id === Number(d.ex)); x.done = !x.done; toast(x.done ? 'Exercice marqué fait 👏' : 'Exercice marqué non fait.'); }
+  else if (d.view) S.view = d.view;
+  else if (d.eval !== undefined) S.evalOpen = Number(d.eval);
+  else if (d.act === 'close-eval') S.evalOpen = null;
+  else if (d.act === 'prev-eval' || d.act === 'next-eval') {
+    const list = present(), pos = list.indexOf(S.evalOpen);
+    if (d.act === 'next-eval' && pos === list.length - 1) { S.evalOpen = null; toast('Évaluation enregistrée : les parents voient la moyenne et le commentaire.'); }
+    else S.evalOpen = list[pos + (d.act === 'next-eval' ? 1 : -1)];
+  }
+  else if (d.act === 'save-session') { toast('Présences enregistrées. Pensez à évaluer la séance à la fin.'); return; }
+  else if (d.act === 'save-bilan') { toast('Bilan enregistré et partagé avec le parent.'); return; }
+  else if (d.act === 'del') { if (confirm('Archiver ce joueur ? (R8 : archivage, rien n’est supprimé)')) toast('Joueur archivé (démo).'); return; }
+  else if (d.act) { toast({ view: 'Ouverture de la fiche (démo).', pay: 'Encaissement (démo).', edit: 'Modification (démo).', give: 'Exercice donné au groupe : notification envoyée.', add: 'Ajout (démo).' }[d.act] || 'Démo.'); return; }
+  else if (b.id === 'theme') { const dark = document.documentElement.dataset.theme !== 'dark'; document.documentElement.dataset.theme = dark ? 'dark' : 'light'; b.textContent = dark ? '☀ Clair' : '☾ Sombre'; return; }
+  else return;
+  render();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'kid') { S.kid = e.target.value; render(); }
+  if (e.target.id === 'unpaid') { S.unpaidDemo = e.target.checked; render(); toast(S.unpaidDemo ? 'Tranche impayée simulée : ouvrez Suivi, Séances ou Exercices.' : 'Paiement à jour.'); }
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.evalOpen !== null) { S.evalOpen = null; render(); } });
+render();
+</script>
+</body>
+</html>
