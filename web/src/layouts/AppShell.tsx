@@ -230,6 +230,14 @@ export function AppShell() {
   useCoachOfflinePrefetch();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();
+  // Trait sous la barre du haut dès que la page défile (téléphone).
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const { t } = useI18n();
 
   useEffect(() => {
@@ -265,8 +273,13 @@ export function AppShell() {
         <SideContent onNavigate={() => setDrawerOpen(false)} />
       </aside>
 
-      <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-[calc(22px+env(safe-area-inset-top,0px))] pb-[calc(96px+env(safe-area-inset-bottom,0px))] nav:pb-[60px]">
-        <div className="no-print mb-[22px] flex items-center gap-3">
+      <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-0 pb-[calc(96px+env(safe-area-inset-bottom,0px))] nav:pt-[calc(22px+env(safe-area-inset-top,0px))] nav:pb-[60px]">
+        {/* Téléphone : barre du haut (menu, cloche, thème) toujours visible pendant le défilement. */}
+        <div
+          className={`no-print sticky top-0 z-20 -mx-[clamp(16px,3.5vw,40px)] mb-[14px] flex items-center gap-3 border-b-[1.5px] bg-bg px-[clamp(16px,3.5vw,40px)] pt-[calc(12px+env(safe-area-inset-top,0px))] pb-2.5 nav:static nav:mx-0 nav:mb-[22px] nav:border-0 nav:px-0 nav:pt-0 nav:pb-0 ${
+            scrolled ? 'border-line' : 'border-transparent'
+          }`}
+        >
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
           <span className="flex-1" />
           <NotificationBell />
@@ -283,7 +296,7 @@ export function AppShell() {
           <Outlet />
         </Suspense>
       </main>
-      <BottomTabs menuOpen={drawerOpen} onMenu={() => setDrawerOpen((v) => !v)} />
+      <BottomTabs />
     </div>
   );
 }

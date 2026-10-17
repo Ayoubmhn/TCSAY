@@ -1,7 +1,9 @@
 import type { ComponentType } from 'react';
 import { NavLink } from 'react-router';
 import { useMe } from '../auth/AuthContext';
-import { IconBell, IconCalendar, IconCard, IconChart, IconClipboard, IconGrid, IconHome, IconTrophy, IconWallet } from '../components/ui/Icons';
+import { IconBell, IconCalendar, IconCard, IconChart, IconClipboard, IconHome, IconTrophy, IconWallet } from '../components/ui/Icons';
+import { apiUrl } from '../lib/api';
+import { initials } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { firstPath, menuFor } from './menus';
 
@@ -34,11 +36,25 @@ function tabsFor(me: ReturnType<typeof useMe>): Tab[] {
   ];
 }
 
+/** Pastille ronde du compte : photo de profil, sinon initiales. */
+function AccountBadge({ active }: { active: boolean }) {
+  const me = useMe();
+  const src = apiUrl(me.photoUrl);
+  return (
+    <span
+      aria-hidden="true"
+      className={`grid h-[24px] w-[24px] place-items-center overflow-hidden rounded-full text-[10px] font-semibold ${active ? 'ring-2 ring-pri' : ''} ${src ? '' : 'bg-fld text-fg'}`}
+    >
+      {src ? <img src={src} alt="" className="h-full w-full object-cover" /> : initials(me.firstName, me.lastName)}
+    </span>
+  );
+}
+
 /**
- * Barre d'onglets en bas de l'écran (téléphone, sous 860 px) : 4 écrans principaux + « Menu » qui ouvre le tiroir
- * complet. Respecte la zone sûre des iPhone (barre d'accueil).
+ * Barre d'onglets en bas de l'écran (téléphone, sous 860 px) : 4 écrans principaux + « Compte » (photo de profil,
+ * Paramètres). Le menu complet s'ouvre avec le bouton du haut, toujours visible. Respecte la zone sûre des iPhone.
  */
-export function BottomTabs({ onMenu, menuOpen }: { onMenu: () => void; menuOpen: boolean }) {
+export function BottomTabs() {
   const me = useMe();
   const { t } = useI18n();
   const item = 'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[14px] py-1.5 text-[11px] font-medium';
@@ -54,10 +70,14 @@ export function BottomTabs({ onMenu, menuOpen }: { onMenu: () => void; menuOpen:
             <span className="truncate">{t(label)}</span>
           </NavLink>
         ))}
-        <button type="button" onClick={onMenu} aria-expanded={menuOpen} className={`${item} ${menuOpen ? 'bg-btn text-pri' : 'text-mut'}`}>
-          <IconGrid size={22} />
-          <span>{t('Menu')}</span>
-        </button>
+        <NavLink to="/parametres" className={({ isActive }) => `${item} ${isActive ? 'bg-btn text-pri' : 'text-mut'}`}>
+          {({ isActive }) => (
+            <>
+              <AccountBadge active={isActive} />
+              <span className="truncate">{t('Compte')}</span>
+            </>
+          )}
+        </NavLink>
       </div>
     </nav>
   );
