@@ -2,12 +2,13 @@ import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EmailKind, MatchStatus, PointKind, Prisma, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsNotEmpty, Max, Min, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { dayFromIso, isoDay } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReservationsService } from '../reservations/reservations.service';
 import { TBD, TournamentsService } from '../tournaments/tournaments.service';
 import { AnnotatedPoint, computeMatch, matchStats, MatchFormat, PointInput, scoreLine, Side } from './score-engine';
 
@@ -25,6 +26,11 @@ class CreateMatchDto {
   date: string;
 
   @IsOptional() @IsString() @MaxLength(40) court?: string;
+
+  /** Réserver le terrain (direction, entraîneur) : le créneau apparaît dans le planning des terrains. */
+  @IsOptional() @IsUUID() courtId?: string;
+  @ValidateIf((o: CreateMatchDto) => Boolean(o.courtId)) @Matches(/^\d{2}:\d{2}$/, { message: 'Heure du match (HH:MM) obligatoire pour réserver le terrain.' }) time?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(60) @Max(240) duration?: number;
 
   @IsOptional() @IsUUID() playerAId?: string;
   @ValidateIf((o: CreateMatchDto) => !o.playerAId) @IsString() @IsNotEmpty({ message: 'Joueur A obligatoire.' }) @MaxLength(80) playerAName?: string;
@@ -136,6 +142,7 @@ export class MatchesController {
     private readonly access: AccessService,
     private readonly audit: AuditService,
     private readonly tournaments: TournamentsService,
+    private readonly reservations: ReservationsService,
   ) {}
 
   /**
@@ -300,12 +307,20 @@ export class MatchesController {
       return p ? `${p.firstName} ${p.lastName}`.trim() : (fallback ?? '').trim();
     };
     if (dto.superTB && !dto.tiebreak) dto.tiebreak = true;
+    // Terrain réservé (direction, entraîneur) : créneau bloqué, visible dans le planning.
+    let booking: Awaited<ReturnType<ReservationsService['blockForMatch']>> | null = null;
+    if (dto.courtId) {
+      if (user.role !== Role.ADMIN && user.role !== Role.COACH) throw new ForbiddenException('Réservez le terrain depuis « Réserver un terrain ».');
+      booking = await this.reservations.blockForMatch(user, { courtId: dto.courtId, date: dto.date, time: dto.time!, duration: dto.duration ?? 90 });
+    }
     const m = await this.prisma.match.create({
       data: {
         kind: dto.kind,
         title: dto.title?.trim() || null,
         date: dayFromIso(dto.date),
-        court: dto.court?.trim() || null,
+        court: booking?.court ?? (dto.court?.trim() || null),
+        scheduledAt: booking?.start ?? null,
+        reservationId: booking?.id ?? null,
         playerAId: dto.playerAId ?? null,
         playerAName: nameOf(dto.playerAId, dto.playerAName),
         playerBId: dto.playerBId ?? null,
@@ -318,7 +333,7 @@ export class MatchesController {
         createdById: user.id,
       },
     });
-    await this.audit.log(user.id, { action: 'Match créé', entity: 'Match', entityId: m.id, target: `${m.playerAName} – ${m.playerBName}`, after: `${MATCH_KIND_LABEL[dto.kind]} · ${dto.date}` });
+    await this.audit.log(user.id, { action: 'Match créé', entity: 'Match', entityId: m.id, target: `${m.playerAName} – ${m.playerBName}`, after: `${MATCH_KIND_LABEL[dto.kind]} · ${booking?.label ?? dto.date}` });
     return { id: m.id };
   }
 
@@ -410,6 +425,13 @@ export class MatchesController {
         finishedAt: new Date(),
       },
     });
+    // Match annulé avant de commencer (hors tournoi) : le terrain réservé est libéré.
+    if (m.status === MatchStatus.SCHEDULED && m.reservationId && m.kind !== 'TOURNAMENT') {
+      await this.prisma.reservation.updateMany({
+        where: { id: m.reservationId, activeKey: { not: null }, endTime: { gt: new Date() } },
+        data: { activeKey: null, cancelledAt: new Date(), cancelledById: user.id, cancelReason: `Match annulé : ${dto.reason.trim()}` },
+      });
+    }
     await this.audit.log(user.id, { action: m.status === MatchStatus.SCHEDULED ? 'Match annulé' : 'Match abandonné', entity: 'Match', entityId: id, target: `${m.playerAName} – ${m.playerBName}`, reason: dto.reason });
     return { ok: true };
   }

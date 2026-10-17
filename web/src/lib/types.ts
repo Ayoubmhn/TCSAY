@@ -323,7 +323,7 @@ export type Reservation = {
   time: string;
   endTimeLabel: string;
   startTime: string;
-  type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT';
+  type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT' | 'MATCH';
   price: number;
   court: { id: string; name: string };
   player: PersonRef | null;
@@ -393,7 +393,17 @@ export type Planning = {
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
   sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[]; resolution: AbsenceResolution | null; replacement: CoachRef | null })[];
-  reservations: { id: string; courtId: string; startTime: string; endTime: string; type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT'; player: string | null; coach: { name: string; color: string } | null }[];
+  reservations: {
+    id: string;
+    courtId: string;
+    startTime: string;
+    endTime: string;
+    type: 'LEISURE' | 'PRIVATE' | 'TOURNAMENT' | 'MATCH';
+    player: string | null;
+    coach: { name: string; color: string } | null;
+    /** Créneau bloqué pour un match (tournoi, amical, interne). */
+    match?: { id: string; title: string | null; kind: string; players: string; status: string } | null;
+  }[];
   legend: { id: string; name: string; color: string }[];
 };
 

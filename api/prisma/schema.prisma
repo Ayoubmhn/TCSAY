@@ -127,6 +127,7 @@ enum ReservationType {
   LEISURE // Loisir (joueur, parent)
   PRIVATE // Séance privée (coach avec un élève)
   TOURNAMENT // Terrain bloqué pour un match de tournoi
+  MATCH // Terrain réservé pour un match amical ou interne
 }
 
 enum RatePeriod {

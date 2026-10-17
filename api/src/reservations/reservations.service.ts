@@ -146,6 +146,47 @@ export class ReservationsService {
     return rows.map((r) => this.view(r));
   }
 
+  /**
+   * Terrain bloqué pour un match amical ou interne (gratuit) : mêmes contrôles qu'une réservation (horaires du club,
+   * entretien, éclairage après la nuit, entraînements, chevauchement sous verrou par terrain).
+   */
+  async blockForMatch(user: AuthUser, dto: { courtId: string; date: string; time: string; duration: number }) {
+    const s = await this.settings.all();
+    const startMin = Number(dto.time.slice(0, 2)) * 60 + Number(dto.time.slice(3, 5));
+    const endMin = startMin + dto.duration;
+    if (startMin % BOOKING_STEP !== 0) throw new BadRequestException('Départ à l’heure pile ou à la demi-heure (ex. 17:30).');
+    if (dto.duration % BOOKING_STEP !== 0 || dto.duration < BOOKING_MINUTES || dto.duration > BOOKING_MAX_MINUTES) {
+      throw new BadRequestException(`Durée : de 1 h à ${BOOKING_MAX_MINUTES / 60} h, par tranches de 30 min.`);
+    }
+    if (startMin < s.openingHour * 60 || endMin > s.closingHour * 60) throw new BadRequestException(`Créneaux de ${s.openingHour}h à ${s.closingHour}h.`);
+    const start = instantAt(dto.date, startMin);
+    const end = instantAt(dto.date, endMin);
+    if (start <= new Date()) throw rule.conflict('R10', 'Créneau passé : réservation impossible.');
+    const court = await this.prisma.court.findUnique({ where: { id: dto.courtId } });
+    if (!court) throw notFound('Terrain');
+    if (!court.active || court.maintenance) throw new ConflictException(`${court.name} est en entretien ou désactivé.`);
+    if (!court.lit && endMin > s.nightStartHour * 60) throw new ConflictException(`Ce terrain n’est pas éclairé : pas de jeu après ${s.nightStartHour}h.`);
+    const slots = (
+      await this.prisma.groupSlot.findMany({
+        where: { courtId: court.id, group: { archivedAt: null, season: { status: 'ACTIVE' } } },
+        include: { group: { select: { name: true, ...periodSelect } } },
+      })
+    ).map(withPeriod);
+    const busy = slots.find((g) => slotOccupies(g, dto.date, startMin, dto.duration));
+    if (busy) throw new ConflictException(`Créneau réservé à l’entraînement « ${busy.group.name} ».`);
+    const r = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${court.id}))`;
+      const overlap = await tx.reservation.findFirst({ where: { courtId: court.id, activeKey: { not: null }, startTime: { lt: end }, endTime: { gt: start } } });
+      if (overlap) {
+        throw new ConflictException(`Créneau déjà pris (${hhmm(minutesOfDay(overlap.startTime))} – ${hhmm(minutesOfDay(overlap.endTime))}) : pas de double réservation.`);
+      }
+      return tx.reservation.create({
+        data: { courtId: court.id, type: ReservationType.MATCH, startTime: start, endTime: end, price: 0, bookedById: user.id, activeKey: `${court.id}|${start.toISOString()}` },
+      });
+    });
+    return { id: r.id, court: court.name, start, label: `${court.name} ${dto.date} ${hhmm(startMin)}–${hhmm(endMin)}` };
+  }
+
   async create(
     user: AuthUser,
     dto: {

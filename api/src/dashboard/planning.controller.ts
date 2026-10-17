@@ -53,6 +53,13 @@ export class PlanningController {
       this.prisma.coach.findMany({ where: { user: { isActive: true } }, include: { user: { select: { firstName: true, lastName: true } } } }),
     ]);
 
+    // Créneaux bloqués pour un match (tournoi, amical, interne) : titre et joueurs dans le planning.
+    const matches = await this.prisma.match.findMany({
+      where: { reservationId: { in: reservations.map((r) => r.id) } },
+      select: { id: true, reservationId: true, title: true, kind: true, playerAName: true, playerBName: true, status: true },
+    });
+    const matchOf = new Map(matches.map((m) => [m.reservationId, m]));
+
     return {
       date,
       weekday: weekday(date),
@@ -88,6 +95,10 @@ export class PlanningController {
         type: r.type,
         player: r.player ? fullName(r.player) : null,
         coach: r.coach ? { name: fullName(r.coach.user).trim(), color: r.coach.color } : null,
+        match: (() => {
+          const m = matchOf.get(r.id);
+          return m ? { id: m.id, title: m.title, kind: m.kind, players: `${m.playerAName} – ${m.playerBName}`, status: m.status } : null;
+        })(),
       })),
       legend: coaches.map((c) => ({ id: c.id, name: fullName(c.user).trim(), color: c.color })),
       absences: absences.map((a) => ({ coachId: a.coachId, slotId: a.slotId, date: isoDay(a.date) })),

@@ -18,7 +18,7 @@ class UpdateRateDto {
   pricePerHour: number;
 }
 
-export const TYPE_LABEL = { LEISURE: 'Loisir', PRIVATE: 'Séance privée', TOURNAMENT: 'Tournoi' } as const;
+export const TYPE_LABEL = { LEISURE: 'Loisir', PRIVATE: 'Séance privée', TOURNAMENT: 'Tournoi', MATCH: 'Match' } as const;
 export const PERIOD_LABEL = { DAY: 'Jour', NIGHT: 'Nuit' } as const;
 
 @ApiTags('Tarifs terrains')

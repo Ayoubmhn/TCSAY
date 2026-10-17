@@ -14,6 +14,7 @@ import { Section } from '../../components/ui/Section';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
 import { fD, todayIso } from '../../lib/format';
+import type { Court } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { first, type MatchSummary } from './types';
 
@@ -138,6 +139,16 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('');
   const [date, setDate] = useState(todayIso());
   const [court, setCourt] = useState('');
+  // Direction et entraîneurs : terrain réservé, créneau visible dans le planning des terrains.
+  const me = useMe();
+  const canBook = me.role === 'ADMIN' || me.role === 'COACH';
+  const [book, setBook] = useState(false);
+  const [courtId, setCourtId] = useState('');
+  const [time, setTime] = useState('17:00');
+  const [duration, setDuration] = useState(90);
+  const courts = useQuery({ queryKey: ['courts'], queryFn: () => api.get<Court[]>('/courts'), enabled: canBook && book });
+  const bookable = (courts.data ?? []).filter((c) => c.active && !c.maintenance);
+  const chosenCourt = courtId || bookable[0]?.id || '';
   const [a, setA] = useState('');
   const [aName, setAName] = useState('');
   const [b, setB] = useState('');
@@ -158,7 +169,8 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
         kind,
         title: title.trim() || undefined,
         date,
-        court: court.trim() || undefined,
+        court: book ? undefined : court.trim() || undefined,
+        ...(book && chosenCourt ? { courtId: chosenCourt, time, duration } : {}),
         playerAId: side(aSel, aName).id,
         playerAName: side(aSel, aName).name,
         playerBId: side(bSel, bName).id,
@@ -220,7 +232,35 @@ function CreateMatchModal({ onClose }: { onClose: () => void }) {
           <TextField label="Nom du joueur B" value={bName} maxLength={80} onChange={(e) => setBName(e.target.value)} placeholder="ex. Lina Haddad (ES Sahel)" />
         )}
         <TextField label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        <TextField label="Terrain (facultatif)" value={court} maxLength={40} onChange={(e) => setCourt(e.target.value)} placeholder="ex. Court 2" />
+        {book ? (
+          <SelectField label="Terrain réservé" value={chosenCourt} onChange={(e) => setCourtId(e.target.value)}>
+            {bookable.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.lit ? ' ☀' : ''}
+              </option>
+            ))}
+          </SelectField>
+        ) : (
+          <TextField label="Terrain (facultatif)" value={court} maxLength={40} onChange={(e) => setCourt(e.target.value)} placeholder="ex. Court 2" />
+        )}
+        {canBook && (
+          <label className="flex items-center gap-2 text-sm min-[561px]:col-span-2">
+            <input type="checkbox" checked={book} onChange={(e) => setBook(e.target.checked)} /> Réserver le terrain (créneau ajouté au planning des terrains)
+          </label>
+        )}
+        {book && (
+          <>
+            <TextField label="Heure de début" type="time" step={1800} value={time} onChange={(e) => setTime(e.target.value)} />
+            <SelectField label="Durée réservée" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+              {[60, 90, 120, 150, 180, 240].map((d) => (
+                <option key={d} value={d}>
+                  {d % 60 ? `${Math.floor(d / 60)} h 30` : `${d / 60} h`}
+                </option>
+              ))}
+            </SelectField>
+          </>
+        )}
         <SelectField label="Sets gagnants" value={setsToWin} onChange={(e) => setSetsToWin(Number(e.target.value))}>
           <option value={2}>2 sets gagnants</option>
           <option value={3}>3 sets gagnants</option>
