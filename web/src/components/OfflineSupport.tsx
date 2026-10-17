@@ -77,15 +77,35 @@ export function OfflineBanner() {
  * Entraîneur : tant que le réseau est là, prépare le terrain sans réseau (séances d'aujourd'hui et des 2 jours
  * suivants, feuilles de présence, objectifs de séance, écrans Présences et Séances).
  */
-export function useCoachOfflinePrefetch() {
+/**
+ * Préchargement pour le hors connexion (réseau disponible, toutes les 30 min) :
+ * entraîneur : ses séances (± 14 jours, comme l'écran), ses groupes, feuilles de présence et objectifs du jour et des 2 jours suivants ;
+ * joueur / parent : séances et absences de chaque enfant.
+ */
+export function useOfflinePrefetch() {
   const me = useMe();
+  const kids = me.players.map((p) => p.id).join(',');
   useEffect(() => {
-    if (me.space !== 'coach') return;
+    const coach = me.space === 'coach';
+    const family = me.space === 'parent' || me.space === 'player';
+    if (!coach && !family) return;
     let stop = false;
     const run = async () => {
       if (isOffline()) return;
+      if (family) {
+        void import('../pages/player/SessionsPage');
+        void import('../pages/player/AbsencesPage');
+        for (const playerId of kids.split(',').filter(Boolean)) {
+          if (stop) return;
+          await api.get('/sessions/player', { playerId }).catch(() => undefined);
+          await api.get('/absences', { playerId }).catch(() => undefined);
+        }
+        return;
+      }
       void import('../pages/coach/CoachAttendancePage');
       void import('../pages/coach/CoachSessionsPage');
+      await api.get('/groups').catch(() => undefined);
+      await api.get('/sessions', { from: addDays(todayIso(), -14), to: addDays(todayIso(), 14) }).catch(() => undefined);
       for (let i = 0; i < 3 && !stop; i++) {
         const day = addDays(todayIso(), i);
         const sessions = await api.get<CoachSession[]>('/sessions', { from: day, to: day }).catch(() => [] as CoachSession[]);
@@ -103,5 +123,5 @@ export function useCoachOfflinePrefetch() {
       clearTimeout(t);
       clearInterval(every);
     };
-  }, [me.space, me.id]);
+  }, [me.space, me.id, kids]);
 }

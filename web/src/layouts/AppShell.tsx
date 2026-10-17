@@ -11,7 +11,7 @@ import { Badge } from '../components/ui/Pill';
 import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
 import { BottomTabs } from './BottomTabs';
-import { OfflineBanner, useCoachOfflinePrefetch } from '../components/OfflineSupport';
+import { OfflineBanner, useOfflinePrefetch } from '../components/OfflineSupport';
 import { CLOSED_BY_DEFAULT, firstPath, isGroup, menuFor, type MenuItem } from './menus';
 
 // v2 : nouveau rangement du menu (les anciennes catégories repliées ne s'appliquent plus).
@@ -226,7 +226,7 @@ const SIDE = 'flex flex-col gap-[18px] overflow-hidden border-e-[1.5px] border-l
 
 /** Shell (.app) : menu 266px + zone principale ; tiroir 268px avec voile sous 860px. */
 export function AppShell() {
-  useCoachOfflinePrefetch();
+  useOfflinePrefetch();
   const home = firstPath(menuFor(useMe()));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { pathname } = useLocation();

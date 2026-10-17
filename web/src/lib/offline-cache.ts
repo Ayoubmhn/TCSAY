@@ -7,7 +7,7 @@ const PREFIX = 'tcsay-hc:';
 const MAX_AGE_MS = 3 * 86_400_000;
 
 /** Lectures gardées (chemin de l'API, sans /api/v1). */
-const CACHED = [/^\/auth\/me$/, /^\/sessions$/, /^\/sessions\/player$/, /^\/sessions\/review$/, /^\/attendance$/, /^\/absences$/, /^\/notifications(\/count)?$/];
+const CACHED = [/^\/auth\/me$/, /^\/groups$/, /^\/sessions$/, /^\/sessions\/player$/, /^\/sessions\/review$/, /^\/attendance$/, /^\/absences$/, /^\/notifications(\/count)?$/];
 
 export const isCachable = (path: string) => CACHED.some((r) => r.test(path));
 
