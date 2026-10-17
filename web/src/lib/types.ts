@@ -908,3 +908,27 @@ export type PaymentTemplate = {
   archivedAt: string | null;
   used: number;
 };
+
+/** Lecture des photos du cahier par IA (Gemini, niveau gratuit), réglée par le président. */
+export type AiStatus = {
+  enabled: boolean;
+  acceptedAt: string | null;
+  acceptedBy: string | null;
+  keyConfigured: boolean;
+  provider: string;
+  model: string;
+  limits: { photos: number; photoBytes: number };
+  usage: { month: string; pages: number; reads: number };
+};
+
+/** Résultat d'une lecture : lignes (colonnes du tableau), cases douteuses (index de ligne) et compte rendu par page. */
+export type AiReadResult = {
+  kind: 'players' | 'payments';
+  rows: Record<string, string>[];
+  doubts: { row: number; field: string; reason: string }[];
+  pages: { page: number; rows: number; doubts: number; error: string | null }[];
+  model: string;
+};
+
+/** Ligne du tableau des paiements du cahier, corrigée à l'écran. */
+export type PaymentRawRow = { name: string; nameAr: string; amount: string; paid: string; method: string; receipt: string; date: string };

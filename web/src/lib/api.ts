@@ -162,6 +162,12 @@ export const api = {
     for (const [k, v] of Object.entries(fields)) form.append(k, v);
     return request<T>(method, path, form);
   },
+  /** Envoi de plusieurs images (multipart, même champ répété : « photos »). */
+  uploadMany: <T>(path: string, files: Blob[], field = 'photos') => {
+    const form = new FormData();
+    files.forEach((f, i) => form.append(field, f, `photo-${i + 1}.jpg`));
+    return request<T>('POST', path, form);
+  },
 };
 
 /** Image protégée (photo jointe d'une réclamation…) : téléchargée avec le jeton, rendue en adresse locale. */

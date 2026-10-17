@@ -9,7 +9,8 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
-import { EMPTY_RAW, ImportTable } from '../../features/players/ImportTable';
+import { AiPhotoReader, PhotoPanel, type AiPages } from '../../features/ai/AiPhotoReader';
+import { EMPTY_RAW, ImportTable, type Doubts } from '../../features/players/ImportTable';
 import type { ImportPreview, ImportRawRow, ImportReport, ImportStatus, PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
@@ -34,7 +35,12 @@ function downloadReport(report: ImportReport, fileName: string) {
  * puis confirmation. Les lignes en erreur sont ignorées ; un groupe inconnu laisse le joueur sans groupe.
  */
 export function PlayersImportPage() {
-  const [file, setFile] = useState<File>();
+  // Nom de la source : fichier Excel ou « Photos du cahier (IA) ».
+  const [fileName, setFileName] = useState<string>();
+  // Photos lues par l'IA (gardées sur l'appareil) et cases douteuses.
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [doubts, setDoubts] = useState<Doubts>(new Map());
+  const [focusRow, setFocusRow] = useState<number | null>(null);
   const [preview, setPreview] = useState<ImportPreview>();
   const [report, setReport] = useState<ImportReport>();
   const [filter, setFilter] = useState<'all' | ImportStatus>('all');
@@ -51,20 +57,20 @@ export function PlayersImportPage() {
     },
   });
   useEffect(() => {
-    if (!table || !file) return;
+    if (!table || !fileName) return;
     const id = ++seq.current;
     setChecking(true);
     const t = setTimeout(() => {
       api
-        .post<ImportPreview>('/players/import/preview-table', { fileName: file.name, rows: table })
+        .post<ImportPreview>('/players/import/preview-table', { fileName, rows: table })
         .then((r) => id === seq.current && setPreview(r))
         .catch(() => undefined)
         .finally(() => id === seq.current && setChecking(false));
     }, 500);
     return () => clearTimeout(t);
-  }, [table, file]);
+  }, [table, fileName]);
   const [plan, setPlan] = useState<PaymentPlan>('FULL');
-  const commit = useAction(() => api.post<ImportReport>('/players/import/commit-table', { fileName: file!.name, rows: table, plan }), {
+  const commit = useAction(() => api.post<ImportReport>('/players/import/commit-table', { fileName, rows: table, plan }), {
     invalidate: [['players'], ['parents'], ['groups'], ['dashboard'], ['categories']],
     success: (r) => `${r.imported.length} joueur(s) importé(s) avec leur cotisation, ${r.parentsCreated} parent(s) créé(s).`,
     onSuccess: (r) => {
@@ -78,11 +84,31 @@ export function PlayersImportPage() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
-    setFile(f);
+    setFileName(f.name);
+    clearPhotos();
     setPreview(undefined);
     setTable(undefined);
     setReport(undefined);
     analyze.mutate(f);
+  };
+
+  const clearPhotos = () => {
+    photos.forEach((u) => URL.revokeObjectURL(u));
+    setPhotos([]);
+    setDoubts(new Map());
+    setFocusRow(null);
+  };
+  const fromPhotos = ({ result, photos: urls }: AiPages) => {
+    clearPhotos();
+    setFileName(`Photos du cahier (IA) · ${new Date().toLocaleDateString('fr-FR')}`);
+    setPhotos(urls);
+    setTable(result.rows.map((r) => ({ ...EMPTY_RAW, ...r }) as ImportRawRow));
+    const d: Doubts = new Map();
+    for (const x of result.doubts) d.set(x.row, { ...d.get(x.row), [x.field]: x.reason });
+    setDoubts(d);
+    setPreview(undefined);
+    setReport(undefined);
+    setFilter('all');
   };
 
   const importable = preview ? preview.ok + preview.warnings : 0;
@@ -91,7 +117,7 @@ export function PlayersImportPage() {
     <>
       <PageHeader
         title="Importer des joueurs"
-        subtitle="Découvrez l’aperçu de votre fichier Excel avant de l’enregistrer."
+        subtitle="Découvrez l’aperçu de votre fichier Excel ou des photos du cahier avant de l’enregistrer."
         action={
           <Link className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg" to="/admin/joueurs">
             ← Joueurs
@@ -101,12 +127,14 @@ export function PlayersImportPage() {
 
       <Filters>
         <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg focus-within:outline-2 focus-within:outline-pri">
-          {file ? 'Choisir un autre fichier' : 'Choisir le fichier (.xlsx)'}
+          {fileName ? 'Choisir un autre fichier' : 'Choisir le fichier (.xlsx)'}
           <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={pick} />
         </label>
-        {file && <Pill tone="b">{file.name}</Pill>}
+        {fileName && <Pill tone="b">{fileName}</Pill>}
         {analyze.isPending && <Pill tone="s">Analyse…</Pill>}
       </Filters>
+
+      {!table && <AiPhotoReader kind="players" onRead={fromPhotos} />}
 
       {!preview && !report && !analyze.isPending && (
         <Note>
@@ -128,6 +156,7 @@ export function PlayersImportPage() {
               <Pill tone="r">{preview.errors} ignorée(s)</Pill>
               <Pill tone="b">{preview.newParents} parent(s) à créer</Pill>
               <Pill tone="b">{preview.withGroup} avec groupe</Pill>
+              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)} case(s) douteuse(s) lue(s) par l’IA</Pill>}
               {checking && <Pill tone="s">Vérification…</Pill>}
             </Pills>
             <Filters>
@@ -146,8 +175,11 @@ export function PlayersImportPage() {
               </Button>
             </Filters>
           </Section>
-          <div className="mt-2.5">
-            <ImportTable table={table} preview={preview} filter={filter} onChange={setTable} />
+          <div className={`mt-2.5 ${photos.length ? 'grid items-start gap-3 min-[1100px]:grid-cols-[minmax(260px,360px)_minmax(0,1fr)]' : ''}`}>
+            <PhotoPanel photos={photos} />
+            <div className="min-w-0">
+              <ImportTable table={table} preview={preview} filter={filter} onChange={setTable} doubts={doubts} onDoubts={setDoubts} highlight={focusRow} onFocusRow={setFocusRow} />
+            </div>
           </div>
           <Note>
             Corrigez directement dans le tableau (nom, nom en arabe, naissance, genre, téléphone, emails, parent, groupe…) : l’analyse
@@ -169,7 +201,7 @@ export function PlayersImportPage() {
             <Pill tone={report.skipped.length ? 'r' : 'g'}>{report.skipped.length} ignoré(s)</Pill>
           </Pills>
           <Filters>
-            <Button onClick={() => downloadReport(report, file?.name ?? 'joueurs')}>Télécharger le rapport (CSV)</Button>
+            <Button onClick={() => downloadReport(report, fileName ?? 'joueurs')}>Télécharger le rapport (CSV)</Button>
             <Link className="inline-flex items-center justify-center rounded-full bg-pri px-4 py-[9px] text-sm font-medium text-white" to="/admin/joueurs">
               Voir les joueurs
             </Link>

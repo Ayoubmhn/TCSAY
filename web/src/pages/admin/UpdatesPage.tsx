@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Card, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
@@ -11,7 +11,9 @@ import { Segmented } from '../../components/ui/Segmented';
 import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import { DT, formatDate } from '../../lib/format';
-import type { GroupUpdatePreview, PaymentPlan, PaymentUpdatePreview } from '../../lib/types';
+import { AiPhotoReader, PhotoPanel, type AiPages } from '../../features/ai/AiPhotoReader';
+import { EMPTY_PAYMENT, PaymentTable, type Doubts } from '../../features/players/ImportTable';
+import type { GroupUpdatePreview, PaymentPlan, PaymentRawRow, PaymentUpdatePreview } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 type Mode = 'groups' | 'payments';
@@ -51,8 +53,24 @@ export function UpdatesPage() {
   const [correctNames, setCorrectNames] = useState(true);
   const [plan, setPlan] = useState<PaymentPlan>('FULL');
   const [done, setDone] = useState<string>();
+  // Paiements lus sur des photos du cahier par l'IA : tableau modifiable, photos gardées sur l'appareil, cases douteuses.
+  const [table, setTable] = useState<PaymentRawRow[]>();
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [doubts, setDoubts] = useState<Doubts>(new Map());
+  const [focusRow, setFocusRow] = useState<number | null>(null);
+  const [checking, setChecking] = useState(false);
+  const seq = useRef(0);
+  const tableName = `Photos du cahier des paiements (IA) · ${new Date().toLocaleDateString('fr-FR')}`;
 
+  const clearPhotos = () => {
+    photos.forEach((u) => URL.revokeObjectURL(u));
+    setPhotos([]);
+    setDoubts(new Map());
+    setFocusRow(null);
+    setTable(undefined);
+  };
   const reset = () => {
+    clearPhotos();
     setFile(undefined);
     setGroups(undefined);
     setPayments(undefined);
@@ -66,9 +84,45 @@ export function UpdatesPage() {
         : api.upload<PaymentUpdatePreview>('/imports/payments/preview', f).then((r) => setPayments(r)),
     {},
   );
+  // Tableau corrigé à l'écran : analyse refaite après chaque modification (rien n'est enregistré).
+  useEffect(() => {
+    if (!table) return;
+    const id = ++seq.current;
+    setChecking(true);
+    const t = setTimeout(() => {
+      api
+        .post<PaymentUpdatePreview>('/imports/payments/preview-table', { fileName: tableName, rows: table })
+        .then((r) => id === seq.current && setPayments(r))
+        .catch(() => undefined)
+        .finally(() => id === seq.current && setChecking(false));
+    }, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table]);
+  const fromPhotos = ({ result, photos: urls }: AiPages) => {
+    clearPhotos();
+    setFile(undefined);
+    setGroups(undefined);
+    setPayments(undefined);
+    setDone(undefined);
+    setFilter('all');
+    setPhotos(urls);
+    setTable(result.rows.map((r) => ({ ...EMPTY_PAYMENT, ...r }) as PaymentRawRow));
+    const d: Doubts = new Map();
+    for (const x of result.doubts) d.set(x.row, { ...d.get(x.row), [x.field]: x.reason });
+    setDoubts(d);
+  };
+
   const commit = useAction(
     () =>
-      mode === 'groups'
+      table
+        ? api
+            .post<{ imported: unknown[]; total: number; failed: { name: string; messages: string[] }[] }>('/imports/payments/commit-table', { fileName: tableName, rows: table, plan })
+            .then(
+              (r) =>
+                `${r.imported.length} paiement(s) enregistré(s) (${DT(r.total)}).${r.failed.length ? ` Échec : ${r.failed.map((f) => `${f.name} (${f.messages.join(', ')})`).join(' ; ')}` : ''}`,
+            )
+        : mode === 'groups'
         ? api
             .upload<{ moved: number; renamed: number }>('/imports/groups/commit', file!, { correctNames: String(correctNames) })
             .then((r) => `${r.moved} affectation(s), ${r.renamed} nom(s) corrigé(s).`)
@@ -85,6 +139,7 @@ export function UpdatesPage() {
         setDone(msg);
         setGroups(undefined);
         setPayments(undefined);
+        clearPhotos();
       },
     },
   );
@@ -93,6 +148,7 @@ export function UpdatesPage() {
     const f = e.target.files?.[0];
     e.target.value = '';
     if (!f) return;
+    clearPhotos();
     setFile(f);
     setGroups(undefined);
     setPayments(undefined);
@@ -128,6 +184,8 @@ export function UpdatesPage() {
         {analyze.isPending && <Pill tone="s">Analyse…</Pill>}
       </Filters>
 
+      {mode === 'payments' && !table && <AiPhotoReader kind="payments" onRead={fromPhotos} />}
+
       {!preview && !done && (
         <Note>
           {mode === 'groups' ? (
@@ -159,6 +217,8 @@ export function UpdatesPage() {
               {groups && <Pill tone="b">{groups.moves} affectation(s)</Pill>}
               {groups && <Pill tone="s">{groups.corrections} nom(s) à corriger</Pill>}
               {payments && <Pill tone="g">{DT(payments.amount)} à enregistrer</Pill>}
+              {table && checking && <Pill tone="s">Vérification…</Pill>}
+              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)} case(s) douteuse(s) lue(s) par l’IA</Pill>}
             </Pills>
             <Filters>
               <FilterSelect label="Filtrer par état" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
@@ -178,12 +238,22 @@ export function UpdatesPage() {
                   <PlanOptions prefix="Cotisation à créer : " short />
                 </FilterSelect>
               )}
-              <Button variant="primary" disabled={!applicable || commit.isPending} onClick={() => commit.mutate()}>
+              {table && <Button onClick={() => setTable([...table, { ...EMPTY_PAYMENT }])}>+ Ajouter une ligne</Button>}
+              {table && <Button onClick={reset}>Abandonner</Button>}
+              <Button variant="primary" disabled={!applicable || commit.isPending || checking} onClick={() => commit.mutate()}>
                 {commit.isPending ? 'Enregistrement…' : `Appliquer (${applicable})`}
               </Button>
             </Filters>
           </Section>
-          <div className="mt-2.5">
+          {table && (
+            <div className={`mt-2.5 ${photos.length ? 'grid items-start gap-3 min-[1100px]:grid-cols-[minmax(260px,360px)_minmax(0,1fr)]' : ''}`}>
+              <PhotoPanel photos={photos} />
+              <div className="min-w-0">
+                <PaymentTable table={table} preview={payments} filter={filter} onChange={setTable} doubts={doubts} onDoubts={setDoubts} highlight={focusRow} onFocusRow={setFocusRow} />
+              </div>
+            </div>
+          )}
+          <div className={`mt-2.5 ${table ? 'hidden' : ''}`}>
             <CardGrid list>
               {groups &&
                 keep(groups.rows).map((r) => (

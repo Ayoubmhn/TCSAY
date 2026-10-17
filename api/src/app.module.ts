@@ -1,3 +1,5 @@
+import { AiImportController } from './ai/ai-import.controller';
+import { AiImportService } from './ai/ai-import.service';
 import { UpdatesController } from './imports/updates.controller';
 import { UpdatesService } from './imports/updates.service';
 import { LoginThrottle } from './security/login-throttle';
@@ -75,6 +77,7 @@ import { StaffController } from './staff/staff.controller';
 @Module({
   imports: [PrismaModule, CoreModule, SeasonsModule],
   controllers: [
+    AiImportController,
     UpdatesController,
     HealthController,
     AuthController,
@@ -127,6 +130,7 @@ import { StaffController } from './staff/staff.controller';
     AlbumsController,
   ],
   providers: [
+    AiImportService,
     UpdatesService,
     LoginThrottle,
     PermissionsCodeService,

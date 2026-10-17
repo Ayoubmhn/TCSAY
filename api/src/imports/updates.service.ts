@@ -54,6 +54,14 @@ type PaymentRow = {
 };
 
 /** Seuils de reconnaissance d'un nom : au-dessus de SURE, sûr ; entre MAYBE et SURE, à vérifier ; en dessous, introuvable. */
+/** Ligne du tableau des paiements corrigé à l'écran (mêmes colonnes que le fichier Excel du cahier). */
+export type PaymentRawRow = { name: string; nameAr: string; amount: string; paid: string; method: string; receipt: string; date: string };
+const PAYMENT_HEADER = ['Joueur', 'Nom en arabe', 'Montant', 'Payé', 'Mode', 'N° reçu', 'Date'];
+const paymentGrid = (rows: PaymentRawRow[]): Cell[][] => [
+  PAYMENT_HEADER,
+  ...rows.map((r) => [r.name, r.nameAr, r.amount, r.paid, r.method, r.receipt, r.date].map((v) => (v?.trim() ? v.trim() : null))),
+];
+
 const SURE = 0.86;
 const MAYBE = 0.55;
 
@@ -320,7 +328,15 @@ export class UpdatesService {
   // ───────────────────────── Paiements du cahier ─────────────────────────
 
   async analyzePayments(buffer: Buffer, fileName: string) {
-    const rows = this.read(buffer);
+    return this.analyzePaymentGrid(this.read(buffer), fileName);
+  }
+
+  /** Lignes du tableau corrigé à l'écran (photo lue par l'IA) : mêmes contrôles que le fichier Excel. */
+  analyzePaymentTable(rows: PaymentRawRow[], fileName: string) {
+    return this.analyzePaymentGrid(paymentGrid(rows), fileName);
+  }
+
+  private async analyzePaymentGrid(rows: Cell[][], fileName: string) {
     const isName = (h: string) => h.includes('joueur') || h.includes('nom') || h.includes('الاسم');
     const head = headerRow(rows, isName);
     if (!head) throw new BadRequestException('Colonne « Joueur » (ou « Nom en arabe ») introuvable.');
@@ -421,7 +437,13 @@ export class UpdatesService {
       const method = /cheque|chq|شيك|صك/.test(methodRaw) ? PaymentMethod.CHEQUE : PaymentMethod.CASH;
       const dateCell = C.date >= 0 ? r[C.date] : null;
       const date =
-        typeof dateCell === 'number' ? excelDate(dateCell) : /^\d{2}\/\d{2}\/\d{4}$/.test(str(dateCell) ?? '') ? str(dateCell)!.split('/').reverse().join('-') : todayIso();
+        typeof dateCell === 'number'
+          ? excelDate(dateCell)
+          : /^\d{2}\/\d{2}\/\d{4}$/.test(str(dateCell) ?? '')
+            ? str(dateCell)!.split('/').reverse().join('-')
+            : /^\d{4}-\d{2}-\d{2}$/.test(str(dateCell) ?? '') && !Number.isNaN(Date.parse(str(dateCell)!))
+              ? str(dateCell)!
+              : todayIso();
 
       out.push({
         line: i + 1,
@@ -453,7 +475,15 @@ export class UpdatesService {
   }
 
   async commitPayments(actor: AuthUser, buffer: Buffer, fileName: string, plan: PaymentPlan) {
-    const preview = await this.analyzePayments(buffer, fileName);
+    return this.commitPaymentGrid(actor, this.read(buffer), fileName, plan);
+  }
+
+  commitPaymentTable(actor: AuthUser, rows: PaymentRawRow[], fileName: string, plan: PaymentPlan) {
+    return this.commitPaymentGrid(actor, paymentGrid(rows), fileName, plan);
+  }
+
+  private async commitPaymentGrid(actor: AuthUser, grid: Cell[][], fileName: string, plan: PaymentPlan) {
+    const preview = await this.analyzePaymentGrid(grid, fileName);
     const rows = preview.rows.filter((r) => r.status !== 'error' && r.player && r.paid);
     if (!rows.length) throw new BadRequestException('Aucune ligne applicable dans ce fichier.');
     const season = await this.access.activeSeason();
