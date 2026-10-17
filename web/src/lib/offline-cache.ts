@@ -1,13 +1,32 @@
 /**
  * Hors connexion : dernières réponses de quelques lectures utiles sur le terrain (profil, séances, feuilles de présence,
- * accueil, notifications), gardées sur l'appareil et resservies quand le réseau manque. Tout est effacé à la déconnexion.
- * Aucune donnée de paiement n'est gardée.
+ * accueil, suivi, bilans, exercices, matchs, tournois, événements, notifications), gardées sur l'appareil et resservies
+ * quand le réseau manque. Tout est effacé à la déconnexion. Aucun écran de paiement n'est gardé (l'accueil garde le seul
+ * total à régler de la famille).
  */
 const PREFIX = 'tcsay-hc:';
 const MAX_AGE_MS = 3 * 86_400_000;
 
 /** Lectures gardées (chemin de l'API, sans /api/v1). */
-const CACHED = [/^\/auth\/me$/, /^\/groups$/, /^\/sessions$/, /^\/sessions\/player$/, /^\/sessions\/review$/, /^\/attendance$/, /^\/absences$/, /^\/notifications(\/count)?$/];
+const CACHED = [
+  /^\/auth\/me$/,
+  /^\/me\/overview$/,
+  /^\/groups$/,
+  /^\/sessions$/,
+  /^\/sessions\/player$/,
+  /^\/sessions\/review$/,
+  /^\/attendance$/,
+  /^\/absences$/,
+  /^\/coach-absences$/,
+  /^\/notifications(\/count)?$/,
+  /^\/progress$/,
+  /^\/evaluations\/(player|criteria|groups|group)$/,
+  /^\/exercises(\/mine|\/assignments)?$/,
+  /^\/matches(\/[0-9a-f-]{36})?$/,
+  /^\/tournaments(\/history|\/[0-9a-f-]{36})?$/,
+  /^\/events(\/[0-9a-f-]{36})?$/,
+  /^\/albums$/,
+];
 
 export const isCachable = (path: string) => CACHED.some((r) => r.test(path));
 

@@ -12,6 +12,7 @@ import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
 import { BottomTabs } from './BottomTabs';
 import { OfflineBanner, useOfflinePrefetch } from '../components/OfflineSupport';
+import { PageErrorBoundary } from '../components/PageErrorBoundary';
 import { CLOSED_BY_DEFAULT, firstPath, isGroup, menuFor, type MenuItem } from './menus';
 
 // v2 : nouveau rangement du menu (les anciennes catégories repliées ne s'appliquent plus).
@@ -290,15 +291,17 @@ export function AppShell() {
           <NotificationBell />
         </div>
         <OfflineBanner />
-        <Suspense
-          fallback={
-            <div className="grid min-h-[50vh] place-items-center p-6">
-              <EmptyState>Chargement…</EmptyState>
-            </div>
-          }
-        >
-          <Outlet />
-        </Suspense>
+        <PageErrorBoundary resetKey={pathname}>
+          <Suspense
+            fallback={
+              <div className="grid min-h-[50vh] place-items-center p-6">
+                <EmptyState>Chargement…</EmptyState>
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
+        </PageErrorBoundary>
       </main>
       <BottomTabs />
     </div>

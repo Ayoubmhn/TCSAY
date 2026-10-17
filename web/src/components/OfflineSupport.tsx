@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useMe } from '../auth/AuthContext';
+import { preloadPages } from '../lib/lazy-page';
 import { api } from '../lib/api';
 import { addDays, todayIso } from '../lib/format';
 import { isOffline, onNetwork } from '../lib/offline-cache';
@@ -80,11 +81,17 @@ export function OfflineBanner() {
 /**
  * Préchargement pour le hors connexion (réseau disponible, toutes les 30 min) :
  * entraîneur : ses séances (± 14 jours, comme l'écran), ses groupes, feuilles de présence et objectifs du jour et des 2 jours suivants ;
- * joueur / parent : séances et absences de chaque enfant.
+ * joueur / parent : séances, absences, suivi, exercices et tournois de chaque enfant ;
+ * tous : événements, tournois, matchs. Les écrans eux-mêmes sont téléchargés une fois (`preloadPages`).
  */
 export function useOfflinePrefetch() {
   const me = useMe();
   const kids = me.players.map((p) => p.id).join(',');
+  // Tous les écrans téléchargés une fois (10 s après l'ouverture) : ils s'ouvriront ensuite sans réseau.
+  useEffect(() => {
+    const t = setTimeout(() => void preloadPages(), 10_000);
+    return () => clearTimeout(t);
+  }, []);
   useEffect(() => {
     const coach = me.space === 'coach';
     const family = me.space === 'parent' || me.space === 'player';
@@ -92,6 +99,7 @@ export function useOfflinePrefetch() {
     let stop = false;
     const run = async () => {
       if (isOffline()) return;
+      for (const path of ['/events', '/tournaments', '/matches', '/evaluations/criteria']) await api.get(path).catch(() => undefined);
       if (family) {
         void import('../pages/player/SessionsPage');
         void import('../pages/player/AbsencesPage');
@@ -99,12 +107,22 @@ export function useOfflinePrefetch() {
           if (stop) return;
           await api.get('/sessions/player', { playerId }).catch(() => undefined);
           await api.get('/absences', { playerId }).catch(() => undefined);
+          await api.get('/progress', { playerId }).catch(() => undefined);
+          await api.get('/exercises/mine', { playerId }).catch(() => undefined);
+          await api.get('/tournaments/history', me.space === 'parent' ? { playerId } : {}).catch(() => undefined);
         }
         return;
       }
       void import('../pages/coach/CoachAttendancePage');
       void import('../pages/coach/CoachSessionsPage');
-      await api.get('/groups').catch(() => undefined);
+      for (const path of ['/groups', '/exercises', '/exercises/assignments', '/coach-absences']) await api.get(path).catch(() => undefined);
+      // Bilans : feuille de chaque groupe pour la période en cours.
+      const period = (() => {
+        const m = new Date().getMonth() + 1;
+        return m >= 9 ? 'T1' : m <= 3 ? 'T2' : m <= 6 ? 'T3' : 'ETE';
+      })();
+      const evalGroups = await api.get<{ id: string }[]>('/evaluations/groups').catch(() => [] as { id: string }[]);
+      for (const g of evalGroups) if (!stop) await api.get('/evaluations/group', { groupId: g.id, period }).catch(() => undefined);
       await api.get('/sessions', { from: addDays(todayIso(), -14), to: addDays(todayIso(), 14) }).catch(() => undefined);
       for (let i = 0; i < 3 && !stop; i++) {
         const day = addDays(todayIso(), i);

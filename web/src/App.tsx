@@ -10,6 +10,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { PaymentGate } from './components/PaymentGate';
 import { PermissionsGate } from './components/PermissionsGate';
 import { page } from './lib/lazy-page';
+import { PageErrorBoundary } from './components/PageErrorBoundary';
 
 // Chaque écran est chargé à sa première ouverture (fichiers séparés) : premier affichage plus rapide, surtout sur téléphone.
 const SeasonDetailPage = page(() => import('./features/seasons/SeasonDetailPage'), 'SeasonDetailPage');
@@ -141,6 +142,7 @@ const admin = (perm: string[] | undefined, page: ReactNode) => (
 
 export function App() {
   return (
+    <PageErrorBoundary full>
     <Suspense fallback={<Loading />}>
       <Routes>
       <Route path="/connexion" element={<LoginPage />} />
@@ -250,5 +252,6 @@ export function App() {
       </Route>
       </Routes>
     </Suspense>
+    </PageErrorBoundary>
   );
 }
