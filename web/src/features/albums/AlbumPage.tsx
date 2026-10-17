@@ -11,7 +11,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
-import { api, apiUrl } from '../../lib/api';
+import { api, apiUrl, errorMessage } from '../../lib/api';
+import { isInApp } from '../../lib/pwa';
 import { fD } from '../../lib/format';
 import { uploadPhotos } from './upload';
 import { useAction } from '../../lib/useAction';
@@ -77,6 +78,39 @@ function TagEditor({ album, photo, onDone }: { album: AlbumDetail; photo: AlbumP
   );
 }
 
+/** Enregistre une photo sur l'appareil : téléchargement (ordinateur, Android), feuille de partage (iPhone), navigateur (application). */
+async function savePhoto(url: string, name: string): Promise<'app' | 'done'> {
+  const full = new URL(apiUrl(url)!, window.location.href).href;
+  if (isInApp()) {
+    // L'application ouvre la photo dans le navigateur du téléphone (appui long › Télécharger l'image).
+    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'open-url', value: full }));
+    return 'app';
+  }
+  const blob = await (await fetch(full)).blob();
+  const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+  const file = new File([blob], `${name}.${ext}`, { type: blob.type });
+  if (/iPhone|iPad|iPod/.test(navigator.userAgent) && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file] }).catch(() => undefined);
+    return 'done';
+  }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(file);
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10_000);
+  return 'done';
+}
+
+const slug = (s: string) =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase() || 'photo';
+
 /** Album : grille des photos ; grande photo avec identification, retrait (famille) ou gestion (direction). */
 export function AlbumPage() {
   const { id = '' } = useParams();
@@ -91,9 +125,61 @@ export function AlbumPage() {
   const [askHide, setAskHide] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const input = useRef<HTMLInputElement>(null);
+  const strip = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
   const keys = [['album', id], ['albums']];
   const photo = a && open !== null ? a.photos[open] : undefined;
   useEffect(() => setTagging(false), [open]);
+  const count = a?.photos.length ?? 0;
+  const go = (d: number) => setOpen((i) => (i === null ? i : Math.min(count - 1, Math.max(0, i + d))));
+
+  // Défilement gauche / droite : la bande suit la photo choisie (boutons, clavier, vignette).
+  const first = useRef(true);
+  useEffect(() => {
+    const el = strip.current;
+    if (open === null) {
+      first.current = true;
+      return;
+    }
+    if (!el) return;
+    const w = el.clientWidth;
+    if (Math.round(Math.abs(el.scrollLeft) / w) !== open) {
+      const rtl = getComputedStyle(el).direction === 'rtl';
+      el.scrollTo({ left: (rtl ? -1 : 1) * open * w, behavior: first.current ? 'auto' : 'smooth' });
+    }
+    first.current = false;
+  }, [open, photo]);
+  const onStripScroll = () => {
+    const el = strip.current;
+    if (!el || open === null) return;
+    const i = Math.round(Math.abs(el.scrollLeft) / el.clientWidth);
+    if (i !== open && i >= 0 && i < count) setOpen(i);
+  };
+  // Flèches du clavier (hors saisie de texte).
+  useEffect(() => {
+    if (open === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest('input, textarea, select')) return;
+      const rtl = document.documentElement.dir === 'rtl';
+      if (e.key === 'ArrowRight') go(rtl ? -1 : 1);
+      if (e.key === 'ArrowLeft') go(rtl ? 1 : -1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, count]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const download = async () => {
+    if (!photo || !a || open === null) return;
+    setSaving(true);
+    try {
+      const r = await savePhoto(photo.fullUrl, `${slug(a.title)}-${open + 1}`);
+      if (r === 'app') toast('Photo ouverte dans le navigateur : appui long sur l’image › Télécharger.');
+    } catch (e) {
+      toast(errorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const upload = async (files: FileList) => {
     const { ok, errors } = await uploadPhotos(id, [...files], (done, total) => setProgress({ done, total }));
@@ -189,11 +275,14 @@ export function AlbumPage() {
           photo && (
             <div className="flex w-full flex-wrap items-center justify-between gap-2">
               <div className="flex gap-2">
-                <Button onClick={() => setOpen((i) => (i !== null && i > 0 ? i - 1 : i))} disabled={open === 0} aria-label="Photo précédente">
+                <Button onClick={() => go(-1)} disabled={open === 0} aria-label="Photo précédente">
                   ‹
                 </Button>
-                <Button onClick={() => setOpen((i) => (i !== null && a && i < a.photos.length - 1 ? i + 1 : i))} disabled={!a || open === a.photos.length - 1} aria-label="Photo suivante">
+                <Button onClick={() => go(1)} disabled={!a || open === a.photos.length - 1} aria-label="Photo suivante">
                   ›
+                </Button>
+                <Button onClick={() => void download()} disabled={saving} aria-label="Télécharger la photo">
+                  {saving ? '…' : '⬇ Télécharger'}
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -224,7 +313,20 @@ export function AlbumPage() {
       >
         {photo && a && (
           <div className="flex flex-col gap-3">
-            <img src={apiUrl(photo.fullUrl)} alt={photo.caption ?? ''} className="mx-auto max-h-[62dvh] w-auto max-w-full rounded-[18px] object-contain" />
+            <div
+              ref={strip}
+              onScroll={onStripScroll}
+              className="flex h-[62dvh] snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label="Photos : glissez à gauche ou à droite"
+            >
+              {a.photos.map((p, i) => (
+                <div key={p.id} className="flex h-full w-full shrink-0 snap-center items-center justify-center">
+                  {Math.abs(i - (open ?? 0)) <= 1 && (
+                    <img src={apiUrl(p.fullUrl)} alt={p.caption ?? `Photo ${i + 1}`} draggable={false} className="max-h-full w-auto max-w-full rounded-[18px] object-contain" />
+                  )}
+                </div>
+              ))}
+            </div>
             {photo.caption && <p className="text-center">{photo.caption}</p>}
             <Pills>
               {photo.tags.map((t) => (

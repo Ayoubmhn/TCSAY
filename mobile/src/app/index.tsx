@@ -124,6 +124,8 @@ export default function SiteScreen() {
           if (p.status === 'denied') openNotificationSettings();
         });
       if (msg.type === 'push-settings') openNotificationSettings();
+      // Télécharger une photo d'album : ouverte dans le navigateur du téléphone (appui long › Télécharger l'image).
+      if (msg.type === 'open-url' && msg.value?.startsWith('https://')) void Linking.openURL(msg.value).catch(() => undefined);
     } catch {
       /* message ignoré */
     }
