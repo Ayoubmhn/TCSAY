@@ -191,6 +191,38 @@ export type Court = {
   maintenance: boolean;
   version: number;
   futureReservations: number;
+  /** Réservation en ligne : familles, entraîneurs, soir, jours (0 = dimanche), heures, fermetures ponctuelles. */
+  bookFamilies: boolean;
+  bookCoaches: boolean;
+  bookNight: boolean;
+  bookDays: number[];
+  bookFrom: string | null;
+  bookTo: string | null;
+  closures: { id: string; fromDate: string; toDate: string; reason: string }[];
+};
+
+export type BookingRules = {
+  maxUpcomingAccount: number;
+  maxUpcomingFamily: number;
+  maxHoursWeek: number;
+  maxPerDayPlayer: number;
+  advanceDays: number;
+  peakPerWeek: number;
+  cancelsPerMonth: number;
+  noShowLimit: number;
+  blockDays: number;
+  attemptsPerHour: number;
+  noArrears: boolean;
+};
+
+export type BookingUsage = {
+  rules: BookingRules;
+  upcomingAccount: number;
+  upcomingFamily: number;
+  hoursWeek: number;
+  peakWeek: number;
+  lastDay: string;
+  block: { until: string; reason: string } | null;
 };
 
 export type GroupKind = 'LEISURE' | 'COMPETITIVE';
@@ -307,7 +339,7 @@ export type ReceiptLayout = {
   footer: string[];
 };
 
-export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
+export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'closed' | 'past';
 
 /** Grille de réservation : départs toutes les 30 min (« 17:30 »), une heure de jeu. */
 export type Grid = {
@@ -335,6 +367,9 @@ export type Reservation = {
   player: PersonRef | null;
   coach: { id: string; firstName: string; lastName: string } | null;
   bookedBy: string | null;
+  bookedById?: string;
+  /** Absence sans annuler signalée par le club. */
+  noShow?: boolean;
 };
 
 export type Salary = {

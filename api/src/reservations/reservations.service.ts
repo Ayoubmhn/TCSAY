@@ -12,8 +12,9 @@ import { periodSelect, slotOccupies, withPeriod } from '../common/sessions';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
+import { BookingRulesService, type Origin } from './booking-rules.service';
 
-export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'past';
+export type SlotState = 'free' | 'short' | 'mine' | 'taken' | 'group' | 'maintenance' | 'unlit' | 'closed' | 'past';
 
 /**
  * Une réservation commence à l'heure pile ou à la demi-heure (ex. 17:30) et dure une heure au moins,
@@ -49,6 +50,7 @@ export class ReservationsService {
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
+    private readonly rules: BookingRulesService,
   ) {}
 
   /** Grille heures × terrains d'un jour, vue par l'utilisateur (« mine » = ses réservations ou celles de l'enfant choisi). */
@@ -56,11 +58,14 @@ export class ReservationsService {
     const s = await this.settings.all();
     const ownPlayer =
       user.role === Role.PLAYER || user.role === Role.PARENT ? await this.access.resolvePlayer(user, playerId) : null;
-    const [courts, reservations, season] = await Promise.all([
+    const [allCourts, reservations, season, closures] = await Promise.all([
       this.prisma.court.findMany({ orderBy: { sortOrder: 'asc' } }),
       this.prisma.reservation.findMany({ where: { activeKey: { not: null }, ...this.dayRange(day) } }),
       this.prisma.season.findFirst({ where: { status: 'ACTIVE', archivedAt: null } }),
+      this.rules.closures(day),
     ]);
+    // Seuls les terrains ouverts à la réservation pour ce compte (familles, entraîneurs) apparaissent.
+    const courts = allCourts.filter((c) => this.rules.visibleTo(c, user));
     const groupSlots = season
       ? (
           await this.prisma.groupSlot.findMany({
@@ -93,6 +98,7 @@ export class ReservationsService {
           return mine ? 'mine' : 'taken';
         }
         if (groupSlots.some((g) => g.courtId === court.id && slotOccupies(g, day, start, BOOKING_STEP))) return 'group';
+        if (this.rules.closedReason(court, day, start, end, s.nightStartHour, closures, user)) return 'closed';
         return 'free';
       };
       return {
@@ -198,7 +204,10 @@ export class ReservationsService {
       playerId?: string;
       type?: ReservationType;
     },
+    origin: Origin = { ip: null, deviceId: null },
   ) {
+    // Filet de sécurité : tentatives par appareil et par adresse IP (familles et entraîneurs).
+    if (user.role !== Role.ADMIN) await this.rules.throttle(origin);
     const s = await this.settings.all();
     // Départ « HH:MM » à l'heure pile ou à la demi-heure (« hour » accepté pour compatibilité).
     const startMin = dto.time ? Number(dto.time.slice(0, 2)) * 60 + Number(dto.time.slice(3, 5)) : (dto.hour ?? -1) * 60;
@@ -243,6 +252,13 @@ export class ReservationsService {
     if (playerId) {
       const player = await this.prisma.player.findUnique({ where: { id: playerId } });
       if (!player || player.archivedAt) throw notFound('Joueur');
+    }
+    // Terrain ouvert à la réservation, blocage, limites par compte et par famille, cotisation à jour.
+    try {
+      await this.rules.assertAllowed(user, { court, day: dto.date, startMin, endMin, playerId, nightStart: s.nightStartHour });
+    } catch (e) {
+      this.rules.refused(origin);
+      throw e;
     }
 
     // Créneau occupé par un groupe d'entraînement de la saison active.
@@ -289,6 +305,8 @@ export class ReservationsService {
             price,
             bookedById: user.id,
             activeKey: `${court.id}|${start.toISOString()}`,
+            deviceId: origin.deviceId,
+            ip: origin.ip,
           },
           include,
         });
@@ -338,6 +356,9 @@ export class ReservationsService {
       data: { activeKey: null, cancelledAt: new Date(), cancelledById: user.id, cancelReason: reason?.trim() || null },
     });
     const label = `${r.court.name} ${localDayOf(r.startTime)} ${hhmm(minutesOfDay(r.startTime))}`;
+    // Annulations répétées : blocage automatique au-delà de la limite.
+    const blocked = await this.rules.afterCancel(user);
+    if (blocked) await this.audit.log(user.id, { action: 'Réservation suspendue (automatique)', entity: 'User', entityId: user.id, target: fullName(user).trim() || 'compte', after: blocked.reason });
     if (user.role === Role.COACH) {
       await this.audit.log(user.id, { action: 'Séance privée annulée', entity: 'Reservation', entityId: id, target: label });
     }
@@ -390,6 +411,8 @@ export class ReservationsService {
       player: r.player,
       coach: r.coach ? { id: r.coach.id, ...r.coach.user } : null,
       bookedBy: r.bookedBy ? fullName(r.bookedBy) : null,
+      bookedById: r.bookedById,
+      noShow: Boolean(r.noShowAt),
     };
   }
 }

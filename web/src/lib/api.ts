@@ -75,6 +75,20 @@ export function setPermissionsCode(code: string | null): void {
 
 type Query = Record<string, string | number | boolean | undefined | null>;
 
+/** Identifiant aléatoire de cet appareil (sécurité des réservations : plusieurs comptes sur un même téléphone). */
+function deviceId(): string | null {
+  try {
+    let id = localStorage.getItem('tcsay.device');
+    if (!id) {
+      id = (crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`).replace(/[^a-zA-Z0-9-]/g, '');
+      localStorage.setItem('tcsay.device', id);
+    }
+    return id;
+  } catch {
+    return null;
+  }
+}
+
 async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`, window.location.origin);
   for (const [key, value] of Object.entries(query ?? {})) {
@@ -88,6 +102,8 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   const space = getSpace();
   if (space) headers['X-Espace'] = space;
   if (permissionsCode && path.startsWith('/permissions')) headers['X-Code-Autorisations'] = permissionsCode;
+  const device = deviceId();
+  if (device) headers['X-Device'] = device;
 
   const cachable = method === 'GET' && isCachable(path);
   let res: Response;

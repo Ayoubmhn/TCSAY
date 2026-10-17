@@ -9,6 +9,7 @@ const LABEL: Record<SlotState | 'chosen', string> = {
   group: 'Groupe',
   maintenance: 'Entretien',
   unlit: 'Sans éclairage',
+  closed: 'Fermé',
   past: '—',
   chosen: 'Choisi',
 };
@@ -21,6 +22,7 @@ const STYLE: Record<SlotState | 'chosen', string> = {
   group: 'bg-pr text-ink',
   maintenance: 'bg-ps text-ink',
   unlit: 'bg-ps text-ink',
+  closed: 'bg-ps text-ink',
   past: 'bg-fld text-fg opacity-35',
   chosen: 'bg-sel text-white',
 };

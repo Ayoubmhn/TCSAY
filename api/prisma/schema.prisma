@@ -234,6 +234,7 @@ model User {
   complaintMessages  ComplaintMessage[]      @relation("ComplaintMessageAuthor")
   albumsCreated      Album[]                 @relation("AlbumCreatedBy")
   albumMembers       AlbumMember[]
+  reservationBlocks  ReservationBlock[]      @relation("ReservationBlocked")
   eventMembers       EventMember[]
   eventResponses     EventResponse[]         @relation("EventResponder")
 }
@@ -406,20 +407,60 @@ model Enrollment {
 // ───────────────────────── Groupes et terrains ─────────────────────────
 
 model Court {
-  id          String       @id @default(uuid()) @db.Uuid
-  name        String       @unique
-  surface     CourtSurface
-  lit         Boolean      @default(false) // éclairé : réservable la nuit
-  active      Boolean      @default(true) // R11
-  maintenance Boolean      @default(false)
-  sortOrder   Int          @default(0)
-  version     Int          @default(1)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id           String       @id @default(uuid()) @db.Uuid
+  name         String       @unique
+  surface      CourtSurface
+  lit          Boolean      @default(false) // éclairé : réservable la nuit
+  active       Boolean      @default(true) // R11
+  maintenance  Boolean      @default(false)
+  sortOrder    Int          @default(0)
+  /// Réservation en ligne : qui peut réserver, quels jours (0 = dimanche), quelles heures, le soir ou non.
+  bookFamilies Boolean      @default(true)
+  bookCoaches  Boolean      @default(true)
+  bookNight    Boolean      @default(true)
+  bookDays     Int[]        @default([0, 1, 2, 3, 4, 5, 6])
+  bookFrom     String? // « 08:00 » ; vide = ouverture du club
+  bookTo       String? // « 14:00 » ; vide = fermeture du club
+  version      Int          @default(1)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
   slots        GroupSlot[]
   reservations Reservation[]
   sessionMoves SessionChange[]
+  closures     CourtClosure[]
+}
+
+/// Fermeture ponctuelle d'un terrain à la réservation en ligne (entretien, tournoi…).
+model CourtClosure {
+  id          String   @id @default(uuid()) @db.Uuid
+  courtId     String   @db.Uuid
+  fromDate    DateTime @db.Date
+  toDate      DateTime @db.Date
+  reason      String
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now())
+
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@index([courtId, toDate])
+}
+
+/// Compte bloqué de la réservation (abus, annulations répétées, absences) : manuel ou automatique.
+model ReservationBlock {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String    @db.Uuid
+  reason      String
+  until       DateTime
+  automatic   Boolean   @default(false)
+  createdById String?   @db.Uuid
+  liftedAt    DateTime?
+  liftedById  String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+
+  user User @relation("ReservationBlocked", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, until])
 }
 
 model TrainingGroup {
@@ -522,6 +563,12 @@ model Reservation {
   cancelledAt   DateTime?
   cancelledById String?         @db.Uuid
   cancelReason  String?
+  /// Sécurité : appareil (identifiant aléatoire du navigateur) et adresse IP de la réservation (IP effacée après 30 jours).
+  deviceId      String?
+  ip            String?
+  /// Absence sans annuler (signalée par le club).
+  noShowAt      DateTime?
+  noShowById    String?         @db.Uuid
   createdAt     DateTime        @default(now())
 
   court       Court          @relation(fields: [courtId], references: [id])

@@ -131,6 +131,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconCourt,
     children: [
       { label: 'Réservations', path: '/admin/reservations', perm: ['reservations.manage'] },
+      { label: 'Règles de réservation', path: '/admin/regles-reservation', perm: ['reservations.manage', 'permissions.manage'] },
       { label: 'Terrains', path: '/admin/terrains', perm: ['courts.manage'] },
     ],
   },

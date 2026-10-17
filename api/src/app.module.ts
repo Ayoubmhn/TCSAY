@@ -57,6 +57,7 @@ import { PlayersService } from './players/players.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReservationsController } from './reservations/reservations.controller';
 import { ReservationsService } from './reservations/reservations.service';
+import { BookingRulesService } from './reservations/booking-rules.service';
 import { PhotosController } from './photos/photos.controller';
 import { ComplaintsController } from './complaints/complaints.controller';
 import { AlbumsController } from './albums/albums.controller';
@@ -135,6 +136,7 @@ import { StaffController } from './staff/staff.controller';
     ReceiptsService,
     PlayersImportService,
     ReservationsService,
+    BookingRulesService,
     SalariesService,
     PhotosService,
     ComplaintsService,

@@ -17,7 +17,7 @@ import { Section } from '../components/ui/Section';
 import { useToast } from '../components/ui/Toast';
 import { api } from '../lib/api';
 import { addDays, DT, fD, todayIso } from '../lib/format';
-import type { CourtRate, Grid, Player, Reservation, Settings, SlotState } from '../lib/types';
+import type { BookingUsage, CourtRate, Grid, Player, Reservation, Settings, SlotState } from '../lib/types';
 import { useAction } from '../lib/useAction';
 import { useViewMode, ViewToggle } from '../components/ui/ViewToggle';
 import { ActionIcon } from '../components/ui/ActionIcon';
@@ -26,11 +26,34 @@ const BLOCKED: Partial<Record<SlotState, string>> = {
   short: 'Une réservation dure au moins une heure : la demi-heure suivante est occupée. Commencez plus tôt, puis prolongez jusqu’ici.',
   unlit: 'Ce terrain n’est pas éclairé : réservation impossible la nuit.',
   maintenance: 'Terrain en entretien.',
+  closed: 'Ce créneau n’est pas ouvert à la réservation en ligne (jours, heures ou fermeture du terrain).',
   past: 'Créneau passé : modification impossible (R10).',
   taken: 'Créneau déjà pris : pas de double réservation.',
   group: 'Créneau réservé à un groupe d’entraînement.',
   mine: 'Vous avez déjà réservé ce créneau.',
 };
+
+/** Mes limites de réservation (règles du club) : à venir, heures de la semaine, soir / week-end. */
+function Limits({ u }: { u: BookingUsage }) {
+  const r = u.rules;
+  const items: [string, boolean][] = [];
+  if (r.maxUpcomingFamily) items.push([`${u.upcomingFamily} / ${r.maxUpcomingFamily} à venir`, u.upcomingFamily >= r.maxUpcomingFamily]);
+  if (r.maxHoursWeek) items.push([`${u.hoursWeek} h / ${r.maxHoursWeek} h cette semaine`, u.hoursWeek >= r.maxHoursWeek]);
+  if (r.peakPerWeek) items.push([`Soir et week-end : ${u.peakWeek} / ${r.peakPerWeek}`, u.peakWeek >= r.peakPerWeek]);
+  return (
+    <div className="flex flex-col gap-1.5 border-t-[1.5px] border-line pt-3">
+      <span className="text-[13px] text-mut">Vos limites (règles du club)</span>
+      <Pills>
+        {items.map(([t, full]) => (
+          <Pill key={t} tone={full ? 'r' : 'b'}>
+            {t}
+          </Pill>
+        ))}
+        <Pill tone="s">Jusqu’au {fD(u.lastDay, { day: 'numeric', month: 'short' })}</Pill>
+      </Pills>
+    </div>
+  );
+}
 
 /** Réserver un terrain (vBook) : loisir pour joueur / parent, séance privée pour le coach. */
 export function BookPage() {
@@ -63,6 +86,7 @@ export function BookPage() {
   });
   const rates = useQuery({ queryKey: ['court-rates'], queryFn: () => api.get<CourtRate[]>('/court-rates') });
   const settings = useQuery({ queryKey: ['settings'], queryFn: () => api.get<Settings>('/settings') });
+  const usage = useQuery({ queryKey: ['reservations', 'limits', day], queryFn: () => api.get<BookingUsage>('/reservations/limits', { date: day }) });
   const mine = useQuery({
     queryKey: ['reservations', 'mine', playerId],
     queryFn: () => api.get<Reservation[]>('/reservations/mine', { playerId }),
@@ -123,6 +147,12 @@ export function BookPage() {
         <Pill tone="s">{typeLabel}</Pill>
       </Filters>
 
+      {usage.data?.block && (
+        <Card className="mb-3 bg-topay">
+          <b>Réservation suspendue jusqu’au {fD(usage.data.block.until.slice(0, 10), { day: 'numeric', month: 'long' })}</b>
+          <span className="text-[14px]">{usage.data.block.reason}. Contactez le club pour en parler.</span>
+        </Card>
+      )}
       <DayChips value={day} onChange={setDay} />
       <Pills className="my-3">
         <Pill tone="g">Libre</Pill>
@@ -174,6 +204,7 @@ export function BookPage() {
           ) : (
             <span className="text-mut">Cliquez un créneau libre (1 h), puis une autre demi-heure du même terrain pour prolonger (jusqu’à 4 h). Flèches du clavier pour vous déplacer.</span>
           )}
+          {usage.data && !isCoach && <Limits u={usage.data} />}
         </Card>
       </div>
 
