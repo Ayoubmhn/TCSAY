@@ -8,7 +8,6 @@ import { Brand } from '../components/ui/Brand';
 import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
 import { MenuButton } from '../components/ui/MenuButton';
 import { Badge } from '../components/ui/Pill';
-import { ThemeToggle } from '../components/ui/ThemeToggle';
 import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
 import { BottomTabs } from './BottomTabs';
@@ -274,7 +273,7 @@ export function AppShell() {
       </aside>
 
       <main className="print-main min-w-0 px-[clamp(16px,3.5vw,40px)] pt-0 pb-[calc(96px+env(safe-area-inset-bottom,0px))] nav:pt-[calc(22px+env(safe-area-inset-top,0px))] nav:pb-[60px]">
-        {/* Téléphone : barre du haut (menu, cloche, thème) toujours visible pendant le défilement. */}
+        {/* Téléphone : barre du haut (menu, cloche) toujours visible pendant le défilement. */}
         <div
           className={`no-print sticky top-0 z-20 -mx-[clamp(16px,3.5vw,40px)] mb-[14px] flex items-center gap-3 border-b-[1.5px] bg-bg px-[clamp(16px,3.5vw,40px)] pt-[calc(12px+env(safe-area-inset-top,0px))] pb-2.5 nav:static nav:mx-0 nav:mb-[22px] nav:border-0 nav:px-0 nav:pt-0 nav:pb-0 ${
             scrolled ? 'border-line' : 'border-transparent'
@@ -283,7 +282,6 @@ export function AppShell() {
           <MenuButton expanded={drawerOpen} onClick={() => setDrawerOpen((v) => !v)} />
           <span className="flex-1" />
           <NotificationBell />
-          <ThemeToggle />
         </div>
         <OfflineBanner />
         <Suspense
