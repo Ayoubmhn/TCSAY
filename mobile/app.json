@@ -3,7 +3,7 @@
     "name": "TCSAY",
     "slug": "tcsay",
     "scheme": "tcsay",
-    "version": "0.2.0",
+    "version": "0.4.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,7 @@
     },
     "android": {
       "package": "tn.tcsay.app",
-      "versionCode": 2,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -52,6 +52,12 @@
     ],
     "experiments": {
       "typedRoutes": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "473bf412-9e5c-428a-8807-eff409bedc3c"
+      }
     }
   }
 }
