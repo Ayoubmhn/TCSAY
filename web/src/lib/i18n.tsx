@@ -206,6 +206,8 @@ const DICT: Record<string, [string, string]> = {
   Date: ['Date', 'التاريخ'],
   Statut: ['Status', 'الحالة'],
   Compte: ['Account', 'الحساب'],
+  Photos: ['Photos', 'الصور'],
+  'Albums photos': ['Photo albums', 'ألبومات الصور'],
   Rôle: ['Role', 'الدور'],
   Fonction: ['Position', 'الوظيفة'],
   Rémunération: ['Pay', 'الأجر'],

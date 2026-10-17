@@ -101,6 +101,14 @@ export const IconMail = (p: IconProps) => (
   </Svg>
 );
 
+export const IconImage = (p: IconProps) => (
+  <Svg {...p}>
+    <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
+    <circle cx="8.5" cy="9.5" r="1.6" />
+    <path d="m4 18 5-5 3.5 3.5L15 14l5 4.5" />
+  </Svg>
+);
+
 export const IconLogout = (p: IconProps) => (
   <Svg {...p}>
     <path d="M10 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20H10M15 8l-4 4 4 4M11 12h10" />

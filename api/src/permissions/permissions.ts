@@ -28,6 +28,7 @@ export const PERMISSIONS = [
   { key: 'expenses.manage', label: 'Dépenses (factures, déclarations)', group: 'Finances' },
   { key: 'emails.view', label: 'Emails envoyés', group: 'Suivi' },
   { key: 'notifications.send', label: 'Envoyer des notifications (parents, joueurs, entraîneurs)', group: 'Suivi' },
+  { key: 'albums.manage', label: 'Albums photos (création, envoi, identification, retrait)', group: 'Suivi' },
   { key: 'complaints.manage', label: 'Réclamations et suggestions (toutes, sauf comportement : président)', group: 'Suivi' },
   { key: 'import.manage', label: 'Import de l’historique', group: 'Suivi' },
 ] as const;

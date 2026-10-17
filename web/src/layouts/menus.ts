@@ -7,6 +7,7 @@ import {
   IconClipboard,
   IconCourt,
   IconHome,
+  IconImage,
   IconMail,
   IconRacket,
   IconSettings,
@@ -52,6 +53,7 @@ const PLAYER_MENU: MenuItem[] = [
   { label: 'Mes paiements', path: '/paiements', icon: IconCard },
   { label: 'Réserver un terrain', path: '/reserver', icon: IconCourt },
   { label: 'Tournois', path: '/tournois', icon: IconTrophy },
+  { label: 'Photos', path: '/photos', icon: IconImage },
   { label: 'Réclamations', path: '/reclamations', icon: IconMail },
 ];
 
@@ -66,6 +68,7 @@ const COACH_MENU: MenuItem[] = [
   { label: 'Mes disponibilités', path: '/coach/disponibilites', icon: IconClock },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
+  { label: 'Photos', path: '/photos', icon: IconImage },
   { label: 'Réclamations', path: '/reclamations', icon: IconMail },
 ];
 
@@ -134,6 +137,7 @@ const ADMIN_MENU: MenuItem[] = [
     icon: IconMail,
     children: [
       { label: 'Envoyer une notification', path: '/admin/notifications', perm: ['notifications.send'] },
+      { label: 'Albums photos', path: '/photos' },
       { label: 'Réclamations', path: '/admin/reclamations', perm: ['complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage'] },
       { label: 'Emails envoyés', path: '/admin/emails', perm: ['emails.view'] },
     ],

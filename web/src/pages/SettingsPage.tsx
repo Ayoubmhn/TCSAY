@@ -15,6 +15,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { ForgotPasswordModal } from '../components/ForgotPassword';
 import { Section } from '../components/ui/Section';
 import { PhotoEditor } from '../components/PhotoEditor';
+import { PhotoConsent } from '../components/PhotoConsent';
 import { Segmented } from '../components/ui/Segmented';
 import { setTheme, useTheme, type Theme } from '../components/ui/ThemeToggle';
 import { useToast } from '../components/ui/Toast';
@@ -81,6 +82,11 @@ export function SettingsPage() {
               <CardText>{t('Informations personnelles modifiables par le club seulement.')}</CardText>
             </Card>
           </Section>
+          {(me.role === 'PARENT' || me.role === 'PLAYER') && (
+            <Section title="Autorisation photo">
+              <PhotoConsent />
+            </Section>
+          )}
           {me.role === 'PARENT' && me.players.length > 0 && (
             <Section title="Photos de mes enfants">
               <Card className="gap-4">

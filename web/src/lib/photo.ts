@@ -54,3 +54,40 @@ export async function resizedPhoto(file: File, max = 1280): Promise<Blob> {
     URL.revokeObjectURL(url);
   }
 }
+
+/**
+ * Photo d'album : grande (1600 px au plus, proportions gardées) et vignette carrée 400 px, JPEG sans métadonnées.
+ */
+export async function albumPhoto(file: File): Promise<{ full: Blob; thumb: Blob; width: number; height: number }> {
+  if (!file.type.startsWith('image/')) throw new Error(`${file.name} : ce n’est pas une image.`);
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = () => reject(new Error(`${file.name} : image illisible.`));
+      i.src = url;
+    });
+    const draw = (w: number, h: number, sx: number, sy: number, sw: number, sh: number, quality: number) => {
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      const ctx = c.getContext('2d');
+      if (!ctx) throw new Error('Photo impossible à préparer sur cet appareil.');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+      return new Promise<Blob>((resolve, reject) => c.toBlob((b) => (b ? resolve(b) : reject(new Error('Photo impossible à préparer.'))), 'image/jpeg', quality));
+    };
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
+    const k = Math.min(1, 1600 / Math.max(W, H));
+    const width = Math.round(W * k);
+    const height = Math.round(H * k);
+    const side = Math.min(W, H);
+    const [full, thumb] = await Promise.all([draw(width, height, 0, 0, W, H, 0.82), draw(400, 400, (W - side) / 2, (H - side) / 2, side, side, 0.78)]);
+    return { full, thumb, width, height };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

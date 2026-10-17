@@ -232,6 +232,8 @@ model User {
   complaintsTargeted Complaint[]             @relation("ComplaintTarget")
   complaintsAssigned Complaint[]             @relation("ComplaintAssignee")
   complaintMessages  ComplaintMessage[]      @relation("ComplaintMessageAuthor")
+  albumsCreated      Album[]                 @relation("AlbumCreatedBy")
+  albumMembers       AlbumMember[]
 }
 
 /// Autorisations par rôle, modifiables par le président (le président a toujours tout).
@@ -295,6 +297,11 @@ model Player {
   tournamentEntries      TournamentEntry[]
   photo                  ProfilePhoto?
   complaints             Complaint[]
+  albumMembers           AlbumMember[]
+  photoTags              PhotoTag[]
+  /// Autorisation photo (albums) : true accordée, false refusée, null sans réponse (règle du club : Setting photos.consent).
+  photoConsent           Boolean?
+  photoConsentAt         DateTime?
 
   @@unique([memberYear, memberSeq])
   @@index([lastName, firstName])
@@ -433,6 +440,7 @@ model TrainingGroup {
   exerciseAssignments ExerciseAssignment[]
   reservations        Reservation[]
   feeSchedules        FeeSchedule[]
+  albums              Album[]
 
   @@unique([seasonId, name])
 }
@@ -875,6 +883,7 @@ model Match {
   playerB     Player?      @relation("MatchPlayerB", fields: [playerBId], references: [id])
   createdBy   User         @relation(fields: [createdById], references: [id])
   points      MatchPoint[]
+  albums      Album[]
 
   @@index([date])
   @@index([status])
@@ -909,6 +918,7 @@ model Event {
   published Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  albums    Album[]
 }
 
 /// Paramètres modifiables par l'admin (délai d'annulation, début de la nuit…).
@@ -1170,6 +1180,7 @@ model Tournament {
   entries        TournamentEntry[]
   matches        Match[]
   sessionChanges SessionChange[]
+  albums         Album[]
 
   @@index([startDate])
 }
@@ -1354,4 +1365,99 @@ model ComplaintMessage {
   author    User      @relation("ComplaintMessageAuthor", fields: [authorId], references: [id])
 
   @@index([complaintId])
+}
+
+// ───────────────────────── Albums photos ─────────────────────────
+
+enum AlbumKind {
+  TOURNAMENT // tournoi : inscrits, leurs parents, arbitres
+  MATCH // match : les deux joueurs, leurs parents, l'arbitre
+  GROUP // groupe d'entraînement : joueurs, parents, entraîneurs
+  EVENT // événement du club
+  FREE // sans contexte
+}
+
+enum AlbumAudience {
+  CONTEXT // personnes liées au contexte (+ personnes ajoutées)
+  EVERYONE // tous les membres connectés du club
+  CUSTOM // seulement les personnes et joueurs choisis
+}
+
+/// Album photos : son contexte et son audience décident qui le voit ; jamais public.
+model Album {
+  id           String        @id @default(uuid()) @db.Uuid
+  title        String
+  description  String?
+  kind         AlbumKind
+  audience     AlbumAudience @default(CONTEXT)
+  date         DateTime      @db.Date
+  tournamentId String?       @db.Uuid
+  matchId      String?       @db.Uuid
+  groupId      String?       @db.Uuid
+  eventId      String?       @db.Uuid
+  createdById  String        @db.Uuid
+  notifiedAt   DateTime?
+  archivedAt   DateTime?
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tournament Tournament?    @relation(fields: [tournamentId], references: [id])
+  match      Match?         @relation(fields: [matchId], references: [id])
+  group      TrainingGroup? @relation(fields: [groupId], references: [id])
+  event      Event?         @relation(fields: [eventId], references: [id])
+  createdBy  User           @relation("AlbumCreatedBy", fields: [createdById], references: [id])
+  members    AlbumMember[]
+  photos     AlbumPhoto[]
+
+  @@index([kind, date])
+}
+
+/// Personne ajoutée à l'audience : un compte (parent, joueur, arbitre…) ou un joueur (sa famille).
+model AlbumMember {
+  id       String  @id @default(uuid()) @db.Uuid
+  albumId  String  @db.Uuid
+  userId   String? @db.Uuid
+  playerId String? @db.Uuid
+
+  album  Album   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, userId])
+  @@unique([albumId, playerId])
+}
+
+/// Photo d'un album : réduite à 1600 px et vignette 400 px dans le navigateur (sans position GPS).
+model AlbumPhoto {
+  id           String    @id @default(uuid()) @db.Uuid
+  albumId      String    @db.Uuid
+  mime         String
+  data         Bytes
+  thumb        Bytes
+  width        Int
+  height       Int
+  caption      String?
+  uploadedById String    @db.Uuid
+  hiddenAt     DateTime? // retirée (demande d'une famille ou de la direction)
+  hiddenById   String?   @db.Uuid
+  hiddenReason String?
+  createdAt    DateTime  @default(now())
+
+  album Album      @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  tags  PhotoTag[]
+
+  @@index([albumId])
+}
+
+/// Joueur identifié sur une photo (identification faite à la main, sans reconnaissance faciale).
+model PhotoTag {
+  photoId  String @db.Uuid
+  playerId String @db.Uuid
+
+  photo  AlbumPhoto @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  player Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([photoId, playerId])
+  @@index([playerId])
 }

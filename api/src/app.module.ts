@@ -58,6 +58,8 @@ import { ReservationsController } from './reservations/reservations.controller';
 import { ReservationsService } from './reservations/reservations.service';
 import { PhotosController } from './photos/photos.controller';
 import { ComplaintsController } from './complaints/complaints.controller';
+import { AlbumsController } from './albums/albums.controller';
+import { AlbumsService } from './albums/albums.service';
 import { ComplaintsService } from './complaints/complaints.service';
 import { PhotosService } from './photos/photos.service';
 import { SalariesController } from './salaries/salaries.controller';
@@ -117,6 +119,7 @@ import { StaffController } from './staff/staff.controller';
     PermissionsController,
     PhotosController,
     ComplaintsController,
+    AlbumsController,
   ],
   providers: [
     UpdatesService,
@@ -134,6 +137,7 @@ import { StaffController } from './staff/staff.controller';
     SalariesService,
     PhotosService,
     ComplaintsService,
+    AlbumsService,
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })
