@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { api, ApiError, getSpace } from '../lib/api';
+import { cachedAt, patchCache } from '../lib/offline-cache';
+import { enqueue } from '../lib/outbox';
 import type { AttendanceSheet, AttendanceStatus } from '../lib/types';
 import { useAction } from '../lib/useAction';
 import { Avatar } from './ui/Avatar';
@@ -30,17 +32,40 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
     }
   }, [sheet.data]);
 
+  const d = sheet.data;
+  // Sans réseau : feuille gardée sur l'appareil, pointage ouvert calculé avec l'heure du téléphone.
+  const fromDevice = Boolean(cachedAt(d));
+  const now = Date.now();
+  const editable = Boolean(d && (d.editable || (fromDevice && new Date(d.opensAt).getTime() <= now && now <= new Date(d.closesAt).getTime())));
+
   const save = useAction(
-    () =>
-      api.put('/attendance', {
+    async () => {
+      const body = {
         slotId,
         date,
         entries: Object.entries(marks).map(([playerId, m]) => ({ playerId, status: m.status, reason: m.reason.trim() || undefined })),
-      }),
-    { invalidate: [['sessions'], ['attendance'], ['session-review']], success: 'Présences enregistrées.', onSuccess: onSaved },
+      };
+      try {
+        await api.put('/attendance', body);
+        return { queued: false };
+      } catch (e) {
+        if (!(e instanceof ApiError) || e.status !== 0) throw e;
+        // Hors connexion : pointage gardé avec son heure réelle, envoyé dès que le réseau revient.
+        enqueue({ path: '/attendance', body: { ...body, markedAt: new Date().toISOString() }, label: `${d?.group.name ?? 'Séance'} · ${date}` }, `attendance:${slotId}:${date}`);
+        patchCache<AttendanceSheet>(getSpace(), '/attendance', { slotId, date }, (x) => ({
+          ...x,
+          entries: x.entries.map((en) => ({ ...en, status: marks[en.playerId]?.status ?? en.status, reason: marks[en.playerId]?.reason || null })),
+        }));
+        return { queued: true };
+      }
+    },
+    {
+      invalidate: [['sessions'], ['attendance'], ['session-review']],
+      success: (r) => (r.queued ? 'Hors connexion : pointage gardé sur le téléphone, envoi automatique au retour du réseau.' : 'Présences enregistrées.'),
+      onSuccess: onSaved,
+    },
   );
 
-  const d = sheet.data;
   const count = (st: AttendanceStatus) => Object.values(marks).filter((m) => m.status === st).length;
 
   return (
@@ -48,7 +73,8 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
       {d && (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
-            {d.editable ? (
+            {fromDevice && <Pill tone="s">Hors connexion</Pill>}
+            {editable ? (
               <Pill tone="g">Pointage ouvert jusqu’à {clock(d.closesAt)}</Pill>
             ) : new Date(d.opensAt) > new Date() ? (
               <Pill tone="s">Pointage à partir de {clock(d.opensAt)}</Pill>
@@ -73,7 +99,7 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
                     <Segmented<AttendanceStatus>
                       label={`Présence de ${e.firstName}`}
                       value={m.status}
-                      onChange={(status) => d.editable && set({ status })}
+                      onChange={(status) => editable && set({ status })}
                       options={[
                         { value: 'PRESENT', label: 'Présent' },
                         { value: 'LATE', label: 'Retard' },
@@ -85,7 +111,7 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
                     <TextField
                       label={m.status === 'LATE' ? 'Retard : précision (facultatif)' : 'Motif d’absence (facultatif)'}
                       value={m.reason}
-                      disabled={!d.editable}
+                      disabled={!editable}
                       onChange={(ev) => set({ reason: ev.target.value })}
                     />
                   )}
@@ -94,7 +120,7 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
             })}
             {d.entries.length === 0 && <span className="text-mut">Aucun joueur dans ce groupe.</span>}
           </div>
-          {d.editable && d.entries.length > 0 && (
+          {editable && d.entries.length > 0 && (
             <div className="flex justify-end">
               <Button variant="primary" onClick={() => save.mutate()} disabled={save.isPending}>
                 Enregistrer les présences

@@ -1,3 +1,5 @@
+import { clearCache, isCachable, readCache, setNetwork, writeCache } from './offline-cache';
+
 const BASE_URL = `${import.meta.env.VITE_API_URL ?? ''}/api/v1`;
 const TOKEN_KEY = 'tcsay-token';
 
@@ -25,6 +27,8 @@ let memoryToken: string | null = null;
 
 export function setToken(token: string | null): void {
   memoryToken = token;
+  // Déconnexion : les copies gardées pour le hors connexion sont effacées.
+  if (!token) clearCache();
   try {
     if (token) localStorage.setItem(TOKEN_KEY, token);
     else localStorage.removeItem(TOKEN_KEY);
@@ -85,12 +89,18 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
   if (space) headers['X-Espace'] = space;
   if (permissionsCode && path.startsWith('/permissions')) headers['X-Code-Autorisations'] = permissionsCode;
 
+  const cachable = method === 'GET' && isCachable(path);
   let res: Response;
   try {
     res = await fetch(url, { method, headers, body: body === undefined ? undefined : isForm ? body : JSON.stringify(body) });
   } catch {
-    throw new ApiError(0, 'Serveur injoignable : vérifiez que l’API est démarrée.');
+    setNetwork(false);
+    // Hors connexion : dernière copie gardée sur l'appareil, si elle existe.
+    const copy = cachable ? readCache<T>(space, path, query) : undefined;
+    if (copy !== undefined) return copy;
+    throw new ApiError(0, 'Pas de connexion : vérifiez le réseau (Wi-Fi ou données mobiles).');
   }
+  setNetwork(true);
 
   const data = res.status === 204 ? undefined : await res.json().catch(() => undefined);
   if (!res.ok) {
@@ -99,6 +109,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
     if (res.status === 401 && path !== '/auth/login') onUnauthorized?.();
     throw new ApiError(res.status, message);
   }
+  if (cachable) writeCache(space, path, query, data);
   return data as T;
 }
 

@@ -15,7 +15,8 @@ applyLang();
 registerServiceWorker();
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 } },
+  // networkMode « always » : sans réseau, les lectures partent quand même et l'API resservira la copie gardée sur l'appareil.
+  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1, networkMode: 'always' }, mutations: { networkMode: 'always' } },
 });
 
 createRoot(document.getElementById('root')!).render(

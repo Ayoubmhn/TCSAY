@@ -10,6 +10,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
+import { cachedAt, sessionOpenLocally } from '../../lib/offline-cache';
 import { fD, todayIso } from '../../lib/format';
 import type { CoachSession } from '../../lib/types';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
@@ -39,7 +40,9 @@ export function CoachAttendancePage() {
   });
   const [chosen, setChosen] = useState<string>();
   const [reviewed, setReviewed] = useState<string>();
-  const sessions = q.data ?? [];
+  // Sans réseau : séances gardées sur l'appareil, séance en cours recalculée avec l'heure du téléphone.
+  const offline = Boolean(cachedAt(q.data));
+  const sessions = (q.data ?? []).map((s) => (offline ? { ...s, open: sessionOpenLocally(s.date, s.startTime, s.endTime) } : s));
   const current = sessions.filter((s) => s.open && s.resolution !== 'CANCELLED');
   const selected = sessions.find((s) => s.slotId === chosen) ?? current[0];
   const live = selected && selected.open && selected.resolution !== 'CANCELLED' ? selected : undefined;
@@ -50,6 +53,7 @@ export function CoachAttendancePage() {
       <PageHeader title="Présences" subtitle="Découvrez vos séances du jour et pointez la séance en cours." action={<ViewToggle value={view} onChange={setView} />} />
       <Pills className="mt-4">
         <Pill tone="b">{fD(today, { weekday: 'long', day: 'numeric', month: 'long' })}</Pill>
+        {offline && <Pill tone="s">Hors connexion : pointage gardé puis envoyé au retour du réseau</Pill>}
       </Pills>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {live && (

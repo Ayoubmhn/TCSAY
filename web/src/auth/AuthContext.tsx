@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { setOutboxUser } from '../lib/outbox';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { firstPath, menuFor } from '../layouts/menus';
 import { onNativePush, registerNativePush, removeNativePush } from '../lib/native-push';
@@ -54,6 +55,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSpace(me.space);
     }
   }, [me, space]);
+
+  // Pointages faits hors connexion : envoyés pour le compte connecté seulement.
+  useEffect(() => setOutboxUser(me?.id ?? null), [me?.id]);
 
   // Application mobile : le jeton push du téléphone suit le compte connecté.
   const meId = me?.id;

@@ -1,6 +1,7 @@
 /* Service worker TCSAY (fait main, sans bibliothèque).
  * - Interface : copies locales pour démarrer vite et fonctionner hors ligne (page « Pas de connexion »).
- * - Données de l'API : jamais mises en cache (informations personnelles, montants) : toujours le réseau.
+ * - Données de l'API : jamais mises en cache ici. Le site garde lui-même quelques lectures utiles sans réseau
+ *   (séances, feuilles de présence, profil : `lib/offline-cache.ts`), effacées à la déconnexion ; aucun montant.
  * - Notifications push : affichage et ouverture de l'écran concerné.
  */
 const VERSION = 'tcsay-v1';

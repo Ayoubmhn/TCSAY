@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Qu
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AttendanceStatus, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsArray, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { IsArray, IsEnum, IsISO8601, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
@@ -19,6 +19,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 /** Pointage par l'entraîneur : seulement pendant la séance en cours (15 min avant le début → 30 min après la fin). */
 export const ATTENDANCE_OPEN_BEFORE_MIN = 15;
 export const ATTENDANCE_CLOSE_AFTER_MIN = 30;
+/** Pointage fait hors connexion : envoyé au plus tard 36 h après (le lendemain soir). */
+export const OFFLINE_MAX_HOURS = 36;
 
 class RangeQuery {
   @IsOptional()
@@ -62,6 +64,15 @@ class EntryDto {
 class SaveSheetDto {
   @IsUUID()
   slotId: string;
+
+  /** Hors connexion : heure du pointage sur le téléphone, et heure du téléphone à l'envoi (écart d'horloge corrigé). */
+  @IsOptional()
+  @IsISO8601()
+  markedAt?: string;
+
+  @IsOptional()
+  @IsISO8601()
+  clientNow?: string;
 
   @Matches(DATE)
   date: string;
@@ -366,7 +377,20 @@ export class AttendanceController {
       throw new BadRequestException('Pas de séance de ce créneau ce jour-là.');
     }
     const window = attendanceWindow(dto.date, slot.startTime, slot.endTime);
-    if (user.role === Role.COACH && !window.open) {
+    // Pointage fait hors connexion : la règle « séance en cours » porte sur l'heure du pointage, horloge du téléphone corrigée.
+    let markedAt: Date | null = null;
+    if (dto.markedAt && user.role === Role.COACH) {
+      const skew = dto.clientNow ? Date.now() - new Date(dto.clientNow).getTime() : 0;
+      markedAt = new Date(new Date(dto.markedAt).getTime() + skew);
+      if (markedAt.getTime() > Date.now() + 60_000) throw new BadRequestException('Heure du pointage incohérente : vérifiez l’heure du téléphone.');
+      if (Date.now() - markedAt.getTime() > OFFLINE_MAX_HOURS * 3_600_000) {
+        throw new BadRequestException(`Pointage hors connexion trop ancien (plus de ${OFFLINE_MAX_HOURS} h) : demandez à la direction de le saisir.`);
+      }
+      if (markedAt < window.opens || markedAt > window.closes) {
+        throw new BadRequestException('Pointage hors connexion fait en dehors de la séance : il n’est pas enregistré.');
+      }
+    }
+    if (user.role === Role.COACH && !markedAt && !window.open) {
       throw new BadRequestException(
         `Pointage possible seulement pendant la séance en cours (${ATTENDANCE_OPEN_BEFORE_MIN} min avant le début jusqu’à ${ATTENDANCE_CLOSE_AFTER_MIN} min après la fin).`,
       );
@@ -384,7 +408,18 @@ export class AttendanceController {
 
     const members = new Set(slot.group.members.map((m) => m.enrollment.playerId));
     const date = dayFromIso(dto.date);
-    const entries = dto.entries.filter((e) => members.has(e.playerId));
+    let entries = dto.entries.filter((e) => members.has(e.playerId));
+    // Hors connexion : une correction de la direction faite entre-temps est gardée (le pointage du téléphone est ignoré pour ce joueur).
+    let kept = 0;
+    if (markedAt) {
+      const newer = await this.prisma.attendance.findMany({
+        where: { slotId: slot.id, date: dayFromIso(dto.date), updatedAt: { gt: markedAt }, recordedById: { not: user.id } },
+        select: { playerId: true },
+      });
+      const skip = new Set(newer.map((n) => n.playerId));
+      kept = entries.filter((e) => skip.has(e.playerId)).length;
+      entries = entries.filter((e) => !skip.has(e.playerId));
+    }
     const reasonOf = (e: EntryDto) => (e.status === AttendanceStatus.PRESENT ? null : e.reason?.trim() || null);
     await this.prisma.$transaction(
       entries.map((e) =>
@@ -397,13 +432,14 @@ export class AttendanceController {
     );
     const count = (st: AttendanceStatus) => entries.filter((e) => e.status === st).length;
     await this.audit.log(user.id, {
-      action: user.role === Role.ADMIN ? 'Présences corrigées' : 'Présences pointées',
+      action: user.role === Role.ADMIN ? 'Présences corrigées' : markedAt ? 'Présences pointées (hors connexion)' : 'Présences pointées',
       entity: 'Attendance',
       entityId: slot.id,
       target: `${slot.group.name} · ${dto.date} ${slot.startTime}`,
       after: `${count('PRESENT')} présent(s), ${count('LATE')} en retard, ${count('ABSENT')} absent(s)`,
+      reason: markedAt ? `Pointé le ${markedAt.toISOString()}, reçu le ${new Date().toISOString()}${kept ? ` ; ${kept} correction(s) de la direction gardée(s)` : ''}` : undefined,
     });
-    return { ok: true };
+    return { ok: true, kept };
   }
 }
 
