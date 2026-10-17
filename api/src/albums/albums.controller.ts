@@ -166,12 +166,28 @@ export class AlbumsController {
   /** Image signée (vignette ou grande). */
   @Get('photos/:id')
   @Public()
-  async image(@Param('id', ParseUUIDPipe) id: string, @Query('k') k: string, @Query('v') v: string, @Query('e') e: string, @Query('s') s: string, @Res() res: Response) {
+  async image(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('k') k: string,
+    @Query('v') v: string,
+    @Query('e') e: string,
+    @Query('s') s: string,
+    @Res() res: Response,
+    @Query('dl') dl?: string,
+    @Query('n') n?: string,
+  ) {
     if (!this.albums.verify(id, v, e, s)) throw new NotFoundException('Photo introuvable ou lien expiré.');
     const p = await this.prisma.albumPhoto.findUnique({ where: { id }, select: { mime: true, data: k === 'full', thumb: k !== 'full', createdAt: true } });
     if (!p || `${k === 'full' ? 'full' : 'thumb'}.${p.createdAt.getTime().toString(36)}` !== v) throw new NotFoundException('Photo introuvable.');
-    res.setHeader('Content-Type', k === 'full' ? p.mime : 'image/jpeg');
+    const mime = k === 'full' ? p.mime : 'image/jpeg';
+    res.setHeader('Content-Type', mime);
     res.setHeader('Cache-Control', 'private, max-age=86400');
+    // Téléchargement (bouton « Télécharger », aussi dans l'application : enregistrée dans Téléchargements).
+    if (dl === '1') {
+      const name = (n ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 60) || `tcsay-photo-${id.slice(0, 8)}`;
+      const ext = mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg';
+      res.setHeader('Content-Disposition', `attachment; filename="${name}.${ext}"`);
+    }
     res.send(Buffer.from((k === 'full' ? p.data : p.thumb) as Uint8Array));
   }
 

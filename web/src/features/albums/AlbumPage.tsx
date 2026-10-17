@@ -170,8 +170,8 @@ function FullScreen({ photos, index, onIndex, onClose, onDownload, title }: { ph
 async function savePhoto(url: string, name: string): Promise<'app' | 'done'> {
   const full = new URL(apiUrl(url)!, window.location.href).href;
   if (isInApp()) {
-    // L'application ouvre la photo dans le navigateur du téléphone (appui long › Télécharger l'image).
-    window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'open-url', value: full }));
+    // Application : l'adresse « dl=1 » est servie en pièce jointe, le téléphone l'enregistre dans Téléchargements.
+    window.location.href = `${full}&dl=1&n=${encodeURIComponent(name)}`;
     return 'app';
   }
   const blob = await (await fetch(full)).blob();
@@ -243,11 +243,12 @@ export function AlbumPage() {
     setSaving(true);
     try {
       const r = await savePhoto(photo.fullUrl, `${slug(a.title)}-${open + 1}`);
-      if (r === 'app') toast('Photo ouverte dans le navigateur : appui long sur l’image › Télécharger.');
+      if (r === 'app') toast('Téléchargement lancé : la photo arrive dans Téléchargements (voir les notifications).');
     } catch (e) {
       toast(errorMessage(e));
     } finally {
-      setSaving(false);
+      // Un seul appui à la fois (évite plusieurs téléchargements et messages).
+      setTimeout(() => setSaving(false), 1500);
     }
   };
 
