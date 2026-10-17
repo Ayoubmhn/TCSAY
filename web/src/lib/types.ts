@@ -398,7 +398,15 @@ export type Planning = {
   closingHour: number;
   nightStartHour: number;
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
-  sessions: (Slot & { group: { id: string; name: string }; absentCoachIds: string[]; resolution: AbsenceResolution | null; replacement: CoachRef | null })[];
+  sessions: (Slot & {
+    group: { id: string; name: string; kind?: 'LEISURE' | 'COMPETITIVE' };
+    absentCoachIds: string[];
+    resolution: AbsenceResolution | null;
+    replacement: CoachRef | null;
+    /** Joueurs du groupe et présences pointées ce jour-là. */
+    members?: number;
+    attendance?: { present: number; late: number; absent: number };
+  })[];
   reservations: {
     id: string;
     courtId: string;

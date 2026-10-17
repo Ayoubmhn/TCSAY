@@ -60,6 +60,13 @@ export class PlanningController {
     });
     const matchOf = new Map(matches.map((m) => [m.reservationId, m]));
 
+    // Fiche d'une séance : nombre de joueurs du groupe et présences pointées ce jour-là.
+    const groupIds = [...new Set(slots.map((x) => x.group.id))];
+    const [members, marks] = await Promise.all([
+      this.prisma.groupMember.groupBy({ by: ['groupId'], where: { groupId: { in: groupIds } }, _count: true }),
+      this.prisma.attendance.groupBy({ by: ['slotId', 'status'], where: { slotId: { in: slots.map((x) => x.id) }, date: dayFromIso(date) }, _count: true }),
+    ]);
+
     return {
       date,
       weekday: weekday(date),
@@ -79,7 +86,13 @@ export class PlanningController {
           const replacement = decided?.replacementCoach;
           return {
             ...v,
-            group: { id: slot.group.id, name: slot.group.name },
+            group: { id: slot.group.id, name: slot.group.name, kind: slot.group.kind },
+            members: members.find((m) => m.groupId === slot.group.id)?._count ?? 0,
+            attendance: {
+              present: marks.find((m) => m.slotId === slot.id && m.status === 'PRESENT')?._count ?? 0,
+              late: marks.find((m) => m.slotId === slot.id && m.status === 'LATE')?._count ?? 0,
+              absent: marks.find((m) => m.slotId === slot.id && m.status === 'ABSENT')?._count ?? 0,
+            },
             absentCoachIds: own.map((a) => a.coachId),
             resolution: decided ? (decided.resolution ?? 'CANCELLED') : null,
             replacement: replacement

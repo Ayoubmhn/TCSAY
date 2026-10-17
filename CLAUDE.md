@@ -126,7 +126,7 @@ Calcul de la catégorie (âge atteint ou année de naissance, date de référenc
 | Profils (clic sur un nom), Personnel, Absences des entraîneurs | `/admin/joueurs/:id`, `/admin/parents/:id`, `/admin/entraineurs/:id`, `/admin/personnel(/:id)`, `/admin/absences` | admin | ✅ |
 | Mes absences (coach) ; Planning, Historique des actions, Mes salaires (personnel) | `/coach/absences` ; `/staff/planning`, `/staff/historique`, `/staff/salaires` | coach ; STAFF | ✅ |
 | Paramètres (compte en lecture seule, mot de passe, langue FR / EN / AR avec RTL, thème) ; fiche d’inscription A4 | `/parametres` ; `/admin/fiche-inscription` | tous ; admin | ✅ |
-| Autorisations (président), Planning, statistiques de saison ; Présences (coach) | `/admin/autorisations`, `/admin/planning`, `/admin/saisons/:id` ; `/coach/presences` | président / selon droits ; coach | ✅ |
+| Autorisations (président), Planning (vues Liste / Grille / Semaine, résumé et alertes du jour, filtres terrain / entraîneur / libres, créneaux libres, fiche d’une séance avec présences), statistiques de saison ; Présences (coach) | `/admin/autorisations`, `/admin/planning`, `/admin/saisons/:id` ; `/coach/presences` | président / selon droits ; coach | ✅ |
 | Reçus (carnet pré-imprimé A5 + PDF, historique par n°, réglage au mm) | `/admin/recus`, `/impression/recu/:id`, `/impression/recu-test` | admin (`payments.collect`) | ✅ |
 | Import Excel des joueurs (aperçu puis confirmation), fiche groupe ; Notifications | `/admin/joueurs/import`, `/admin/groupes/:id` ; `/notifications` (cloche dans l’en-tête) | admin ; tous | ✅ |
 | Envoyer une notification (messages du club, historique) | `/admin/notifications` | admin (`notifications.send`) | ✅ |
