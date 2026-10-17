@@ -1,23 +1,17 @@
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/Button';
-import { Card, CardGrid, CardRow, CardText, EmptyState } from '../../components/ui/Card';
+import { Card, CardGrid, CardRow, CardText } from '../../components/ui/Card';
 import { FilterSelect, Filters } from '../../components/ui/Field';
 import { Note } from '../../components/ui/Note';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
+import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
-import { formatDate } from '../../lib/format';
-import type { ImportPreview, ImportReport, ImportRow, ImportStatus, PaymentPlan } from '../../lib/types';
+import { EMPTY_RAW, ImportTable } from '../../features/players/ImportTable';
+import type { ImportPreview, ImportRawRow, ImportReport, ImportStatus, PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
-
-const STATUS: Record<ImportStatus, { tone: PillTone; label: string }> = {
-  ok: { tone: 'g', label: 'Prêt' },
-  warning: { tone: 's', label: 'À vérifier' },
-  error: { tone: 'r', label: 'Ignoré' },
-};
 
 /** Rapport d'import en CSV (séparateur « ; », lisible par Excel) : codes attribués et lignes ignorées. */
 function downloadReport(report: ImportReport, fileName: string) {
@@ -35,11 +29,6 @@ function downloadReport(report: ImportReport, fileName: string) {
   URL.revokeObjectURL(a.href);
 }
 
-function birth(r: ImportRow) {
-  if (!r.birthDate) return 'Naissance inconnue';
-  return r.birthYearOnly ? `Né(e) en ${r.birthDate.slice(0, 4)}` : formatDate(r.birthDate);
-}
-
 /**
  * Import des joueurs depuis le fichier Excel du cahier : aperçu ligne par ligne (rien n'est enregistré),
  * puis confirmation. Les lignes en erreur sont ignorées ; un groupe inconnu laisse le joueur sans groupe.
@@ -49,21 +38,39 @@ export function PlayersImportPage() {
   const [preview, setPreview] = useState<ImportPreview>();
   const [report, setReport] = useState<ImportReport>();
   const [filter, setFilter] = useState<'all' | ImportStatus>('all');
+  // Tableau modifiable (valeurs du fichier, corrigées à l'écran) ; l'aperçu est refait après chaque modification.
+  const [table, setTable] = useState<ImportRawRow[]>();
+  const [checking, setChecking] = useState(false);
+  const seq = useRef(0);
 
   const analyze = useAction((f: File) => api.upload<ImportPreview>('/players/import/preview', f), {
     onSuccess: (r) => {
-      setPreview(r);
+      setTable(r.rows.map((row) => row.raw));
       setReport(undefined);
       setFilter('all');
     },
   });
+  useEffect(() => {
+    if (!table || !file) return;
+    const id = ++seq.current;
+    setChecking(true);
+    const t = setTimeout(() => {
+      api
+        .post<ImportPreview>('/players/import/preview-table', { fileName: file.name, rows: table })
+        .then((r) => id === seq.current && setPreview(r))
+        .catch(() => undefined)
+        .finally(() => id === seq.current && setChecking(false));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [table, file]);
   const [plan, setPlan] = useState<PaymentPlan>('FULL');
-  const commit = useAction(() => api.upload<ImportReport>('/players/import/commit', file!, { plan }), {
+  const commit = useAction(() => api.post<ImportReport>('/players/import/commit-table', { fileName: file!.name, rows: table, plan }), {
     invalidate: [['players'], ['parents'], ['groups'], ['dashboard'], ['categories']],
     success: (r) => `${r.imported.length} joueur(s) importé(s) avec leur cotisation, ${r.parentsCreated} parent(s) créé(s).`,
     onSuccess: (r) => {
       setReport(r);
       setPreview(undefined);
+      setTable(undefined);
     },
   });
 
@@ -73,11 +80,11 @@ export function PlayersImportPage() {
     if (!f) return;
     setFile(f);
     setPreview(undefined);
+    setTable(undefined);
     setReport(undefined);
     analyze.mutate(f);
   };
 
-  const rows = useMemo(() => (preview?.rows ?? []).filter((r) => filter === 'all' || r.status === filter), [preview, filter]);
   const importable = preview ? preview.ok + preview.warnings : 0;
 
   return (
@@ -103,16 +110,16 @@ export function PlayersImportPage() {
 
       {!preview && !report && !analyze.isPending && (
         <Note>
-          Colonnes reconnues : <b>N°, Genre (H/F), Nom et prénom, Nom en arabe, Date de naissance, Téléphone, Parent, Groupe, Ville,
-          Remarque</b>. L’aperçu n’enregistre rien. Chaque joueur inscrit reçoit sa cotisation (mode de paiement choisi avant de confirmer, modifiable ensuite dans sa fiche) et un code provisoire « {String(new Date().getFullYear() % 100)}TCSAY001 ».
+          Colonnes reconnues : <b>N°, Genre (H/F), Nom et prénom, Nom en arabe, Date de naissance, Téléphone, Email du joueur, Parent,
+          Email du parent, Groupe, Ville, Remarque</b>. L’aperçu s’affiche en tableau modifiable, comme dans Excel. L’aperçu n’enregistre rien. Chaque joueur inscrit reçoit sa cotisation (mode de paiement choisi avant de confirmer, modifiable ensuite dans sa fiche) et un code provisoire « {String(new Date().getFullYear() % 100)}TCSAY001 ».
           Les parents sont créés avec le prénom du cahier, le nom « Exemple » et un email provisoire : aucun email n’est envoyé avant
           que vous saisissiez la vraie adresse.
         </Note>
       )}
 
-      {preview && (
+      {table && preview && (
         <>
-          <Section title="Aperçu">
+          <Section title="Aperçu modifiable">
             <Pills>
               <Pill tone="b">Saison {preview.season}</Pill>
               <Pill tone="b">{preview.total} ligne(s)</Pill>
@@ -121,6 +128,7 @@ export function PlayersImportPage() {
               <Pill tone="r">{preview.errors} ignorée(s)</Pill>
               <Pill tone="b">{preview.newParents} parent(s) à créer</Pill>
               <Pill tone="b">{preview.withGroup} avec groupe</Pill>
+              {checking && <Pill tone="s">Vérification…</Pill>}
             </Pills>
             <Filters>
               <FilterSelect label="Filtrer par état" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
@@ -132,69 +140,20 @@ export function PlayersImportPage() {
               <FilterSelect label="Mode de paiement des cotisations" value={plan} onChange={(e) => setPlan(e.target.value as PaymentPlan)}>
                 <PlanOptions prefix="Cotisation : " short />
               </FilterSelect>
-              <Button variant="primary" disabled={!importable || commit.isPending} onClick={() => commit.mutate()}>
+              <Button onClick={() => setTable([...table, { ...EMPTY_RAW }])}>+ Ajouter une ligne</Button>
+              <Button variant="primary" disabled={!importable || commit.isPending || checking} onClick={() => commit.mutate()}>
                 {commit.isPending ? 'Enregistrement…' : `Confirmer l’import (${importable})`}
               </Button>
             </Filters>
           </Section>
           <div className="mt-2.5">
-            {rows.length ? (
-              <CardGrid list>
-                {rows.map((r) => (
-                  <Card key={r.line}>
-                    <CardRow>
-                      <div className="min-w-0">
-                        <h3>{r.name || '—'}</h3>
-                        <CardText>
-                          Ligne {r.line}
-                          {r.n ? ` · n° ${r.n}` : ''}
-                          {r.nameAr ? (
-                            <>
-                              {' · '}
-                              <span dir="rtl">{r.nameAr}</span>
-                            </>
-                          ) : null}
-                        </CardText>
-                      </div>
-                      <Pill tone={STATUS[r.status].tone}>{STATUS[r.status].label}</Pill>
-                    </CardRow>
-                    <Pills>
-                      <Pill tone="b">{birth(r)}</Pill>
-                      {r.age !== null && <Pill tone="b">{r.age} ans</Pill>}
-                      {r.gender && <Pill tone="s">{r.gender === 'M' ? 'Garçon' : 'Fille'}</Pill>}
-                      {r.category && <Pill tone="s">{r.category.name}</Pill>}
-                      {r.group ? (
-                        <Pill tone="g">{r.group.name}</Pill>
-                      ) : (
-                        <Pill tone="r">{r.groupLabel ? `Sans groupe (« ${r.groupLabel} »)` : 'Sans groupe'}</Pill>
-                      )}
-                    </Pills>
-                    <CardText>
-                      {r.parents.length
-                        ? `Parent : ${r.parents.map((p) => `${p.name}${p.existingId ? ' (déjà enregistré)' : ' Exemple'}${p.phone ? ` · ${p.phone}` : ''}`).join(', ')}`
-                        : r.phone
-                          ? `Téléphone : ${r.phone}`
-                          : 'Pas de parent ni de téléphone'}
-                    </CardText>
-                    {r.messages.length > 0 && (
-                      <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]">
-                        {r.messages.map((m) => (
-                          <li key={m} className={r.status === 'error' ? 'text-fg' : 'text-mut'}>
-                            • {m}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </Card>
-                ))}
-              </CardGrid>
-            ) : (
-              <EmptyState>Aucune ligne pour ce filtre.</EmptyState>
-            )}
+            <ImportTable table={table} preview={preview} filter={filter} onChange={setTable} />
           </div>
           <Note>
-            <b>Prêt</b> : importé tel quel. <b>À vérifier</b> : importé, à contrôler ensuite (groupe inconnu, année seule, homonyme…).{' '}
-            <b>Ignoré</b> : non importé (corrigez le fichier puis relancez : les joueurs déjà importés sont reconnus).
+            Corrigez directement dans le tableau (nom, nom en arabe, naissance, genre, téléphone, emails, parent, groupe…) : l’analyse
+            est refaite à chaque modification et <b>rien n’est enregistré</b> avant « Confirmer l’import ». <b>Prêt</b> : importé tel
+            quel. <b>À vérifier</b> : importé, à contrôler ensuite. <b>Ignoré</b> : non importé tant que la ligne n’est pas corrigée.
+            L’email du parent remplace l’email provisoire (aucun email n’est envoyé à l’import).
             Groupes connus : {preview.groups.join(', ') || '—'}.
           </Note>
         </>

@@ -15,7 +15,27 @@ import { Cell, excelDate, readXlsx } from './xlsx-reader';
 
 
 type Status = 'ok' | 'warning' | 'error';
-type ParentPlan = { key: string; name: string; phone: string | null; existingId: string | null; sharedWith: number[] };
+type ParentPlan = { key: string; name: string; phone: string | null; email: string | null; existingId: string | null; sharedWith: number[] };
+
+/** Ligne du tableau modifiable (valeurs saisies, comme dans le fichier Excel). */
+export const RAW_COLUMNS = ['n', 'gender', 'name', 'nameAr', 'birth', 'phone', 'email', 'parent', 'parentEmail', 'group', 'city', 'remark'] as const;
+export type RawRow = Record<(typeof RAW_COLUMNS)[number], string>;
+/** En-têtes équivalents du fichier Excel (reconnus par l'analyse). */
+const RAW_HEADER: RawRow = {
+  n: 'N°',
+  gender: 'Genre',
+  name: 'Nom et prénom (FR)',
+  nameAr: 'Nom en arabe',
+  birth: 'Date de naissance',
+  phone: 'Téléphone',
+  email: 'Email du joueur',
+  parent: 'Parent / tuteur',
+  parentEmail: 'Email du parent',
+  group: 'Groupe',
+  city: 'Ville',
+  remark: 'Remarque',
+};
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type ImportRow = {
   line: number;
@@ -29,9 +49,12 @@ export type ImportRow = {
   birthYearOnly: boolean;
   age: number | null;
   phone: string | null;
+  email: string | null;
   notes: string | null;
   city: string | null;
   parents: ParentPlan[];
+  /** Valeurs de la ligne (tableau modifiable de l'aperçu). */
+  raw: RawRow;
   groupLabel: string | null;
   group: { id: string; name: string } | null;
   category: { id: string; code: string; name: string } | null;
@@ -108,7 +131,15 @@ export class PlayersImportService {
     } catch (e) {
       throw new BadRequestException(`Fichier illisible : ${e instanceof Error ? e.message : e}`);
     }
-    const { rows } = parsed;
+    return this.analyzeRows(parsed.rows, fileName);
+  }
+
+  /** Aperçu du tableau corrigé à l'écran (mêmes règles que le fichier). */
+  analyzeTable(table: RawRow[], fileName: string) {
+    return this.analyzeRows(tableToRows(table), fileName);
+  }
+
+  private async analyzeRows(rows: Cell[][], fileName: string) {
     const headerIndex = rows.findIndex((r) => r.some((c) => norm(str(c)).includes('nom et prenom')));
     if (headerIndex < 0) throw new BadRequestException('Colonne « Nom et prénom (FR) » introuvable dans le fichier.');
     const header = rows[headerIndex].map((c) => norm(str(c)));
@@ -120,7 +151,9 @@ export class PlayersImportService {
       nameAr: col((h) => h.includes('arabe')),
       birth: col((h) => h.includes('naissance')),
       phone: col((h) => h.includes('telephone') || h.includes('tel')),
-      parent: col((h) => h.includes('parent') || h.includes('tuteur')),
+      parent: col((h) => (h.includes('parent') || h.includes('tuteur')) && !h.includes('mail')),
+      email: col((h) => h.includes('mail') && !h.includes('parent')),
+      parentEmail: col((h) => h.includes('mail') && h.includes('parent')),
       group: col((h) => h.includes('groupe')),
       city: col((h) => h.includes('ville')),
       remark: col((h) => h.includes('remarque')),
@@ -136,7 +169,7 @@ export class PlayersImportService {
       }),
       this.prisma.category.findFirst({ where: { family: 'LEISURE', archivedAt: null } }),
       this.prisma.player.findMany({ select: { firstName: true, lastName: true, birthDate: true, memberCode: true } }),
-      this.prisma.user.findMany({ where: { roles: { has: Role.PARENT } }, select: { id: true, firstName: true, phone: true } }),
+      this.prisma.user.findMany({ where: { roles: { has: Role.PARENT } }, select: { id: true, firstName: true, phone: true, email: true } }),
     ]);
     const groupByName = new Map(groups.map((g) => [norm(g.name), g]));
     const seats = new Map(groups.map((g) => [g.id, g.capacity - g._count.members]));
@@ -172,9 +205,11 @@ export class PlayersImportService {
         birthYearOnly: false,
         age: null,
         phone: null,
+        email: null,
         notes: null,
         city: str(at(r, C.city)),
         parents: [],
+        raw: Object.fromEntries(RAW_COLUMNS.map((k) => [k, str(at(r, C[k])) ?? ''])) as RawRow,
         groupLabel: str(at(r, C.group)),
         group: null,
         category: null,
@@ -196,6 +231,12 @@ export class PlayersImportService {
       if (birth.error) warn(`${birth.error} : date laissée vide`);
       row.birthDate = birth.date;
       row.birthYearOnly = birth.yearOnly;
+      // Date lisible dans le tableau (date Excel convertie).
+      if (birth.date) row.raw.birth = birth.yearOnly ? birth.date.slice(0, 4) : birth.date;
+      if (row.gender) row.raw.gender = row.gender === Gender.F ? 'f' : 'h';
+      const email = str(at(r, C.email))?.toLowerCase() ?? null;
+      if (email && !EMAIL.test(email)) warn(`email du joueur « ${email} » invalide : non enregistré`);
+      else row.email = email;
       if (birth.yearOnly) warn('année seulement : date enregistrée au 1er janvier, à compléter');
       if (!row.birthDate && !birth.error) warn('date de naissance manquante');
       row.age = row.birthDate ? ageAtYearEnd(dayFromIso(row.birthDate), year) : null;
@@ -211,24 +252,42 @@ export class PlayersImportService {
         .split('/')
         .map((p) => p.trim())
         .filter(Boolean);
+      const parentEmails = (str(at(r, C.parentEmail)) ?? '')
+        .split(/[/,;]/)
+        .map((p) => p.trim().toLowerCase())
+        .filter(Boolean);
+      parentEmails.filter((e) => !EMAIL.test(e)).forEach((e) => warn(`email du parent « ${e} » invalide : email provisoire`));
       row.phone = phones[0] ?? null;
       const extraNotes: string[] = [];
       if (minor) {
         const names = parentNames.length ? parentNames : phones.length ? ['Parent'] : [];
-        names.forEach((pn, k) => {
+        for (const [k, pn] of names.entries()) {
           const phone = phones[k] ?? phones[0] ?? null;
-          const key = `${digits(phone ?? '')}|${norm(pn)}`;
+          const mail = parentEmails[k] && EMAIL.test(parentEmails[k]) ? parentEmails[k] : null;
+          const key = mail ? `@${mail}` : `${digits(phone ?? '')}|${norm(pn)}`;
           let plan = parentsByKey.get(key);
           if (!plan) {
-            const existing = phone
-              ? existingParents.find((u) => u.phone && digits(u.phone) === digits(phone) && norm(u.firstName) === norm(pn))
-              : undefined;
-            plan = { key, name: pn, phone, existingId: existing?.id ?? null, sharedWith: [] };
+            let existing = mail
+              ? existingParents.find((u) => u.email?.toLowerCase() === mail)
+              : phone
+                ? existingParents.find((u) => u.phone && digits(u.phone) === digits(phone) && norm(u.firstName) === norm(pn))
+                : undefined;
+            let email = mail;
+            if (mail && !existing) {
+              // Adresse déjà prise par un compte qui n'est pas parent : on garde un email provisoire.
+              const other = await this.prisma.user.findUnique({ where: { email: mail }, select: { id: true } });
+              if (other) {
+                warn(`email « ${mail} » déjà utilisé par un autre compte : email provisoire pour ce parent`);
+                email = null;
+                existing = undefined;
+              }
+            }
+            plan = { key, name: pn, phone, email, existingId: existing?.id ?? null, sharedWith: [] };
             parentsByKey.set(key, plan);
           }
           plan.sharedWith.push(row.line);
           row.parents.push(plan);
-        });
+        }
         phones.slice(Math.max(names.length, 1)).forEach((p) => extraNotes.push(`Autre téléphone : ${p}`));
         if (!row.parents.length) warn('aucun parent ni téléphone : parent à lier');
       } else {
@@ -302,7 +361,15 @@ export class PlayersImportService {
 
   /** Enregistre les lignes valides (vertes et sable) en une seule transaction ; les lignes en erreur sont ignorées. */
   async commit(actor: AuthUser, buffer: Buffer, fileName: string, plan: PaymentPlan = PaymentPlan.FULL) {
-    const preview = await this.analyze(buffer, fileName);
+    return this.commitPreview(actor, await this.analyze(buffer, fileName), fileName, plan);
+  }
+
+  /** Enregistre le tableau corrigé à l'écran (mêmes règles, réanalysé avant l'enregistrement). */
+  async commitTable(actor: AuthUser, table: RawRow[], fileName: string, plan: PaymentPlan = PaymentPlan.FULL) {
+    return this.commitPreview(actor, await this.analyzeTable(table, fileName), `${fileName} (corrigé à l’écran)`, plan);
+  }
+
+  private async commitPreview(actor: AuthUser, preview: Awaited<ReturnType<PlayersImportService['analyzeRows']>>, fileName: string, plan: PaymentPlan) {
     const rows = preview.rows.filter((r) => r.status !== 'error');
     if (!rows.length) throw new BadRequestException('Aucune ligne importable dans ce fichier.');
     const season = await this.access.activeSeason();
@@ -336,6 +403,7 @@ export class PlayersImportService {
               birthYearOnly: row.birthYearOnly,
               gender: row.gender!,
               phone: row.phone,
+              email: row.email,
               city: row.city,
               notes: row.notes,
               origin: Origin.IMPORT,
@@ -348,7 +416,7 @@ export class PlayersImportService {
             if (!parentId) {
               const parent = await tx.user.create({
                 data: {
-                  email: `parent.${code.memberCode.toLowerCase()}${k ? `.${k + 1}` : ''}@${PLACEHOLDER_DOMAIN}`,
+                  email: plan.email ?? `parent.${code.memberCode.toLowerCase()}${k ? `.${k + 1}` : ''}@${PLACEHOLDER_DOMAIN}`,
                   roles: [Role.PARENT],
                   firstName: plan.name,
                   lastName: 'Exemple',
@@ -408,4 +476,9 @@ export class PlayersImportService {
       skipped: preview.rows.filter((r) => r.status === 'error').map((r) => ({ line: r.line, n: r.n, name: r.name, messages: r.messages })),
     };
   }
+}
+
+/** Tableau de l'écran → lignes « comme le fichier » (en-têtes reconnus par l'analyse). */
+function tableToRows(table: RawRow[]): Cell[][] {
+  return [RAW_COLUMNS.map((k) => RAW_HEADER[k]), ...table.map((r) => RAW_COLUMNS.map((k) => (r[k] ?? '').toString().trim() || null))];
 }

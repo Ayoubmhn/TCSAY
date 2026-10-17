@@ -707,15 +707,33 @@ export type ImportRow = {
   birthYearOnly: boolean;
   age: number | null;
   phone: string | null;
+  email: string | null;
   notes: string | null;
   city: string | null;
-  parents: { key: string; name: string; phone: string | null; existingId: string | null }[];
+  parents: { key: string; name: string; phone: string | null; email: string | null; existingId: string | null }[];
+  /** Valeurs de la ligne, modifiables dans le tableau de l'aperçu. */
+  raw: ImportRawRow;
   groupLabel: string | null;
   group: { id: string; name: string } | null;
   category: { id: string; code: string; name: string } | null;
   derogation: boolean;
   status: ImportStatus;
   messages: string[];
+};
+
+export type ImportRawRow = {
+  n: string;
+  gender: string;
+  name: string;
+  nameAr: string;
+  birth: string;
+  phone: string;
+  email: string;
+  parent: string;
+  parentEmail: string;
+  group: string;
+  city: string;
+  remark: string;
 };
 
 export type ImportPreview = {
