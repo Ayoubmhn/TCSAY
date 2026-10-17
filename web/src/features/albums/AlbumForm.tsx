@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useMe } from '../../auth/AuthContext';
 import { Button } from '../../components/ui/Button';
@@ -7,6 +7,8 @@ import { CardText } from '../../components/ui/Card';
 import { SelectField, TextArea, TextField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
 import { Pill, Pills } from '../../components/ui/Pill';
+import { useToast } from '../../components/ui/Toast';
+import { uploadPhotos } from './upload';
 import { api } from '../../lib/api';
 import { todayIso } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
@@ -28,6 +30,11 @@ export function AlbumForm({ album, onClose }: { album?: AlbumDetail; onClose: ()
   const [date, setDate] = useState(album?.date ?? todayIso());
   const [people, setPeople] = useState<Person[]>(album?.members ?? []);
   const [q, setQ] = useState('');
+  // Création : photos choisies tout de suite, envoyées juste après la création de l'album.
+  const [files, setFiles] = useState<File[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const toast = useToast();
   const contexts = useQuery({ queryKey: ['album-contexts'], queryFn: () => api.get<Contexts>('/albums/contexts') });
   const found = useQuery({ queryKey: ['album-people', q], queryFn: () => api.get<People>('/albums/people', { q }), enabled: q.trim().length >= 2 });
   const options =
@@ -53,9 +60,15 @@ export function AlbumForm({ album, onClose }: { album?: AlbumDetail; onClose: ()
   const save = useAction(() => (album ? api.patch(`/albums/${album.id}`, body()) : api.post<{ id: string }>('/albums', body())), {
     invalidate: [['albums'], ['album', album?.id]],
     success: album ? 'Album modifié.' : 'Album créé : ajoutez les photos.',
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
+      const newId = !album && r && typeof r === 'object' && 'id' in r ? (r as { id: string }).id : null;
+      if (newId && files.length) {
+        const { ok, errors } = await uploadPhotos(newId, files, (done, total) => setProgress({ done, total }));
+        errors.forEach((e) => toast(e));
+        if (ok) toast(`${ok} photo${ok > 1 ? 's' : ''} ajoutée${ok > 1 ? 's' : ''} : identifiez les joueurs puis « Prévenir ».`);
+      }
       onClose();
-      if (!album && r && typeof r === 'object' && 'id' in r) navigate(`/photos/${(r as { id: string }).id}`);
+      if (newId) navigate(`/photos/${newId}`);
     },
   });
   const add = (p: Person) => {
@@ -72,8 +85,8 @@ export function AlbumForm({ album, onClose }: { album?: AlbumDetail; onClose: ()
       footer={
         <>
           <Button onClick={onClose}>Annuler</Button>
-          <Button variant="primary" data-primary onClick={() => save.mutate()} disabled={!title.trim() || save.isPending}>
-            {album ? 'Enregistrer' : 'Créer l’album'}
+          <Button variant="primary" data-primary onClick={() => save.mutate()} disabled={!title.trim() || save.isPending || Boolean(progress)}>
+            {progress ? `Envoi des photos ${progress.done}/${progress.total}…` : album ? 'Enregistrer' : files.length ? `Créer et envoyer ${files.length} photo${files.length > 1 ? 's' : ''}` : 'Créer l’album'}
           </Button>
         </>
       }
@@ -144,6 +157,38 @@ export function AlbumForm({ album, onClose }: { album?: AlbumDetail; onClose: ()
             </Pills>
           )}
         </div>
+        {!album && (
+          <div className="flex flex-col gap-1.5 min-[561px]:col-span-2">
+            <span className="text-xs font-medium text-mut">Photos</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button onClick={() => picker.current?.click()}>{files.length ? '+ Autres photos' : '+ Joindre des photos'}</Button>
+              {files.length > 0 && (
+                <>
+                  <Pill tone="g">
+                    {files.length} photo{files.length > 1 ? 's' : ''} choisie{files.length > 1 ? 's' : ''}
+                  </Pill>
+                  <button type="button" className="text-sm font-medium text-mut hover:underline" onClick={() => setFiles([])}>
+                    Tout retirer
+                  </button>
+                </>
+              )}
+            </div>
+            <input
+              ref={picker}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              aria-label="Photos de l’album"
+              onChange={(e) => {
+                const list = e.target.files ? [...e.target.files] : [];
+                e.target.value = '';
+                setFiles((f) => [...f, ...list]);
+              }}
+            />
+            <CardText keep>Galerie ou appareil photo. Vous pourrez en ajouter d’autres ensuite depuis l’album.</CardText>
+          </div>
+        )}
         <div className="min-[561px]:col-span-2">
           <TextArea label="Description (facultatif)" rows={2} maxLength={500} value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>

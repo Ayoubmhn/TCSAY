@@ -11,9 +11,9 @@ import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
-import { api, apiUrl, errorMessage } from '../../lib/api';
+import { api, apiUrl } from '../../lib/api';
 import { fD } from '../../lib/format';
-import { albumPhoto } from '../../lib/photo';
+import { uploadPhotos } from './upload';
 import { useAction } from '../../lib/useAction';
 import { AlbumForm } from './AlbumForm';
 import type { AlbumDetail, AlbumPhoto } from './types';
@@ -96,24 +96,8 @@ export function AlbumPage() {
   useEffect(() => setTagging(false), [open]);
 
   const upload = async (files: FileList) => {
-    const list = [...files];
-    setProgress({ done: 0, total: list.length });
-    let ok = 0;
-    for (const f of list) {
-      try {
-        const p = await albumPhoto(f);
-        const form = new FormData();
-        form.append('file', p.full, 'photo.jpg');
-        form.append('thumb', p.thumb, 'vignette.jpg');
-        form.append('width', String(p.width));
-        form.append('height', String(p.height));
-        await api.post(`/albums/${id}/photos`, form);
-        ok++;
-      } catch (e) {
-        toast(errorMessage(e));
-      }
-      setProgress((x) => (x ? { ...x, done: x.done + 1 } : x));
-    }
+    const { ok, errors } = await uploadPhotos(id, [...files], (done, total) => setProgress({ done, total }));
+    errors.forEach((e) => toast(e));
     setProgress(null);
     if (ok) toast(`${ok} photo${ok > 1 ? 's' : ''} ajoutée${ok > 1 ? 's' : ''}. Identifiez les joueurs puis « Prévenir ».`);
     void queryClient.invalidateQueries({ queryKey: ['album', id] });
