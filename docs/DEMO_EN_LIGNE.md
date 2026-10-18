@@ -42,11 +42,30 @@ Limites de l'offre gratuite (conditions Render, à vérifier sur leur site) :
 
 **Emails :** pas envoyés pendant les tests (ils apparaissent « Échec » dans *Emails envoyés*). Pour un test réel, ajoutez `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` dans *Environment*.
 
-## Option C : base et API sur Render, site sur Vercel (configuration actuelle)
-1. Render : base `tcsay-db` + service `tcsay-demo` (API seule : `SERVE_WEB=false`, `TRUST_PROXY_HOPS=2`, build `cd api && npm ci --include=dev && npm run build`).
+## Option C : base sur Neon, API sur Render, site sur Vercel (configuration actuelle)
+1. Neon : base PostgreSQL (voir « Base sur Neon » ci-dessous). Render : service `tcsay-demo` (API seule : `SERVE_WEB=false`, `TRUST_PROXY_HOPS=2`, build `cd api && npm ci --include=dev && npm run build`).
 2. Vercel : projet importé depuis GitHub, **Root Directory `web`**, variable `VITE_DEMO=1`, branche de production `claude/tcsay-platform-dev-p3t75p`. `web/vercel.json` renvoie `/api/*` vers `https://tcsay-demo.onrender.com` (même adresse pour le navigateur : pas de CORS).
 3. Render › tcsay-demo › Environment : `APP_URL` = l'adresse Vercel (liens des emails).
 4. Application mobile : `mobile/eas.json` (profil `preview`) pointe sur l'adresse Render.
+
+## Base sur Neon (au lieu de la base gratuite de Render)
+La base gratuite de Render est **supprimée au bout de 30 jours** ; celle de Neon n'expire pas (0,5 Go, mise en veille sans visite, réveil en ~1 s). La lenteur du premier chargement vient de l'**API** Render endormie (plan gratuit), pas de la base : voir « Garder l'API éveillée ».
+
+1. **Créer la base** : neon.tech › Sign up › New project : nom `tcsay`, PostgreSQL 16, région **AWS Europe Central (Frankfurt)** (même région que Render).
+2. **Copier l'adresse** : Dashboard › **Connect** › décocher **Connection pooling** (adresse *directe*, nécessaire à `prisma migrate`) › copier l'adresse `postgresql://…neon.tech/neondb?sslmode=require`. Elle contient le mot de passe : ne la mettez jamais dans le dépôt, ne l'envoyez à personne.
+3. **Brancher Render** : Render › tcsay-demo › Environment › `DATABASE_URL` = cette adresse › **Save, rebuild and deploy**.
+4. Au démarrage, `npm run start:demo` applique les migrations sur la base vide puis **charge les données de démo** (`seed-if-empty`). Vérifier dans les logs Render : « Base de données : neondb ».
+5. **Garder les données déjà saisies sur Render** (facultatif, avant le point 3, depuis votre PC avec PostgreSQL 16 installé) :
+   ```bash
+   pg_dump --no-owner --no-acl -Fc "<External Database URL de Render>" -f tcsay-render.dump
+   pg_restore --no-owner --no-acl -d "<adresse directe Neon>" tcsay-render.dump
+   ```
+   (Render › tcsay-db › Info › *External Database URL*.) Le dump contient des données : ne le commitez pas, supprimez-le après.
+6. Quand tout marche : Render › tcsay-db › Settings › **Delete Database** (elle n'est plus utilisée ; le Blueprint ne la gère plus).
+7. **Sauvegarde** : `npm run db:backup` avec `DATABASE_URL` = adresse Neon (depuis votre PC) ; Neon garde aussi un historique de 24 h (restauration à une heure donnée, plan gratuit).
+
+### Garder l'API éveillée (plan gratuit)
+L'API Render gratuite s'endort après 15 min sans visite (30 à 60 s d'attente ensuite). Gratuit : uptimerobot.com › New monitor › HTTP(s), adresse `https://tcsay-demo.onrender.com/api/v1/health`, toutes les **10 minutes**. Payant et sans veille : Render **Starter** (~7 $/mois), conseillé pour la mise en service au club.
 
 ## Plus tard : le vrai domaine
 Avec `tennisclubdesayada.tn` : Render › Settings › Custom Domains, ou un VPS (voir le sprint S12).

@@ -1,15 +1,10 @@
-# Démo en ligne provisoire (tests par les collègues) sur Render : une base PostgreSQL et l'API (/api/v1).
+# Démo en ligne provisoire (tests par les collègues) sur Render : l'API (/api/v1) ; la base PostgreSQL est chez Neon.
 # Le site web est sur Vercel (web/vercel.json) ; l'application mobile appelle directement https://….onrender.com.
 # Données de DÉMONSTRATION uniquement (aucune donnée réelle de joueurs ou de mineurs).
 # Mise en route : voir docs/DEMO_EN_LIGNE.md (Render › New › Blueprint › ce dépôt).
-databases:
-  - name: tcsay-db
-    plan: free
-    region: frankfurt
-    databaseName: tcsay
-    user: tcsay
-    ipAllowList: [] # accessible seulement par le service ci-dessous
-
+# Base de données : PostgreSQL chez Neon (neon.tech, gratuit, n'expire pas), plus sur Render (la base gratuite de Render
+# est supprimée au bout de 30 jours). Adresse saisie à la main dans Render › Environment › DATABASE_URL : voir
+# docs/DEMO_EN_LIGNE.md (« Base sur Neon »).
 services:
   - type: web
     name: tcsay-demo
@@ -30,10 +25,9 @@ services:
         value: production
       - key: TZ
         value: Africa/Tunis
+      # Adresse « Direct connection » de Neon (avec ?sslmode=require) : secrète, jamais dans le dépôt.
       - key: DATABASE_URL
-        fromDatabase:
-          name: tcsay-db
-          property: connectionString
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       # Le site web est sur Vercel : l'API ne le sert pas.
