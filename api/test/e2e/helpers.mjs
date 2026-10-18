@@ -1,5 +1,8 @@
 // Outils partagés par les tests de bout en bout (connexion et appels à l'API).
 import assert from 'node:assert/strict';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const API = process.env.E2E_API ?? 'http://localhost:3000/api/v1';
 
@@ -9,6 +12,25 @@ async function fetchOrExplain(url, init) {
     return await fetch(url, init);
   } catch {
     throw new Error(`API injoignable (${API}) : lancez d'abord « npm run start:dev » dans un autre terminal.`);
+  }
+}
+
+const PW_FILE = join(tmpdir(), 'tcsay-e2e-passwords.json');
+function readPasswords() {
+  try {
+    return JSON.parse(readFileSync(PW_FILE, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+function savePassword(key, pw) {
+  const all = readPasswords();
+  if (all[key] === pw) return;
+  all[key] = pw;
+  try {
+    writeFileSync(PW_FILE, JSON.stringify(all));
+  } catch {
+    /* mémoire facultative */
   }
 }
 
@@ -22,15 +44,25 @@ export async function login(email, password, espace) {
       headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}`, 'x-espace': espace } : {}) },
       body: JSON.stringify(body),
     }).then((r) => r.json());
-  let r = await post('/auth/login', { email, password: NEW_PW });
-  if (!r.accessToken || r.mustChangePassword) {
-    r = await post('/auth/login', { email, password });
-    assert.ok(r.accessToken, `connexion impossible pour ${email} : ${JSON.stringify(r.message)}`);
-    if (r.mustChangePassword) {
-      await post('/auth/change-password', { currentPassword: password, newPassword: NEW_PW }, r.accessToken);
-      r = await post('/auth/login', { email, password: NEW_PW });
+  // Mot de passe qui a marché au dernier passage (mémorisé sur la machine), puis celui de la démo, puis celui posé par un
+  // changement obligatoire : chaque échec compte dans la limite de 20 essais par adresse IP et 5 par identifiant.
+  const key = `${API}|${email}`;
+  let r;
+  let used;
+  for (const pw of [...new Set([readPasswords()[key], password, NEW_PW].filter(Boolean))]) {
+    r = await post('/auth/login', { email, password: pw });
+    if (r.accessToken) {
+      used = pw;
+      break;
     }
   }
+  assert.ok(r.accessToken, `connexion impossible pour ${email} : ${JSON.stringify(r.message)}`);
+  if (r.mustChangePassword) {
+    await post('/auth/change-password', { currentPassword: used, newPassword: NEW_PW }, r.accessToken);
+    r = await post('/auth/login', { email, password: NEW_PW });
+    used = NEW_PW;
+  }
+  savePassword(key, used);
   const token = r.accessToken;
   const call = async (method, path, body, headers = {}) => {
     const form = body instanceof FormData;
@@ -90,3 +122,59 @@ export const ACCOUNTS = {
 };
 export const as = (name) => login(...ACCOUNTS[name]);
 
+
+/**
+ * Lecture directe de la base de DÉMO (codes envoyés par email, que l'API ne renvoie jamais) : psql sur E2E_DATABASE_URL.
+ * Sans cette variable, les tests qui en ont besoin sont ignorés (jamais de repli sur une autre base).
+ */
+export const DB_URL = process.env.E2E_DATABASE_URL?.replace(/\?.*$/, '');
+export async function dbValue(sql) {
+  const { execFileSync } = await import('node:child_process');
+  assert.ok(DB_URL, 'E2E_DATABASE_URL manquant');
+  return execFileSync('psql', [DB_URL, '-tAc', sql], { encoding: 'utf8' }).trim();
+}
+/** Code à 6 chiffres du dernier email envoyé à cette adresse. */
+export async function lastEmailCode(to) {
+  const body = await dbValue(`SELECT body FROM "EmailLog" WHERE "to" = '${to.replace(/'/g, "''")}' ORDER BY "createdAt" DESC LIMIT 1`);
+  return body.match(/\b(\d{6})\b/)?.[1] ?? null;
+}
+
+/**
+ * Appels envoyés depuis une autre adresse locale (source 127.0.0.N) : les essais refusés d'un test n'entament pas la
+ * limite de 20 échecs par adresse IP des autres tests. Sur une API distante : adresse habituelle.
+ * Renvoie call(method, path, body, { token, espace, headers }).
+ */
+export function fromIp(n) {
+  const url = new URL(API);
+  const local = /^(localhost|127\.0\.0\.1)$/.test(url.hostname);
+  return async (method, path, body, { token, espace, headers: extra = {} } = {}) => {
+    const headers = { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}), ...(espace ? { 'x-espace': espace } : {}), ...extra };
+    if (!local) {
+      const res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      return { status: res.status, data: await res.json().catch(() => null) };
+    }
+    const http = await import('node:http');
+    return new Promise((resolve, reject) => {
+      const req = http.request(
+        { host: '127.0.0.1', port: url.port || 80, path: url.pathname.replace(/\/$/, '') + path, method, headers, localAddress: `127.0.0.${n}` },
+        (res) => {
+          let text = '';
+          res.setEncoding('utf8');
+          res.on('data', (c) => (text += c));
+          res.on('end', () => {
+            let data = null;
+            try {
+              data = text ? JSON.parse(text) : null;
+            } catch {
+              data = text;
+            }
+            resolve({ status: res.statusCode, data });
+          });
+        },
+      );
+      req.on('error', reject);
+      if (body) req.write(JSON.stringify(body));
+      req.end();
+    });
+  };
+}
