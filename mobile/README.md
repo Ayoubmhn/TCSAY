@@ -100,9 +100,17 @@ L'API doit tourner sur le PC : `cd api && npm run start:dev` (port 3000).
 - Ou dans le cloud Expo (compte gratuit sur expo.dev, sans Android Studio) :
   ```bash
   npx eas-cli@latest login
-  npx eas-cli@latest build -p android --profile preview
+  npx eas-cli@latest build -p android --profile demo      # « TCSAY Démo » (tn.tcsay.demo) → site de la démo
+  npx eas-cli@latest build -p android --profile preview   # « TCSAY » du club (tn.tcsay.app) → site du club
   ```
-  À la fin, un lien et un QR code téléchargent l'APK.
+  À la fin, un lien et un QR code téléchargent l'APK. Les deux applications s'installent côte à côte (identifiants
+  différents). Adresse du site du club : `EXPO_PUBLIC_WEB_URL` des profils `preview` et `production` d'`eas.json` (à
+  corriger si le projet Vercel du club porte un autre nom).
+- **Démo** (`APP_VARIANT=demo`, `app.config.js`) : nom « TCSAY Démo », icônes `assets/demo/` (bandeau « DÉMO »).
+  Notifications : ajoutez l'application `tn.tcsay.demo` dans Firebase (Paramètres du projet › Ajouter une application
+  Android), puis remplacez `google-services.json` (il contient alors les deux) ; sans cela l'APK de démo marche, sans
+  notifications. Liens des emails ouverts dans l'application : ajoutez l'empreinte SHA-256 de la clé `tn.tcsay.demo`
+  (expo.dev › Credentials) dans `web/public/.well-known/assetlinks.json`.
 - Envoyer l'APK sur le téléphone (câble, Drive, WhatsApp…), l'ouvrir, autoriser « Installer des applications inconnues ».
 - Au premier lancement, régler le serveur : `http://IP-du-PC:3000` (même Wi-Fi) ou l'adresse en ligne du club (`https://…`).
 

@@ -64,7 +64,7 @@ services:
     runtime: node
     plan: free # pour le club : offre payante conseillée (pas de mise en veille)
     region: frankfurt
-    branch: claude/tcsay-platform-dev-p3t75p
+    branch: club # version stable : seulement ce qui est validé (docs/VERSION_CLUB.md)
     autoDeploy: false
     buildCommand: cd api && npm ci --include=dev && npm run build
     # Pas de migration au démarrage : sauvegarde puis migration depuis votre PC (npm run db:migrate).

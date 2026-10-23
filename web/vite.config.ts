@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 // @ts-ignore -- module Node présent à la construction (les types de Node ne sont pas installés dans le projet web)
 import { execSync } from 'node:child_process';
 // @ts-ignore -- idem
-import { readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 
@@ -42,8 +42,43 @@ function serviceWorkerVersion(): Plugin {
   };
 }
 
+/**
+ * Version démo (VITE_DEMO=1, projet Vercel de la démo) : nom « TCSAY Démo » (onglet, site installé) et icônes avec le
+ * bandeau « DÉMO » (public/demo/icons). Sans VITE_DEMO : nom et icônes du club. Le dossier demo/ n'est jamais publié.
+ */
+function demoVariant(): Plugin {
+  const demo = process.env.VITE_DEMO === '1';
+  let outDir = 'dist';
+  return {
+    name: 'tcsay-demo-variant',
+    apply: 'build',
+    configResolved(config) {
+      outDir = config.build.outDir;
+    },
+    transformIndexHtml(html) {
+      if (!demo) return html;
+      return html
+        .replace('<title>TCSAY · Tennis Club de Sayada</title>', '<title>TCSAY Démo · Tennis Club de Sayada</title>')
+        .replace('<meta name="apple-mobile-web-app-title" content="TCSAY" />', '<meta name="apple-mobile-web-app-title" content="TCSAY Démo" />');
+    },
+    writeBundle() {
+      const icons = `${outDir}/demo/icons`;
+      if (demo) {
+        if (!existsSync(icons)) throw new Error('public/demo/icons introuvable');
+        cpSync(icons, `${outDir}/icons`, { recursive: true });
+        const file = `${outDir}/manifest.webmanifest`;
+        const manifest = JSON.parse(String(readFileSync(file, 'utf8')));
+        manifest.name = 'TCSAY Démo · Tennis Club de Sayada';
+        manifest.short_name = 'TCSAY Démo';
+        writeFileSync(file, JSON.stringify(manifest, null, 2));
+      }
+      rmSync(`${outDir}/demo`, { recursive: true, force: true });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorkerVersion()],
+  plugins: [react(), tailwindcss(), serviceWorkerVersion(), demoVariant()],
   define: {
     __APP_VERSION__: JSON.stringify(`${commit()} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`),
   },

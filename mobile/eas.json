@@ -10,7 +10,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://tcsay.vercel.app"
+        "EXPO_PUBLIC_WEB_URL": "https://tcsay-club.vercel.app"
       },
       "environment": "preview"
     },
@@ -19,9 +19,16 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_PUBLIC_WEB_URL": "https://tcsay.vercel.app"
+        "EXPO_PUBLIC_WEB_URL": "https://tcsay-club.vercel.app"
       },
       "environment": "production"
+    },
+    "demo": {
+      "extends": "preview",
+      "env": {
+        "EXPO_PUBLIC_WEB_URL": "https://tcsay.vercel.app",
+        "APP_VARIANT": "demo"
+      }
     }
   }
 }

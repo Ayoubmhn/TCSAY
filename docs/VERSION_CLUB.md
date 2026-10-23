@@ -5,12 +5,29 @@ Un seul code, deux mises en ligne :
 | | Version complète (la vôtre) | Version du club |
 |---|---|---|
 | Code | le même dépôt | le même dépôt |
+| Branche | `claude/tcsay-platform-dev-p3t75p` (développement, essais) | `club` (stable : seulement ce qui est validé) |
+| Nom de l'application | **TCSAY Démo** (icône avec bandeau « DÉMO ») | **TCSAY** |
+| Application Android | `tn.tcsay.demo` (`eas build --profile demo`) | `tn.tcsay.app` (`--profile preview` ou `production`) |
 | API (Render) | `tcsay-demo` | `tcsay-club` |
 | Site (Vercel) | `tcsay` (renvoie `/api` vers la démo) | projet séparé, `VITE_API_URL` = API du club |
 | Base (Neon) | démo (données fictives) | **base du club** (données réelles), jamais la démo |
 | Modules | tous | ceux validés ci-dessous |
 
-Une correction faite dans le code profite aux deux versions au prochain déploiement.
+Une correction faite dans le code profite aux deux versions : la démo la reçoit tout de suite, le club quand vous la recopiez sur `club`.
+
+**Qui fait quoi** : Neon = la base de données ; Render = l'API (le serveur : connexion, paiements, emails, notifications, tâches automatiques, toujours en marche) ; Vercel = le site (les pages affichées dans le navigateur et l'application). Les trois sont nécessaires.
+
+## Mettre une amélioration dans la version du club
+
+Quand une amélioration est testée sur la démo :
+```bash
+git checkout club
+git pull origin club
+git merge claude/tcsay-platform-dev-p3t75p   # ou seulement un commit : git cherry-pick <commit>
+git push origin club
+git checkout claude/tcsay-platform-dev-p3t75p
+```
+Puis Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure). Le site du club (Vercel, branche de production `club`) se met à jour tout seul.
 
 ## Modules validés pour le club
 
@@ -62,9 +79,9 @@ Le président ne peut pas rallumer un module depuis l'application : c'est un ré
    - `TCSAY_SECRET_KEY` : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (gardez-la : perdue = mots de passe IJIN illisibles) ;
    - `CORS_ORIGIN` et `APP_URL` : l'adresse du site du club (étape 4), ex. `https://tcsay-club.vercel.app` ;
    - emails (`MAIL_TRANSPORT`, `MAIL_FROM` et leurs clés, docs/MAILING.md), Telegram (docs/ALERTES_TELEGRAM.md), `GEMINI_API_KEY` si l'IA est utilisée.
-4. **Site** : Vercel › Add New › Project › ce dépôt, *Root Directory* `web`, nom `tcsay-club`, variable `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) › Deploy. Puis reportez l'adresse du site dans `CORS_ORIGIN` et `APP_URL` de Render.
+4. **Site** : Vercel › Add New › Project › ce dépôt, *Root Directory* `web`, nom `tcsay-club`, variable `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`), **sans** `VITE_DEMO` › Deploy ; puis Settings › Git › *Production Branch* = `club`. Puis reportez l'adresse du site dans `CORS_ORIGIN` et `APP_URL` de Render.
 5. **Vérifier** : ouvrez le site du club, connectez-vous avec le compte du président : le menu ne montre pas les modules coupés, Paramètres › Langue propose français et anglais seulement.
-6. **Application Android du club** (facultatif) : construire l'APK avec `EXPO_PUBLIC_WEB_URL` = adresse du site du club (mobile/README.md).
+6. **Application Android du club** (facultatif) : `npx eas-cli@latest build -p android --profile preview` (adresse du site du club dans `eas.json`, mobile/README.md). La démo : `--profile demo`.
 
 ## Reprendre la base locale (votre PC) dans la version réelle
 
