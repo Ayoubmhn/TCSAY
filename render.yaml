@@ -93,7 +93,7 @@ services:
         sync: false
       - key: SERVE_WEB
         value: "false"
-      # Site du club sur Vercel (projet séparé, VITE_API_URL = adresse de ce service) : seule origine acceptée.
+      # Site du club : https://tcsay.vercel.app (projet Vercel « tcsay », branche club, VITE_API_URL = ce service).
       - key: CORS_ORIGIN
         sync: false
       - key: APP_URL
@@ -101,9 +101,18 @@ services:
       # Le site appelle directement ce service (un seul intermédiaire : Render).
       - key: TRUST_PROXY_HOPS
         value: "1"
+      # Emails en HTTPS (Render gratuit bloque SMTP) : mêmes valeurs que la démo si l'adresse d'envoi est la même.
       - key: MAIL_TRANSPORT
-        sync: false
+        value: gmail-api
       - key: MAIL_FROM
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: Tennis Club de Sayada
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
         sync: false
       - key: TELEGRAM_BOT_TOKEN
         sync: false

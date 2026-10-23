@@ -11,7 +11,7 @@ liens externes (téléphone, email, WhatsApp, vidéos) ouverts dans l'applicatio
 à la couleur du thème du site. Le site reconnaît l'application (user-agent `TCSAYApp/…`) : « Rester connecté »
 coché d'office, carte « Installer l'application » masquée.
 
-- Adresse du site : `EXPO_PUBLIC_WEB_URL` (dans `eas.json`), par défaut `https://tcsay.vercel.app`.
+- Adresse du site : `EXPO_PUBLIC_WEB_URL` (dans `eas.json`) : `https://tcsay.vercel.app` (club, profils `preview` et `production`), `https://tcsay-demo.vercel.app` (profil `demo`).
 - Limites : impression et téléchargement de fichiers (reçus PDF) à faire depuis un navigateur.
 - **Notifications du téléphone** (version 0.3, `expo-notifications`, `src/push.ts`) : au premier lancement,
   l'application demande l'autorisation, obtient le jeton push de l'appareil et le donne au site, qui le rattache au
@@ -104,8 +104,8 @@ L'API doit tourner sur le PC : `cd api && npm run start:dev` (port 3000).
   npx eas-cli@latest build -p android --profile preview   # « TCSAY » du club (tn.tcsay.app) → site du club
   ```
   À la fin, un lien et un QR code téléchargent l'APK. Les deux applications s'installent côte à côte (identifiants
-  différents). Adresse du site du club : `EXPO_PUBLIC_WEB_URL` des profils `preview` et `production` d'`eas.json` (à
-  corriger si le projet Vercel du club porte un autre nom).
+  différents). Adresses : club `https://tcsay.vercel.app`, démo `https://tcsay-demo.vercel.app` (`EXPO_PUBLIC_WEB_URL`
+  d'`eas.json`).
 - **Démo** (`APP_VARIANT=demo`, `app.config.js`) : nom « TCSAY Démo », icônes `assets/demo/` (bandeau « DÉMO »).
   Notifications : ajoutez l'application `tn.tcsay.demo` dans Firebase (Paramètres du projet › Ajouter une application
   Android), puis remplacez `google-services.json` (il contient alors les deux) ; sans cela l'APK de démo marche, sans

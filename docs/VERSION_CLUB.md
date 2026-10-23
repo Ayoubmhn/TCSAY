@@ -9,7 +9,7 @@ Un seul code, deux mises en ligne :
 | Nom de l'application | **TCSAY Démo** (icône avec bandeau « DÉMO ») | **TCSAY** |
 | Application Android | `tn.tcsay.demo` (`eas build --profile demo`) | `tn.tcsay.app` (`--profile preview` ou `production`) |
 | API (Render) | `tcsay-demo` | `tcsay-club` |
-| Site (Vercel) | `tcsay` (renvoie `/api` vers la démo) | projet séparé, `VITE_API_URL` = API du club |
+| Site (Vercel) | `tcsay-demo.vercel.app` (projet `tcsay-demo`, `VITE_DEMO=1`, renvoie `/api` vers la démo) | `tcsay.vercel.app` (projet `tcsay`, branche `club`, `VITE_API_URL` = API du club) |
 | Base (Neon) | démo (données fictives) | **base du club** (données réelles), jamais la démo |
 | Modules | tous | ceux validés ci-dessous |
 
@@ -77,9 +77,11 @@ Le président ne peut pas rallumer un module depuis l'application : c'est un ré
 3. **API** : Render › Blueprints › ce dépôt › **Sync** : Render propose le nouveau service `tcsay-club`. Saisissez les valeurs secrètes demandées :
    - `DATABASE_URL` : l'adresse Neon du club ;
    - `TCSAY_SECRET_KEY` : `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (gardez-la : perdue = mots de passe IJIN illisibles) ;
-   - `CORS_ORIGIN` et `APP_URL` : l'adresse du site du club (étape 4), ex. `https://tcsay-club.vercel.app` ;
+   - `CORS_ORIGIN` et `APP_URL` : l'adresse du site du club (étape 4), `https://tcsay.vercel.app` ;
    - emails (`MAIL_TRANSPORT`, `MAIL_FROM` et leurs clés, docs/MAILING.md), Telegram (docs/ALERTES_TELEGRAM.md), `GEMINI_API_KEY` si l'IA est utilisée.
-4. **Site** : Vercel › Add New › Project › ce dépôt, *Root Directory* `web`, nom `tcsay-club`, variable `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`), **sans** `VITE_DEMO` › Deploy ; puis Settings › Git › *Production Branch* = `club`. Puis reportez l'adresse du site dans `CORS_ORIGIN` et `APP_URL` de Render.
+4. **Sites (Vercel)** : l'adresse `tcsay.vercel.app` passe au club, la démo prend `tcsay-demo.vercel.app`. Dans cet ordre (la démo n'est jamais coupée) :
+   - **Démo d'abord** : Add New › Project › ce dépôt, nom **`tcsay-demo`**, *Root Directory* `web`, variable `VITE_DEMO` = `1`, Deploy ; Settings › Git › *Production Branch* = `claude/tcsay-platform-dev-p3t75p`. Puis Render › `tcsay-demo` › `APP_URL` = `https://tcsay-demo.vercel.app` › Save.
+   - **Puis le club** sur l'ancien projet **`tcsay`** : Settings › Environment Variables : **supprimez** `VITE_DEMO`, ajoutez `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) ; Settings › Git › *Production Branch* = `club` ; Deployments › Redeploy.
 5. **Vérifier** : ouvrez le site du club, connectez-vous avec le compte du président : le menu ne montre pas les modules coupés, Paramètres › Langue propose français et anglais seulement.
 6. **Application Android du club** (facultatif) : `npx eas-cli@latest build -p android --profile preview` (adresse du site du club dans `eas.json`, mobile/README.md). La démo : `--profile demo`.
 
