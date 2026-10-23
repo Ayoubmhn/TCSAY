@@ -9,6 +9,7 @@ import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AllowPendingPassword, AuthUser, CurrentUser, Public } from './auth-user';
 import { signToken } from './jwt';
+import { disabledModules } from '../modules/modules';
 import { LoginThrottle } from '../security/login-throttle';
 import { hashPassword, passwordProblem, verifyPassword } from './password';
 
@@ -270,6 +271,8 @@ export class AuthController {
       ...user,
       ...account,
       photoUrl: mine.get(user.id) ?? null,
+      // Modules coupés pour cette mise en ligne (MODULES_COUPES) : le site les retire du menu et des écrans.
+      disabledModules: disabledModules(),
       players: players.map(({ userId: _u, ...p }) => ({ ...p, photoUrl: theirs.get(p.id) ?? null })),
     };
   }

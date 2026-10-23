@@ -10,7 +10,7 @@ import { Pill } from '../../components/ui/Pill';
 import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
-import { LANGS, useI18n } from '../../lib/i18n';
+import { useI18n } from '../../lib/i18n';
 import { isStandalone } from '../../lib/pwa';
 
 /** Comptes du seed de démonstration (affichés en développement et sur la démo en ligne, VITE_DEMO=1). */
@@ -130,10 +130,10 @@ export function LoginPage() {
 
 /** Choix de la langue avant connexion (FR / EN / AR). */
 function LangSwitch() {
-  const { lang, setLang } = useI18n();
+  const { lang, setLang, langs } = useI18n();
   return (
     <div role="group" aria-label="Langue" className="flex gap-1.5">
-      {LANGS.map((l) => (
+      {langs.map((l) => (
         <button
           key={l.value}
           type="button"

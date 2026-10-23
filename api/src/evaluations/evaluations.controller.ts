@@ -6,6 +6,7 @@ import { AccessService } from '../access/access.service';
 import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { addDaysIso, dayFromIso, isoDay, todayIso } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { ratingAverage } from '../attendance/session-review.controller';
@@ -97,6 +98,7 @@ function scoresAverage(scores: Record<string, number>) {
  */
 @ApiTags('Suivi des joueurs')
 @ApiBearerAuth()
+@Feature('bilans', 'exercices')
 @Controller('evaluations')
 export class EvaluationsController {
   constructor(

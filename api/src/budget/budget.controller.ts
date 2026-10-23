@@ -5,6 +5,7 @@ import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsIn, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { addDaysIso, dayFromIso, isoDay, localInstant, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { LOCKED_SEASON } from '../common/rules';
@@ -49,6 +50,7 @@ const addMonth = (m: string, n: number) => {
  */
 @ApiTags('Projets et budget')
 @ApiBearerAuth()
+@Feature('budget')
 @Controller('budget')
 export class BudgetController {
   constructor(

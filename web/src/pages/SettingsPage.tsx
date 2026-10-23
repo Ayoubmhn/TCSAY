@@ -23,7 +23,7 @@ import { useToast } from '../components/ui/Toast';
 import { changePassword, passwordHint } from '../lib/api';
 import { Note } from '../components/ui/Note';
 import { formatDate, formatDateTime } from '../lib/format';
-import { LANGS, useI18n, type Lang } from '../lib/i18n';
+import { useI18n, type Lang } from '../lib/i18n';
 import { useAction } from '../lib/useAction';
 
 
@@ -35,7 +35,7 @@ export function SettingsPage() {
   const [forgot, setForgot] = useState(false);
   const me = useMe();
   const { refresh } = useAuth();
-  const { lang, setLang, t } = useI18n();
+  const { lang, setLang, t, langs } = useI18n();
   const theme = useTheme();
   const toast = useToast();
   const [current, setCurrent] = useState('');
@@ -168,7 +168,7 @@ export function SettingsPage() {
           <Section title="Préférences">
             <Card>
               <span className="text-xs font-medium text-mut">{t('Langue')}</span>
-              <Segmented<Lang> label="Langue" options={LANGS} value={lang} onChange={setLang} />
+              <Segmented<Lang> label="Langue" options={langs} value={lang} onChange={setLang} />
               <span className="mt-1.5 text-xs font-medium text-mut">{t('Thème')}</span>
               <Segmented<Theme>
                 label="Thème"

@@ -5,6 +5,7 @@ import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, 
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { addDaysIso, dayFromIso, isoDay, localInstant } from '../common/dates';
 import { notFound } from '../common/rules';
 import { periodSelect, slotRunsOn, withPeriod } from '../common/sessions';
@@ -68,6 +69,7 @@ export function ratingAverage(r: Record<Criterion, number>): number {
  */
 @ApiTags('Séances et présences')
 @ApiBearerAuth()
+@Feature('evaluation-seances')
 @Controller('sessions')
 export class SessionReviewController {
   constructor(

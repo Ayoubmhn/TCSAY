@@ -12,6 +12,7 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { cachedAt, sessionOpenLocally } from '../../lib/offline-cache';
 import { fD, todayIso } from '../../lib/format';
+import { useModule } from '../../lib/modules';
 import type { CoachSession } from '../../lib/types';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { ActionIcon } from '../../components/ui/ActionIcon';
@@ -32,6 +33,8 @@ function PlanCard({ slotId, date }: { slotId: string; date: string }) {
  */
 export function CoachAttendancePage() {
   const [view, setView] = useViewMode('presences');
+  // Objectif et évaluation de la séance : module activable (coupé dans la version du club).
+  const review = useModule('evaluation-seances');
   const today = todayIso();
   const q = useQuery({
     queryKey: ['sessions', 'coach', 'today', today],
@@ -46,7 +49,7 @@ export function CoachAttendancePage() {
   const current = sessions.filter((s) => s.open && s.resolution !== 'CANCELLED');
   const selected = sessions.find((s) => s.slotId === chosen) ?? current[0];
   const live = selected && selected.open && selected.resolution !== 'CANCELLED' ? selected : undefined;
-  const toReview = sessions.find((s) => s.slotId === reviewed) ?? live;
+  const toReview = review ? (sessions.find((s) => s.slotId === reviewed) ?? live) : undefined;
 
   return (
     <>
@@ -56,7 +59,7 @@ export function CoachAttendancePage() {
         {offline && <Pill tone="s">Hors connexion : pointage gardé puis envoyé au retour du réseau</Pill>}
       </Pills>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
-        {live && (
+        {live && review && (
           <Section title="Objectif de la séance">
             <Card>
               <PlanCard slotId={live.slotId} date={live.date} />
@@ -125,7 +128,7 @@ export function CoachAttendancePage() {
                   {s.resolution !== 'CANCELLED' && s.started && (
                     <CardActions>
                       {s.open && s.slotId !== selected?.slotId && <ActionIcon kind="attendance" label="Pointer cette séance" primary onClick={() => setChosen(s.slotId)} />}
-                      {s.recorded && s.slotId !== toReview?.slotId && <ActionIcon kind="rate" label="Évaluer la séance" onClick={() => setReviewed(s.slotId)} />}
+                      {review && s.recorded && s.slotId !== toReview?.slotId && <ActionIcon kind="rate" label="Évaluer la séance" onClick={() => setReviewed(s.slotId)} />}
                     </CardActions>
                   )}
                 </Card>

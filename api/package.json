@@ -23,6 +23,7 @@
     "test:score": "node test/score-engine.check.cjs",
     "test:push": "node test/web-push.check.cjs",
     "test:alerts": "node --test test/alerts.check.mjs",
+    "test:modules": "node --test test/modules.check.mjs",
     "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.e2e.mjs\"",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio"

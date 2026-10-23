@@ -15,6 +15,7 @@ import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { DT, fD } from '../../lib/format';
 import type { Player } from '../../lib/types';
+import { useModule } from '../../lib/modules';
 import { useAction } from '../../lib/useAction';
 
 type Module = 'sessions' | 'progress' | 'exercises' | 'reservation';
@@ -30,6 +31,9 @@ const MODULES: Module[] = ['sessions', 'progress', 'exercises', 'reservation'];
  * payée (après un délai de grâce) ; exceptions par joueur avec motif. Paiements, reçus et notifications restent ouverts.
  */
 export function PaymentAccessPage() {
+  // Modules coupés (version du club) : pas proposés ici.
+  const progressOn = useModule(['evaluation-seances', 'bilans']);
+  const exercisesOn = useModule('exercices');
   const me = useMe();
   const president = me.permissions.includes('permissions.manage');
   const cfg = useQuery({ queryKey: ['access-config'], queryFn: () => api.get<Config>('/access/payment/config') });
@@ -87,7 +91,7 @@ export function PaymentAccessPage() {
                 </SelectField>
               </div>
               <div className="flex flex-col gap-2">
-                {MODULES.map((m) => (
+                {MODULES.filter((m) => (m === 'progress' ? progressOn : m === 'exercises' ? exercisesOn : true)).map((m) => (
                   <label key={m} className="flex items-center justify-between gap-3 rounded-[18px] bg-fld px-4 py-2.5 text-sm">
                     <span>{cfg.data!.labels[m]}</span>
                     <span className="flex items-center gap-2">

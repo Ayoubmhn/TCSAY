@@ -6,7 +6,8 @@ import { api } from '../lib/api';
 import { addDays, todayIso } from '../lib/format';
 import { isOffline, onNetwork } from '../lib/offline-cache';
 import { dismissFailure, failures, flush, lastFlush, mine, onOutbox } from '../lib/outbox';
-import type { CoachSession } from '../lib/types';
+import { moduleOn } from '../lib/modules';
+import type { CoachSession, ModuleKey } from '../lib/types';
 import { useToast } from './ui/Toast';
 
 const useNetworkOffline = () => useSyncExternalStore(onNetwork, isOffline);
@@ -86,6 +87,9 @@ export function OfflineBanner() {
  */
 export function useOfflinePrefetch() {
   const me = useMe();
+  // Modules coupés (version du club) : rien à précharger pour eux.
+  const off = (me.disabledModules ?? []).join(',');
+  const on = (keys: ModuleKey | ModuleKey[]) => moduleOn({ disabledModules: off ? (off.split(',') as ModuleKey[]) : [] }, keys);
   const kids = me.players.map((p) => p.id).join(',');
   // Tous les écrans téléchargés une fois (10 s après l'ouverture) : ils s'ouvriront ensuite sans réseau.
   useEffect(() => {
@@ -99,7 +103,7 @@ export function useOfflinePrefetch() {
     let stop = false;
     const run = async () => {
       if (isOffline()) return;
-      for (const path of ['/events', '/tournaments', '/matches', '/evaluations/criteria']) await api.get(path).catch(() => undefined);
+      for (const path of ['/events', '/tournaments', '/matches', ...(on('bilans') ? ['/evaluations/criteria'] : [])]) await api.get(path).catch(() => undefined);
       if (family) {
         void import('../pages/player/SessionsPage');
         void import('../pages/player/AbsencesPage');
@@ -107,21 +111,21 @@ export function useOfflinePrefetch() {
           if (stop) return;
           await api.get('/sessions/player', { playerId }).catch(() => undefined);
           await api.get('/absences', { playerId }).catch(() => undefined);
-          await api.get('/progress', { playerId }).catch(() => undefined);
-          await api.get('/exercises/mine', { playerId }).catch(() => undefined);
+          if (on(['evaluation-seances', 'bilans'])) await api.get('/progress', { playerId }).catch(() => undefined);
+          if (on('exercices')) await api.get('/exercises/mine', { playerId }).catch(() => undefined);
           await api.get('/tournaments/history', me.space === 'parent' ? { playerId } : {}).catch(() => undefined);
         }
         return;
       }
       void import('../pages/coach/CoachAttendancePage');
       void import('../pages/coach/CoachSessionsPage');
-      for (const path of ['/groups', '/exercises', '/exercises/assignments', '/coach-absences']) await api.get(path).catch(() => undefined);
+      for (const path of ['/groups', ...(on('exercices') ? ['/exercises', '/exercises/assignments'] : []), '/coach-absences']) await api.get(path).catch(() => undefined);
       // Bilans : feuille de chaque groupe pour la période en cours.
       const period = (() => {
         const m = new Date().getMonth() + 1;
         return m >= 9 ? 'T1' : m <= 3 ? 'T2' : m <= 6 ? 'T3' : 'ETE';
       })();
-      const evalGroups = await api.get<{ id: string }[]>('/evaluations/groups').catch(() => [] as { id: string }[]);
+      const evalGroups = on('bilans') ? await api.get<{ id: string }[]>('/evaluations/groups').catch(() => [] as { id: string }[]) : [];
       for (const g of evalGroups) if (!stop) await api.get('/evaluations/group', { groupId: g.id, period }).catch(() => undefined);
       await api.get('/sessions', { from: addDays(todayIso(), -14), to: addDays(todayIso(), 14) }).catch(() => undefined);
       for (let i = 0; i < 3 && !stop; i++) {
@@ -130,7 +134,7 @@ export function useOfflinePrefetch() {
         for (const s of sessions) {
           if (stop || s.resolution === 'CANCELLED') continue;
           await api.get('/attendance', { slotId: s.slotId, date: s.date }).catch(() => undefined);
-          await api.get('/sessions/review', { slotId: s.slotId, date: s.date }).catch(() => undefined);
+          if (on('evaluation-seances')) await api.get('/sessions/review', { slotId: s.slotId, date: s.date }).catch(() => undefined);
         }
       }
     };
@@ -141,5 +145,5 @@ export function useOfflinePrefetch() {
       clearTimeout(t);
       clearInterval(every);
     };
-  }, [me.space, me.id, kids]);
+  }, [me.space, me.id, kids, off]); // eslint-disable-line react-hooks/exhaustive-deps
 }

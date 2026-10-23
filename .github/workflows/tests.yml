@@ -53,6 +53,8 @@ jobs:
         run: npm run test:score && npm run test:push
       - name: Alertes Telegram (faux serveur Telegram local)
         run: npm run test:alerts
+      - name: Version du club (modules coupés → 404)
+        run: npm run test:modules
       - name: Lancement de l'API
         run: |
           nohup node dist/main > api.log 2>&1 &

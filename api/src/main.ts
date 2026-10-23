@@ -9,6 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AlertExceptionFilter } from './alerts/alert-exception.filter';
 import { alert, describeError } from './alerts/telegram';
 import { AppModule } from './app.module';
+import { logModules } from './modules/modules';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { applyHttpSecurity, swaggerEnabled } from './security/http-security';
 
@@ -16,6 +17,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.setGlobalPrefix('api/v1');
+  logModules();
   // En-têtes de sécurité, CORS, limite de requêtes, adresse réelle derrière l'hébergeur.
   applyHttpSecurity(app);
   app.useGlobalPipes(

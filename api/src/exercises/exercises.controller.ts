@@ -7,6 +7,7 @@ import { AccessService } from '../access/access.service';
 import { PaymentAccessService } from '../access/payment-access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { addDaysIso, dayFromIso, isoDay, todayIso } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -80,6 +81,7 @@ const VISIBLE_DAYS = 30;
  */
 @ApiTags('Exercices')
 @ApiBearerAuth()
+@Feature('exercices')
 @Controller('exercises')
 export class ExercisesController {
   constructor(

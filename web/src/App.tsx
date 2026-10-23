@@ -5,7 +5,8 @@ import { Button } from './components/ui/Button';
 import { useI18n } from './lib/i18n';
 import { EmptyState } from './components/ui/Card';
 import { AppShell } from './layouts/AppShell';
-import type { Role } from './lib/types';
+import { useModule } from './lib/modules';
+import type { ModuleKey, Role } from './lib/types';
 import { LoginPage } from './pages/auth/LoginPage';
 import { PaymentGate } from './components/PaymentGate';
 import { PermissionsGate } from './components/PermissionsGate';
@@ -137,6 +138,13 @@ function Loading() {
   );
 }
 
+/** Écran d'un module activable : coupé pour cette mise en ligne (version du club) = page introuvable. */
+function ModuleRoute({ module, children }: { module: ModuleKey | ModuleKey[]; children: ReactNode }) {
+  return useModule(module) ? <>{children}</> : <NotFoundPage />;
+}
+
+const on = (module: ModuleKey | ModuleKey[], page: ReactNode) => <ModuleRoute module={module}>{page}</ModuleRoute>;
+
 const PLAYER: Role[] = ['PLAYER', 'PARENT'];
 const ADMIN: Role[] = ['ADMIN'];
 
@@ -180,8 +188,8 @@ export function App() {
         <Route path="paiements" element={<Protected roles={PLAYER}><PaymentsPage /></Protected>} />
         <Route path="seances" element={<Protected roles={PLAYER}><PaymentGate module="sessions" title="Mes séances"><SessionsPage /></PaymentGate></Protected>} />
         <Route path="absences" element={<Protected roles={PLAYER}><PaymentGate module="sessions" title="Mes absences"><AbsencesPage /></PaymentGate></Protected>} />
-        <Route path="suivi" element={<Protected roles={PLAYER}><PaymentGate module="progress" title="Suivi et progression"><ProgressPage /></PaymentGate></Protected>} />
-        <Route path="exercices" element={<Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>} />
+        <Route path="suivi" element={on(['evaluation-seances', 'bilans'], <Protected roles={PLAYER}><PaymentGate module="progress" title="Suivi et progression"><ProgressPage /></PaymentGate></Protected>)} />
+        <Route path="exercices" element={on('exercices', <Protected roles={PLAYER}><PaymentGate module="exercises" title="Exercices"><ExercisesPage /></PaymentGate></Protected>)} />
         <Route path="reserver" element={<Protected roles={PLAYER}><PaymentGate module="reservation" title="Réserver un terrain"><BookPage /></PaymentGate></Protected>} />
         <Route path="tournois" element={<TournamentsPage />} />
         <Route path="evenements" element={<EventsPage />} />
@@ -199,10 +207,10 @@ export function App() {
         <Route path="coach/presences" element={<Protected roles={['COACH']}><CoachAttendancePage /></Protected>} />
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
         <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
-        <Route path="coach/disponibilites" element={<Protected roles={['COACH']}><AvailabilityPage /></Protected>} />
-        <Route path="disponibilites" element={<Protected roles={PLAYER}><AvailabilityPage /></Protected>} />
-        <Route path="coach/bilans" element={<Protected roles={['COACH']}><EvaluationsPage /></Protected>} />
-        <Route path="coach/exercices" element={<Protected roles={['COACH']}><ExercisesCoachPage /></Protected>} />
+        <Route path="coach/disponibilites" element={on('disponibilites', <Protected roles={['COACH']}><AvailabilityPage /></Protected>)} />
+        <Route path="disponibilites" element={on('disponibilites', <Protected roles={PLAYER}><AvailabilityPage /></Protected>)} />
+        <Route path="coach/bilans" element={on('bilans', <Protected roles={['COACH']}><EvaluationsPage /></Protected>)} />
+        <Route path="coach/exercices" element={on('exercices', <Protected roles={['COACH']}><ExercisesCoachPage /></Protected>)} />
         <Route path="coach/reserver" element={<Protected roles={['COACH']}><BookPage /></Protected>} />
 
         {/* Administration : président, agents, superviseur, directeur technique (selon les autorisations) */}
@@ -220,15 +228,15 @@ export function App() {
         <Route path="admin/ijin" element={admin(['federation.manage'], <FederationAccountsPage />)} />
         <Route path="admin/reinscriptions" element={admin(['players.manage'], <ReenrollmentPage />)} />
         <Route path="admin/depenses" element={admin(['expenses.manage'], <ExpensesPage />)} />
-        <Route path="admin/disponibilites" element={admin(['groups.manage'], <AvailabilityAdminPage />)} />
+        <Route path="admin/disponibilites" element={on('disponibilites', admin(['groups.manage'], <AvailabilityAdminPage />))} />
         <Route path="admin/personnel/:id" element={admin(['staff.manage'], <StaffProfilePage />)} />
         <Route path="admin/fiche-inscription" element={admin(['players.manage'], <RegistrationFormPage />)} />
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />
         <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
-        <Route path="admin/bilans" element={admin(['evaluations.manage'], <EvaluationsPage admin />)} />
-        <Route path="admin/suivi-technique" element={admin(['evaluations.manage'], <TechOverviewPage />)} />
-        <Route path="admin/exercices" element={admin(['evaluations.manage'], <ExercisesCoachPage />)} />
+        <Route path="admin/bilans" element={on('bilans', admin(['evaluations.manage'], <EvaluationsPage admin />))} />
+        <Route path="admin/suivi-technique" element={on('bilans', admin(['evaluations.manage'], <TechOverviewPage />))} />
+        <Route path="admin/exercices" element={on('exercices', admin(['evaluations.manage'], <ExercisesCoachPage />))} />
         <Route path="admin/categories" element={admin(['seasons.manage'], <CategoriesPage />)} />
         <Route path="admin/rapports" element={admin(['stats.view', 'seasons.manage'], <SeasonReportsPage />)} />
         <Route path="admin/saisons" element={admin(['seasons.manage', 'stats.view'], <SeasonsPage />)} />
@@ -250,9 +258,9 @@ export function App() {
         <Route path="admin/emails" element={admin(['emails.view'], <EmailsPage />)} />
         <Route path="admin/audit" element={admin(['audit.view'], <AuditPage />)} />
         <Route path="admin/autorisations" element={<Navigate to="/parametres/autorisations" replace />} />
-        <Route path="admin/budget" element={admin(['budget.manage', 'stats.view'], <BudgetPage />)} />
-        <Route path="admin/projets/:id" element={admin(['budget.manage', 'stats.view'], <ProjectPage />)} />
-        <Route path="admin/import" element={admin(['import.manage'], <HistoryPage />)} />
+        <Route path="admin/budget" element={on('budget', admin(['budget.manage', 'stats.view'], <BudgetPage />))} />
+        <Route path="admin/projets/:id" element={on('budget', admin(['budget.manage', 'stats.view'], <ProjectPage />))} />
+        <Route path="admin/import" element={on('import-historique', admin(['import.manage'], <HistoryPage />))} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       </Routes>

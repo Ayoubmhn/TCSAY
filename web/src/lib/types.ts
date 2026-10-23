@@ -52,7 +52,12 @@ export type Me = {
   players: PersonRef[];
   /** Photo de profil (adresse signée de l'API, relative à /api/v1). */
   photoUrl?: string | null;
+  /** Modules coupés pour cette mise en ligne (version du club) : retirés du menu et des écrans. */
+  disabledModules?: ModuleKey[];
 };
+
+/** Modules activables (api/src/modules/modules.ts). */
+export type ModuleKey = 'arabe' | 'budget' | 'disponibilites' | 'import-historique' | 'evaluation-seances' | 'bilans' | 'exercices';
 
 export type Category = {
   id: string;

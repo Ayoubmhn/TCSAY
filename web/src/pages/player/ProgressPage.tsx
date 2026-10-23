@@ -13,6 +13,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
 import { fD } from '../../lib/format';
+import { useModule } from '../../lib/modules';
 import type { Evaluation, Mood, SessionRatingNotes } from '../../lib/types';
 
 type Progress = {
@@ -84,6 +85,8 @@ function ProgressChart({ months }: { months: Progress['months'] }) {
 /** Suivi et progression (joueur, parent) : assiduité, évolution des notes, retours de l'entraîneur. */
 export function ProgressPage() {
   const { playerId } = useAuth();
+  // Bilans de période : module activable (sans lui, la page garde le suivi des séances).
+  const bilansOn = useModule('bilans');
   const q = useQuery({
     queryKey: ['progress', playerId],
     queryFn: () => api.get<Progress>('/progress', { playerId }),
@@ -93,11 +96,12 @@ export function ProgressPage() {
     queryKey: ['progress', 'evaluations', playerId],
     queryFn: () =>
       api.get<{ level: string | null; levelUpdatedAt: string | null; evaluations: Evaluation[] }>('/evaluations/player', { playerId }),
-    enabled: Boolean(playerId),
+    enabled: Boolean(playerId) && bilansOn,
   });
   const criteria = useQuery({
     queryKey: ['evaluation-criteria'],
     queryFn: () => api.get<{ criteria: { key: string; label: string; family: string }[] }>('/evaluations/criteria'),
+    enabled: bilansOn,
   });
   const matches = useQuery({
     queryKey: ['progress', 'matches', playerId],

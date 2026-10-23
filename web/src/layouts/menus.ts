@@ -16,7 +16,8 @@ import {
   IconUsers,
   IconWallet,
 } from '../components/ui/Icons';
-import type { Actor, Me, Space } from '../lib/types';
+import { moduleOn } from '../lib/modules';
+import type { Actor, Me, ModuleKey, Space } from '../lib/types';
 
 export type MenuLink = {
   label: string;
@@ -27,6 +28,8 @@ export type MenuLink = {
   perm?: string[];
   /** Réservé à certains acteurs (ex. « Mes salaires » pour le personnel salarié). */
   actors?: Actor[];
+  /** Module activable : lien retiré quand il est coupé pour cette mise en ligne (version du club). */
+  module?: ModuleKey | ModuleKey[];
 };
 
 type Icon = ComponentType<{ size?: number }>;
@@ -42,12 +45,12 @@ const PLAYER_MENU: MenuItem[] = [
     label: 'Mon activité',
     icon: IconRacket,
     children: [
-      { label: 'Suivi et progression', path: '/suivi' },
-      { label: 'Exercices', path: '/exercices' },
+      { label: 'Suivi et progression', path: '/suivi', module: ['evaluation-seances', 'bilans'] },
+      { label: 'Exercices', path: '/exercices', module: 'exercices' },
       { label: 'Matchs', path: '/matchs' },
       { label: 'Mes séances', path: '/seances' },
       { label: 'Mes absences', path: '/absences' },
-      { label: 'Disponibilités', path: '/disponibilites' },
+      { label: 'Disponibilités', path: '/disponibilites', module: 'disponibilites' },
     ],
   },
   { label: 'Mes paiements', path: '/paiements', icon: IconCard },
@@ -61,12 +64,12 @@ const PLAYER_MENU: MenuItem[] = [
 const COACH_MENU: MenuItem[] = [
   { label: 'Mes séances', path: '/coach/seances', icon: IconCalendar },
   { label: 'Présences', path: '/coach/presences', icon: IconClipboard },
-  { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart },
-  { label: 'Exercices', path: '/coach/exercices', icon: IconRacket },
+  { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart, module: 'bilans' },
+  { label: 'Exercices', path: '/coach/exercices', icon: IconRacket, module: 'exercices' },
   { label: 'Matchs', path: '/matchs', icon: IconTrophy },
   { label: 'Tournois', path: '/tournois', icon: IconTrophy },
   { label: 'Mes absences', path: '/coach/absences', icon: IconUserOff },
-  { label: 'Mes disponibilités', path: '/coach/disponibilites', icon: IconClock },
+  { label: 'Mes disponibilités', path: '/coach/disponibilites', icon: IconClock, module: 'disponibilites' },
   { label: 'Mes salaires', path: '/coach/salaires', icon: IconWallet },
   { label: 'Réserver (séances privées)', path: '/coach/reserver', icon: IconCourt },
   { label: 'Événements', path: '/evenements', icon: IconCalendar },
@@ -103,7 +106,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Dépenses', path: '/admin/depenses', perm: ['expenses.manage'] },
       { label: 'Salaires', path: '/admin/salaires', perm: ['salaries.manage'] },
       { label: 'Statistiques', path: '/admin/statistiques', perm: ['stats.view'] },
-      { label: 'Projets et budget', path: '/admin/budget', perm: ['budget.manage', 'stats.view'] },
+      { label: 'Projets et budget', path: '/admin/budget', perm: ['budget.manage', 'stats.view'], module: 'budget' },
       { label: 'Mes salaires', path: '/admin/mes-salaires', actors: ['ADMIN_AGENT', 'SUPERVISOR', 'TECH_DIRECTOR'] },
     ],
   },
@@ -113,10 +116,10 @@ const ADMIN_MENU: MenuItem[] = [
     children: [
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
-      { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'] },
-      { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'] },
-      { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'] },
-      { label: 'Exercices', path: '/admin/exercices', perm: ['evaluations.manage'] },
+      { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'], module: 'disponibilites' },
+      { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'], module: 'bilans' },
+      { label: 'Bilans des joueurs', path: '/admin/bilans', perm: ['evaluations.manage'], module: 'bilans' },
+      { label: 'Exercices', path: '/admin/exercices', perm: ['evaluations.manage'], module: 'exercices' },
     ],
   },
   {
@@ -162,7 +165,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Comptes IJIN', path: '/admin/ijin', perm: ['federation.manage'] },
       { label: 'Mises à jour (Excel)', path: '/admin/mises-a-jour', perm: ['groups.manage', 'payments.collect'] },
       { label: 'Historique des actions', path: '/admin/audit', perm: ['audit.view'] },
-      { label: 'Import historique', path: '/admin/import', perm: ['import.manage'] },
+      { label: 'Import historique', path: '/admin/import', perm: ['import.manage'], module: 'import-historique' },
     ],
   },
 ];
@@ -177,15 +180,16 @@ export const MENUS: Record<Space, MenuItem[]> = {
   admin: ADMIN_MENU,
 };
 
-/** Lien visible pour cet utilisateur (autorisations de l'espace administration, acteurs). */
-export function allowed(link: MenuLink, me: Pick<Me, 'permissions' | 'roles'>): boolean {
+/** Lien visible pour cet utilisateur (module allumé, autorisations de l'espace administration, acteurs). */
+export function allowed(link: MenuLink, me: Pick<Me, 'permissions' | 'roles' | 'disabledModules'>): boolean {
+  if (link.module && !moduleOn(me, link.module)) return false;
   if (link.perm && !link.perm.some((p) => me.permissions.includes(p))) return false;
   if (link.actors && !link.actors.some((a) => me.roles.includes(a))) return false;
   return true;
 }
 
 /** Menu de l'espace courant, limité aux modules autorisés. */
-export function menuFor(me: Pick<Me, 'space' | 'permissions' | 'roles'>): MenuItem[] {
+export function menuFor(me: Pick<Me, 'space' | 'permissions' | 'roles' | 'disabledModules'>): MenuItem[] {
   return MENUS[me.space]
     .map((item) => (isGroup(item) ? { ...item, children: item.children.filter((c) => allowed(c, me)) } : item))
     .filter((item) => (isGroup(item) ? item.children.length > 0 : allowed(item, me)));

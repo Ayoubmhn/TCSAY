@@ -1,4 +1,5 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { api } from './api';
 import { setDateLocale } from './format';
 
 /**
@@ -456,9 +457,25 @@ export function applyLang(lang: Lang = readLang()): void {
   setDateLocale(lang);
 }
 
-type I18n = { lang: Lang; setLang: (lang: Lang) => void; t: (text: string) => string };
+type I18n = {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  t: (text: string) => string;
+  /** Langues proposées : sans l'arabe quand le module « arabe » est coupé (version du club). */
+  langs: { value: Lang; label: string }[];
+};
 
-const I18nContext = createContext<I18n>({ lang: 'fr', setLang: () => undefined, t: (s) => s });
+const I18nContext = createContext<I18n>({ lang: 'fr', setLang: () => undefined, t: (s) => s, langs: LANGS });
+
+const ARABIC_OFF_KEY = 'tcsay-arabe-coupe';
+
+function readArabicOff(): boolean {
+  try {
+    return localStorage.getItem(ARABIC_OFF_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Lang>(readLang);
@@ -472,8 +489,29 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       /* préférence non mémorisée */
     }
   }, []);
+  // Module « arabe » coupé pour cette mise en ligne (GET /modules, public : utile dès la connexion) ; mémorisé
+  // sur l'appareil pour le prochain démarrage, même sans réseau.
+  const [arabicOff, setArabicOff] = useState(readArabicOff);
+  useEffect(() => {
+    api
+      .get<{ disabled: string[] }>('/modules')
+      .then((r) => {
+        const off = r.disabled.includes('arabe');
+        setArabicOff(off);
+        try {
+          localStorage.setItem(ARABIC_OFF_KEY, off ? '1' : '0');
+        } catch {
+          /* non mémorisé */
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (arabicOff && lang === 'ar') setLang('fr');
+  }, [arabicOff, lang, setLang]);
+  const langs = useMemo(() => (arabicOff ? LANGS.filter((l) => l.value !== 'ar') : LANGS), [arabicOff]);
   const t = useCallback((text: string) => translate(lang, text), [lang]);
-  const value = useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
+  const value = useMemo(() => ({ lang, setLang, t, langs }), [lang, setLang, t, langs]);
     // Remontage à chaque changement de langue : dates et libellés calculés hors contexte sont refaits.
   return (
     <I18nContext.Provider value={value}>

@@ -5,6 +5,7 @@ import { IsOptional, IsUUID } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { PaymentAccessService } from '../access/payment-access.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { isoDay } from '../common/dates';
 import { PrismaService } from '../prisma/prisma.service';
 import { RATING_CRITERIA, ratingAverage } from './session-review.controller';
@@ -24,6 +25,7 @@ const avg = (values: number[]) => (values.length ? Math.round((values.reduce((t,
  */
 @ApiTags('Suivi des joueurs')
 @ApiBearerAuth()
+@Feature('evaluation-seances', 'bilans')
 @Controller('progress')
 export class ProgressController {
   constructor(

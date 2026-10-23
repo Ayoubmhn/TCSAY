@@ -6,6 +6,7 @@ import { Type } from 'class-transformer';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { dayFromIso, isoDay, todayIso } from '../common/dates';
 import { fullName, rule } from '../common/rules';
 import { DAY_LONG, slotsOverlap } from '../common/sessions';
@@ -61,6 +62,7 @@ class CoachesQuery {
  */
 @ApiTags('Disponibilités')
 @ApiBearerAuth()
+@Feature('disponibilites')
 @Controller('availability')
 export class AvailabilityController {
   constructor(

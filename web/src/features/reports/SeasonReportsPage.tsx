@@ -18,6 +18,7 @@ import { api, blobUrl } from '../../lib/api';
 import { fD } from '../../lib/format';
 import type { Season } from '../seasons/api';
 import { useAction } from '../../lib/useAction';
+import { useModule } from '../../lib/modules';
 import { ReportDocument, TEXT_FIELDS, textsFor, type ReportKind, type SeasonReports } from './ReportDocument';
 
 const KIND_LABEL: Record<ReportKind, string> = { MORAL: 'Rapport moral', FINANCIAL: 'Rapport financier' };
@@ -30,6 +31,7 @@ const KIND_LABEL: Record<ReportKind, string> = { MORAL: 'Rapport moral', FINANCI
 export function SeasonReportsPage() {
   const { me } = useAuth();
   const canEdit = Boolean(me?.permissions.includes('seasons.manage'));
+  const history = useModule('import-historique');
   const [params, setParams] = useSearchParams();
   const seasons = useQuery({ queryKey: ['seasons'], queryFn: () => api.get<Season[]>('/seasons') });
   const list = useMemo(() => [...(seasons.data ?? [])].sort((a, b) => b.label.localeCompare(a.label)), [seasons.data]);
@@ -155,8 +157,8 @@ export function SeasonReportsPage() {
                       </ul>
                     ) : (
                       <EmptyState>
-                        Aucun {KIND_LABEL[kind].toLowerCase()} déposé pour {d.previous.label}. Déposez les anciens rapports dans leur saison (ou depuis
-                        « Import historique ») : ils servent de modèle pour rédiger celui-ci.
+                        Aucun {KIND_LABEL[kind].toLowerCase()} déposé pour {d.previous.label}. Déposez les anciens rapports dans leur saison
+                        {history ? ' (ou depuis « Import historique »)' : ' (Saisons › créer la saison passée, puis la choisir ici)'} : ils servent de modèle pour rédiger celui-ci.
                       </EmptyState>
                     )}
                   </Card>
@@ -215,8 +217,7 @@ export function SeasonReportsPage() {
                 </div>
                 <Note>
                   Les chiffres sont calculés pour la saison {d.season.label} (inscriptions, paiements, réservations, dépenses payées, salaires versés).
-                  Avant l’impression, enregistrez les textes : la page imprimée reprend les textes enregistrés. Les saisons anciennes
-                  (joueurs, recettes, dépenses) s’importent dans « Import historique » : leurs chiffres servent de comparaison.
+                  Avant l’impression, enregistrez les textes : la page imprimée reprend les textes enregistrés. {history && ' Les saisons anciennes (joueurs, recettes, dépenses) s’importent dans « Import historique » : leurs chiffres servent de comparaison.'}
                 </Note>
               </Section>
             </>

@@ -7,6 +7,7 @@ import { IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID, Matche
 import type { Response } from 'express';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { dayFromIso, isoDay, todayIso } from '../common/dates';
 import { dt, num } from '../common/money';
 import { assertVersion, fullName } from '../common/rules';
@@ -115,6 +116,7 @@ type Row = Prisma.ProjectGetPayload<{ select: typeof LIST }>;
  */
 @ApiTags('Projets et budget')
 @ApiBearerAuth()
+@Feature('budget')
 @Controller('projects')
 export class ProjectsController {
   constructor(

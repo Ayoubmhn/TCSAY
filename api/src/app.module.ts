@@ -25,6 +25,8 @@ import { MatchesController } from './matches/matches.controller';
 import { AuditController } from './audit/audit.controller';
 import { AuthController } from './auth/auth.controller';
 import { AuthGuard } from './auth/auth.guard';
+import { ModulesController } from './modules/modules.controller';
+import { ModulesGuard } from './modules/modules';
 import { CategoriesController } from './categories/categories.controller';
 import { CoachesController } from './coaches/coaches.controller';
 import { CoreModule } from './core.module';
@@ -141,6 +143,7 @@ import { StaffController } from './staff/staff.controller';
     PhotosController,
     ComplaintsController,
     AlbumsController,
+    ModulesController,
   ],
   providers: [
     AlertsService,
@@ -166,6 +169,7 @@ import { StaffController } from './staff/staff.controller';
     ComplaintsService,
     AlbumsService,
     EventsService,
+    { provide: APP_GUARD, useClass: ModulesGuard }, // module coupé (MODULES_COUPES) : 404, avant la connexion
     { provide: APP_GUARD, useClass: AuthGuard }, // JWT global : @Public pour les exceptions
   ],
 })

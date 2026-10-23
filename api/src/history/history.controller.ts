@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { HistoricalKind } from '@prisma/client';
 import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
+import { Feature } from '../modules/modules';
 import { HistoryService, REGISTERS, type RawRow, type Register, type Source } from './history.service';
 
 const MAX_FILE = 10 * 1024 * 1024;
@@ -32,6 +33,7 @@ const register = (r: string): Register => {
  */
 @ApiTags('Import historique')
 @ApiBearerAuth()
+@Feature('import-historique')
 @Controller('history')
 @Perm('import.manage')
 export class HistoryController {
