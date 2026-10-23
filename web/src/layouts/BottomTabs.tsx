@@ -65,12 +65,12 @@ export function BottomTabs() {
     >
       <div className="mx-auto flex max-w-[560px] gap-1">
         {tabsFor(me).map(({ label, path, Icon, end }) => (
-          <NavLink key={path} to={path} end={end} className={({ isActive }) => `${item} ${isActive ? 'bg-btn text-pri' : 'text-mut'}`}>
+          <NavLink key={path} to={path} end={end} data-guide={path} className={({ isActive }) => `${item} ${isActive ? 'bg-btn text-pri' : 'text-mut'}`}>
             <Icon size={22} />
             <span className="truncate">{t(label)}</span>
           </NavLink>
         ))}
-        <NavLink to="/parametres" className={({ isActive }) => `${item} ${isActive ? 'bg-btn text-pri' : 'text-mut'}`}>
+        <NavLink to="/parametres" data-guide="/parametres" className={({ isActive }) => `${item} ${isActive ? 'bg-btn text-pri' : 'text-mut'}`}>
           {({ isActive }) => (
             <>
               <AccountBadge active={isActive} />

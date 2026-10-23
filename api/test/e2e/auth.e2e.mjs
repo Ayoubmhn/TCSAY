@@ -182,3 +182,22 @@ describe('Première connexion et changement de mot de passe', { skip: !DB_URL &&
     });
   });
 });
+
+describe('Guide de première utilisation', () => {
+  test('les étapes vues sont gardées sur le compte, sans doublon, et renvoyées par /auth/me', async () => {
+    const parent = await as('parent');
+    const step = `essai.${uid().toLowerCase()}`;
+    const first = ok(await parent('POST', '/auth/guide', { steps: [step, 'famille.bienvenue'] }));
+    assert.ok(first.guideSeen.includes(step));
+    const again = ok(await parent('POST', '/auth/guide', { steps: [step] }));
+    assert.equal(again.guideSeen.filter((s) => s === step).length, 1);
+    const me = ok(await parent('GET', '/auth/me'));
+    assert.ok(me.guideSeen.includes(step) && me.guideSeen.includes('famille.bienvenue'));
+  });
+
+  test('identifiant d’étape invalide refusé (400), connexion obligatoire (401)', async () => {
+    const parent = await as('parent');
+    refused(await parent('POST', '/auth/guide', { steps: ['<script>'] }), 400);
+    refused(await anon('POST', '/auth/guide', { steps: ['famille.bienvenue'] }), 401);
+  });
+});

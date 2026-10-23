@@ -54,6 +54,8 @@ export type Me = {
   photoUrl?: string | null;
   /** Modules coupés pour cette mise en ligne (version du club) : retirés du menu et des écrans. */
   disabledModules?: ModuleKey[];
+  /** Guide de première utilisation : étapes déjà vues ou passées. */
+  guideSeen?: string[];
 };
 
 /** Modules activables (api/src/modules/modules.ts). */

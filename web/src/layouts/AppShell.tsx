@@ -11,6 +11,7 @@ import { Badge } from '../components/ui/Pill';
 import { useI18n } from '../lib/i18n';
 import type { Space } from '../lib/types';
 import { BottomTabs } from './BottomTabs';
+import { GuideTour } from '../features/guide/GuideTour';
 import { OfflineBanner, useOfflinePrefetch } from '../components/OfflineSupport';
 import { PageErrorBoundary } from '../components/PageErrorBoundary';
 import { CLOSED_BY_DEFAULT, firstPath, isGroup, menuFor, type MenuItem } from './menus';
@@ -55,6 +56,7 @@ function TopLink({ item, end, onNavigate }: { item: Extract<MenuItem, { path: st
       to={item.path}
       end={end}
       onClick={onNavigate}
+      data-guide={item.path}
       className={({ isActive }) => `${ROW} relative ${isActive ? 'bg-btn text-fg' : 'text-fg hover:bg-fld'}`}
     >
       {({ isActive }) => (
@@ -91,6 +93,7 @@ function Group({
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={id}
+        data-guide-children={item.children.map((c) => c.path).join(' ')}
         className={`${ROW} ${open ? 'bg-fld' : 'hover:bg-fld'} text-fg`}
       >
         <Icon />
@@ -105,6 +108,7 @@ function Group({
                 to={child.path}
                 end
                 onClick={onNavigate}
+                data-guide={child.path}
                 className={({ isActive }) =>
                   `flex items-center gap-3 rounded-[14px] px-2.5 py-2.5 ${isActive ? 'font-semibold text-fg' : 'text-mut hover:text-fg'}`
                 }
@@ -304,6 +308,7 @@ export function AppShell() {
         </PageErrorBoundary>
       </main>
       <BottomTabs />
+      <GuideTour />
     </div>
   );
 }

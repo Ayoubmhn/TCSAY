@@ -24,6 +24,7 @@ import { changePassword, passwordHint } from '../lib/api';
 import { Note } from '../components/ui/Note';
 import { formatDate, formatDateTime } from '../lib/format';
 import { useI18n, type Lang } from '../lib/i18n';
+import { HelpCard } from '../features/guide/HelpCard';
 import { useAction } from '../lib/useAction';
 
 
@@ -163,6 +164,10 @@ export function SettingsPage() {
 
           <Section title="Stockage sur l’appareil">
             <StorageSettings />
+          </Section>
+
+          <Section title="Aide">
+            <HelpCard />
           </Section>
 
           <Section title="Préférences">

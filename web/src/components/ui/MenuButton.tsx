@@ -6,6 +6,7 @@ export function MenuButton({ onClick, expanded }: { onClick: () => void; expande
       onClick={onClick}
       aria-label={expanded ? 'Fermer le menu' : 'Ouvrir le menu'}
       aria-expanded={expanded}
+      data-guide="menu"
       className="grid h-[46px] w-[46px] grid-cols-[repeat(2,7px)] place-content-center gap-[5px] rounded-[15px] bg-btn nav:hidden"
     >
       {[0, 1, 2, 3].map((i) => (

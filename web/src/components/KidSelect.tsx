@@ -7,7 +7,7 @@ export function KidSelect() {
   const { playerId, setPlayerId } = useAuth();
   if (me.role !== 'PARENT' || me.players.length === 0) return null;
   return (
-    <FilterSelect label="Choisir le joueur" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
+    <FilterSelect label="Choisir le joueur" data-guide="enfant" value={playerId} onChange={(e) => setPlayerId(e.target.value)}>
       {me.players.map((p) => (
         <option key={p.id} value={p.id}>
           {p.firstName} {p.lastName}

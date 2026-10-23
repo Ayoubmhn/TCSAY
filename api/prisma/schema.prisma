@@ -198,6 +198,8 @@ model User {
   ijinPasswordEnc    String?
   isActive           Boolean   @default(true) // comptes désactivés, jamais supprimés
   lastLoginAt        DateTime?
+  /// Guide de première utilisation : étapes déjà vues ou passées (une nouvelle étape, ex. module rallumé, s'affiche seule).
+  guideSeen          String[]  @default([])
   version            Int       @default(1)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

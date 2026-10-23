@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, HttpCod
 import { EmailKind } from '@prisma/client';
 import { createHash, randomInt } from 'node:crypto';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import { MailService } from '../mail/mail.service';
 import { AuditService } from '../audit/audit.service';
 import { PhotosService } from '../photos/photos.service';
@@ -78,6 +78,14 @@ const codeHash = (userId: string, code: string) => createHash('sha256').update(`
 
 /** Empreinte factice (mot de passe aléatoire) pour les identifiants inconnus : même temps de calcul qu'un vrai compte. */
 const DUMMY_HASH = 'scrypt$0f1e2d3c4b5a69788796a5b4c3d2e1f0$' + 'ab'.repeat(64);
+
+class GuideSeenDto {
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  @Matches(/^[a-z0-9.:-]{1,60}$/, { each: true })
+  steps!: string[];
+}
 
 @ApiTags('Authentification')
 @Controller('auth')
@@ -263,7 +271,7 @@ export class AuthController {
     // Informations du compte : lecture seule pour l'utilisateur, modifiables par le club.
     const account = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { phone: true, cin: true, createdAt: true, lastLoginAt: true },
+      select: { phone: true, cin: true, createdAt: true, lastLoginAt: true, guideSeen: true },
     });
     const players = user.role === 'PARENT' ? kids.map((k) => k.player) : self ? [self] : [];
     const [mine, theirs] = await Promise.all([this.photos.forUsers([user.id]), this.photos.forPlayers(players)]);
@@ -275,5 +283,16 @@ export class AuthController {
       disabledModules: disabledModules(),
       players: players.map(({ userId: _u, ...p }) => ({ ...p, photoUrl: theirs.get(p.id) ?? null })),
     };
+  }
+
+  /** Guide de première utilisation : étapes vues ou passées, gardées sur le compte (même après changement de téléphone). */
+  @ApiBearerAuth()
+  @Post('guide')
+  @HttpCode(200)
+  async guide(@CurrentUser() user: AuthUser, @Body() dto: GuideSeenDto) {
+    const { guideSeen } = await this.prisma.user.findUniqueOrThrow({ where: { id: user.id }, select: { guideSeen: true } });
+    const next = [...new Set([...guideSeen, ...dto.steps])].slice(-300);
+    await this.prisma.user.update({ where: { id: user.id }, data: { guideSeen: next } });
+    return { guideSeen: next };
   }
 }
