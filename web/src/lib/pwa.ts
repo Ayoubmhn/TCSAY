@@ -25,6 +25,12 @@ export function registerServiceWorker(): void {
   });
 }
 
+/** Réseau lent ou « économie de données » activée sur le téléphone : on évite les téléchargements d'avance. */
+export function slowNetwork(): boolean {
+  const c = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+  return Boolean(c?.saveData) || /(^|-)2g$/.test(c?.effectiveType ?? '');
+}
+
 /** Site ouvert dans l'application Android TCSAY (APK : user-agent « TCSAYApp »). */
 export const isInApp = (): boolean => /TCSAYApp\//.test(navigator.userAgent);
 

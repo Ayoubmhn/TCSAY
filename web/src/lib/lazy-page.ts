@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from 'react';
 import { isOffline } from './offline-cache';
+import { slowNetwork } from './pwa';
 
 const RELOAD_KEY = 'tcsay.chunk-reload';
 
@@ -45,7 +46,8 @@ let preloaded = false;
 
 /** Télécharge tous les écrans en tâche de fond (gardés par le service worker et le navigateur). */
 export async function preloadPages() {
-  if (preloaded || !navigator.onLine) return;
+  // Réseau lent ou économie de données : les écrans se téléchargent seulement quand on les ouvre.
+  if (preloaded || !navigator.onLine || slowNetwork()) return;
   preloaded = true;
   for (const load of loaders) {
     if (!navigator.onLine) {

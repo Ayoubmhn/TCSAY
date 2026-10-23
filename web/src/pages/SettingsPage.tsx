@@ -6,6 +6,7 @@ import { KidsFederation } from '../components/KidsFederation';
 import { InstallApp } from '../components/InstallApp';
 import { NativePushSettings } from '../components/NativePushSettings';
 import { PushSettings } from '../components/PushSettings';
+import { StorageSettings } from '../components/StorageSettings';
 import { isInApp } from '../lib/pwa';
 import { Button } from '../components/ui/Button';
 import { Card, CardText } from '../components/ui/Card';
@@ -159,6 +160,10 @@ export function SettingsPage() {
               <PushSettings />
             </Section>
           )}
+
+          <Section title="Stockage sur l’appareil">
+            <StorageSettings />
+          </Section>
 
           <Section title="Préférences">
             <Card>
