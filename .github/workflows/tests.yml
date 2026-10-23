@@ -1,11 +1,12 @@
-# Vérification automatique à chaque push et pull request : compilation de l'API et du site, contrôles (score, Web Push,
+# Vérification automatique à chaque push : compilation de l'API et du site, contrôles (score, Web Push,
 # alertes) et 551 tests de bout en bout sur une base PostgreSQL de démo, vide, créée pour l'occasion (jamais la vraie).
 # Résultat : coche verte ou croix rouge sur le commit dans GitHub, et email en cas d'échec.
 name: Tests
 
+# Une seule fois par commit : à chaque push (toutes les branches) ; une pull request reprend le résultat du push.
 on:
   push:
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: tests-${{ github.ref }}
