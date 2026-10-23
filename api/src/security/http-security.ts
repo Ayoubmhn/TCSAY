@@ -48,7 +48,8 @@ export function applyHttpSecurity(app: NestExpressApplication) {
     next();
   });
 
-  const origins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim()).filter(Boolean);
+  // Adresses tolérantes aux fautes de saisie courantes (guillemets, « / » final) : le navigateur envoie l'origine sans « / ».
+  const origins = process.env.CORS_ORIGIN?.split(',').map((o) => o.trim().replace(/^["']|["']$/g, '').replace(/\/+$/, '')).filter(Boolean);
   // Développement : site Vite sur un autre port, toutes origines. Production : liste explicite, sinon même adresse seulement.
   app.enableCors({ origin: origins?.length ? origins : prod ? false : true });
 
