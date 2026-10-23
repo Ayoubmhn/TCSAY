@@ -55,3 +55,62 @@ services:
       # Démo sans emails configurés : pas d'alerte à chaque email en échec.
       - key: ALERT_MAIL
         value: "false"
+
+  # ─── Version du club (données réelles) : docs/VERSION_CLUB.md ──────────────────────────────────────────────────
+  # Même code que la démo, sa propre base Neon (jamais celle de la démo) et seulement les modules validés.
+  # Base vierge préparée une fois depuis votre PC : npm run db:init-prod (jamais de seed, jamais de migrate reset).
+  - type: web
+    name: tcsay-club
+    runtime: node
+    plan: free # pour le club : offre payante conseillée (pas de mise en veille)
+    region: frankfurt
+    branch: claude/tcsay-platform-dev-p3t75p
+    autoDeploy: false
+    buildCommand: cd api && npm ci --include=dev && npm run build
+    # Pas de migration au démarrage : sauvegarde puis migration depuis votre PC (npm run db:migrate).
+    startCommand: cd api && npm run start:prod
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: TZ
+        value: Africa/Tunis
+      # Base de production : le seed et les remises à zéro sont refusés.
+      - key: TCSAY_PRODUCTION
+        value: "true"
+      # Modules validés pour le club : tous sauf ceux-ci (retirer une clé puis redémarrer pour rallumer un module).
+      - key: MODULES_COUPES
+        value: arabe,budget,disponibilites,import-historique,evaluation-seances,bilans,exercices
+      # Adresse « Direct connection » de la base Neon DU CLUB (secrète, jamais dans le dépôt).
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      # Clé de chiffrement des mots de passe IJIN : à garder précieusement (perdue = mots de passe illisibles).
+      - key: TCSAY_SECRET_KEY
+        sync: false
+      - key: SERVE_WEB
+        value: "false"
+      # Site du club sur Vercel (projet séparé, VITE_API_URL = adresse de ce service) : seule origine acceptée.
+      - key: CORS_ORIGIN
+        sync: false
+      - key: APP_URL
+        sync: false
+      # Le site appelle directement ce service (un seul intermédiaire : Render).
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: MAIL_TRANSPORT
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: ALERT_INSTANCE
+        value: TCSAY club
+      # Lecture des photos du cahier par IA : clé Gemini (désactivée tant que le président ne l'a pas activée).
+      - key: GEMINI_API_KEY
+        sync: false
