@@ -9,7 +9,7 @@ const DB = process.env.E2E_DATABASE_URL;
 const PORT = 3191;
 const API = `http://localhost:${PORT}/api/v1`;
 // Version du club validée (docs/VERSION_CLUB.md).
-const OFF = 'arabe,budget,disponibilites,import-historique,evaluation-seances,bilans,exercices';
+const OFF = 'arabe,budget,disponibilites,evaluation-seances,bilans,exercices';
 
 describe('Modules activables (version du club)', { skip: !DB && 'E2E_DATABASE_URL manquant (base de démo)' }, () => {
   let api;
@@ -52,7 +52,7 @@ describe('Modules activables (version du club)', { skip: !DB && 'E2E_DATABASE_UR
   });
 
   test('les routes des modules coupés répondent 404, même au président', async () => {
-    for (const path of ['/projects', '/budget/treasury/forecast', '/availability/coaches', '/history', '/exercises', '/evaluations/criteria', '/evaluations/overview', '/progress', '/sessions/review?slotId=x&date=2026-10-01']) {
+    for (const path of ['/projects', '/budget/treasury/forecast', '/availability/coaches', '/exercises', '/evaluations/criteria', '/evaluations/overview', '/progress', '/sessions/review?slotId=x&date=2026-10-01']) {
       const r = await fetch(`${API}${path}`, { headers: h });
       assert.equal(r.status, 404, `${path} devrait être coupé (reçu ${r.status})`);
     }
@@ -61,7 +61,7 @@ describe('Modules activables (version du club)', { skip: !DB && 'E2E_DATABASE_UR
   });
 
   test('les autres modules restent ouverts', async () => {
-    for (const path of ['/players', '/seasons', '/expenses', '/matches', '/tournaments', '/events', '/stats/finances', '/access/payment/config']) {
+    for (const path of ['/players', '/seasons', '/expenses', '/matches', '/tournaments', '/events', '/stats/finances', '/access/payment/config', '/history']) {
       const r = await fetch(`${API}${path}`, { headers: h });
       assert.ok(r.status < 400, `${path} devrait rester ouvert (reçu ${r.status})`);
     }

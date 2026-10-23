@@ -22,7 +22,7 @@ Inclus :
 - **Terrains** : réservations, règles anti-abus.
 - **Compétition** : matchs point par point, tournois.
 - **Communication** : messages du club, événements, albums photos, réclamations, notifications push.
-- **Administration** : tableau de bord, rapports de fin de saison (dépôt des anciens rapports comme repère), lecture des photos par IA (à régler, désactivée tant que le président ne l'active pas), comptes IJIN.
+- **Administration** : tableau de bord, rapports de fin de saison (anciens rapports déposés comme repère), import historique des saisons passées, lecture des photos par IA (à régler, désactivée tant que le président ne l'active pas), comptes IJIN.
 - **Application** : site installable, hors connexion, application Android.
 
 Coupés pour le moment (`MODULES_COUPES`) :
@@ -32,14 +32,13 @@ Coupés pour le moment (`MODULES_COUPES`) :
 | `arabe` | Langue arabe de l'application (les rapports de fin de saison restent en arabe) |
 | `budget` | Projets et budget (devis, budget de saison, trésorerie) |
 | `disponibilites` | Disponibilités et assistant de créneau |
-| `import-historique` | Import historique des saisons passées |
 | `evaluation-seances` | Objectif et évaluation des séances, suivi et progression |
 | `bilans` | Bilans trimestriels, niveau, suivi technique |
 | `exercices` | Exercices à la maison |
 
 Un module coupé disparaît du menu, des écrans, du préchargement sans réseau et de « Accès après paiement » ; ses routes répondent 404 (même au président). Ses tables restent en base, vides.
 
-**Anciens rapports comme repère** : Saisons › créer la saison passée (ex. 2024-2025) puis la passer en « Historique », ensuite Réglages › Rapports de fin de saison › choisir cette saison › déposer le Word, le PDF ou la photo.
+**Anciens rapports comme repère** : Réglages › Import historique › « + Saison passée » (ex. 2024-2025), puis Réglages › Rapports de fin de saison › choisir cette saison › déposer le Word, le PDF ou la photo. Les joueurs, recettes et dépenses des saisons passées s'importent aussi dans Import historique (à mettre à jour plus tard).
 
 ## Rallumer un module plus tard
 
@@ -66,6 +65,36 @@ Le président ne peut pas rallumer un module depuis l'application : c'est un ré
 4. **Site** : Vercel › Add New › Project › ce dépôt, *Root Directory* `web`, nom `tcsay-club`, variable `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) › Deploy. Puis reportez l'adresse du site dans `CORS_ORIGIN` et `APP_URL` de Render.
 5. **Vérifier** : ouvrez le site du club, connectez-vous avec le compte du président : le menu ne montre pas les modules coupés, Paramètres › Langue propose français et anglais seulement.
 6. **Application Android du club** (facultatif) : construire l'APK avec `EXPO_PUBLIC_WEB_URL` = adresse du site du club (mobile/README.md).
+
+## Reprendre la base locale (votre PC) dans la version réelle
+
+À faire **à la place** de l'étape 2 (`db:init-prod`) si vous avez déjà saisi les vraies données sur votre PC (base `tcsay_prod`). La base locale n'est pas modifiée : on la copie.
+
+1. **Vérifier la base locale** (dans `api/.env`, `DATABASE_URL` = votre base locale) :
+   ```powershell
+   cd api
+   npm run db:status      # « Contenu : … compte(s), … joueur(s) » sans « données de DÉMO » : jamais la base de démo
+   npm run db:migrate     # met la base locale à jour (sauvegarde automatique avant)
+   npm run db:backup      # → api/backups/AAAA-MM-JJ_HHhMM_tcsay_prod_sauvegarde.json
+   ```
+2. **Créer les tables dans la base Neon du club** (base vide), dans le même terminal :
+   ```powershell
+   $env:DATABASE_URL="<adresse Neon du club>"; $env:TCSAY_PRODUCTION="true"
+   npm run db:migrate     # répondez OUI
+   ```
+3. **Copier les données** :
+   ```powershell
+   npm run db:restore -- backups/<fichier de l'étape 1>.json
+   npm run db:status      # mêmes nombres de comptes, joueurs et paiements que la base locale
+   ```
+   La restauration refuse une base qui contient déjà des comptes : elle ne mélange jamais deux bases.
+4. Fermez le terminal (les variables `$env:` disparaissent) : votre `api/.env` pointe toujours sur la base locale.
+5. Ensuite, **une seule base fait foi** : la base Neon du club. Ne saisissez plus rien en local (sinon il faudrait recommencer, sur une base Neon vide).
+
+Points d'attention :
+- La sauvegarde JSON contient des données de mineurs : gardez-la hors de GitHub (`api/backups/` est déjà exclu), supprimez les copies inutiles.
+- Neon gratuit : 0,5 Go. Les photos et justificatifs sont en base : la taille du fichier de sauvegarde en donne une idée (Neon › Monitoring après la copie).
+- Les mots de passe des comptes sont copiés (empreintes) : chacun garde le sien. Les mots de passe IJIN restent lisibles seulement avec la **même** `TCSAY_SECRET_KEY` que sur votre PC : mettez cette même clé dans Render.
 
 Conseils :
 - Le service gratuit de Render s'endort après 15 minutes sans visite : pour le club, l'offre payante évite la première page lente (sinon UptimeRobot sur `/api/v1/health`).

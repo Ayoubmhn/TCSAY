@@ -82,7 +82,7 @@ services:
         value: "true"
       # Modules validés pour le club : tous sauf ceux-ci (retirer une clé puis redémarrer pour rallumer un module).
       - key: MODULES_COUPES
-        value: arabe,budget,disponibilites,import-historique,evaluation-seances,bilans,exercices
+        value: arabe,budget,disponibilites,evaluation-seances,bilans,exercices
       # Adresse « Direct connection » de la base Neon DU CLUB (secrète, jamais dans le dépôt).
       - key: DATABASE_URL
         sync: false
