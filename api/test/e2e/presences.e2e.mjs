@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { as, login, ok, refused, uid } from './helpers.mjs';
+import { openAccess } from './helpers-paiements.mjs';
 
 // --- Heure du club (Tunisie : UTC+1 toute l'année) -------------------------------------------------------------
 const pad = (n) => String(n).padStart(2, '0');
@@ -41,6 +42,8 @@ describe('Présences, absences des entraîneurs, évaluation et suivi', () => {
   const slot = {};
   let lina, yassine, adam, foreignSlot;
 
+  let restoreAccess = async () => {};
+
   before(async () => {
     [admin, coach, parent, agent, dtAdmin] = await Promise.all([as('admin'), as('coach'), as('parent'), as('agent'), as('dt')]);
     dtCoach = await login('dt@tcsay.tn', 'temporaire', 'coach');
@@ -52,6 +55,7 @@ describe('Présences, absences des entraîneurs, évaluation et suivi', () => {
     yassine = players.find((p) => p.firstName === 'Yassine' && p.lastName === 'Ben Ali');
     adam = players.find((p) => p.firstName === 'Adam');
     assert.ok(season && lina && yassine && adam, 'démo incomplète (relancer npm run db:demo)');
+    restoreAccess = await openAccess(admin, parent, [lina, yassine]);
     // Une séance d'un autre entraîneur (Aziz) : l'entraîneur Iheb n'y a pas accès.
     const groups = ok(await admin('GET', '/groups'));
     foreignSlot = groups.flatMap((g) => g.slots).find((s) => s.coaches.length && s.coaches.every((c) => c.id !== ihebCoachId));
@@ -59,6 +63,7 @@ describe('Présences, absences des entraîneurs, évaluation et suivi', () => {
   });
 
   after(async () => {
+    await restoreAccess();
     for (const g of [group, liveGroup]) if (g) await admin('POST', `/groups/${g.id}/archive`);
   });
 

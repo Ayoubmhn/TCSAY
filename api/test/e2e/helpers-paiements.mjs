@@ -32,3 +32,20 @@ export async function installmentsOf(admin, playerId) {
 
 /** N° de reçu jamais utilisé (le carnet ne réutilise jamais un numéro). */
 export const freeReceiptNumber = () => 10_000_000 + Math.floor(Math.random() * 89_000_000);
+
+/**
+ * « Accès après paiement » ne doit pas dépendre du jour où les tests tournent (une tranche de démo finit toujours par
+ * être échue) : exception posée pendant le scénario sur les joueurs qui n'en avaient pas. Renvoie la remise en état.
+ */
+export async function openAccess(admin, parent, players) {
+  const added = [];
+  for (const p of players) {
+    const s = ok(await parent('GET', `/access/payment/status?playerId=${p.id}`), 'état de l’accès');
+    if (s.exempt) continue;
+    ok(await admin('PUT', '/access/payment/exemption', { playerId: p.id, reason: 'Tests E2E : accès indépendant de la date' }), 'exception d’accès');
+    added.push(p.id);
+  }
+  return async () => {
+    for (const id of added) ok(await admin('PUT', '/access/payment/exemption', { playerId: id }), 'retrait de l’exception');
+  };
+}

@@ -2,8 +2,9 @@
 // Base de DÉMONSTRATION uniquement (voir paiement.e2e.mjs).
 // L'entraîneur Iheb anime « Poussines F » (Lina Ben Ali) ; Adam Sassi n'est dans aucun de ses groupes.
 import assert from 'node:assert/strict';
-import { before, describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { as, login, ok, refused, uid } from './helpers.mjs';
+import { openAccess } from './helpers-paiements.mjs';
 
 const today = () => new Date(Date.now() + 3_600_000).toISOString().slice(0, 10); // heure du club (UTC+1)
 const inDays = (n) => {
@@ -17,6 +18,8 @@ describe('Exercices', () => {
   let exerciseId, groupAssignment, playerAssignment;
   const title = `Gainage E2E ${uid()}`;
 
+  let restoreAccess = async () => {};
+
   before(async () => {
     [admin, dt, coach, parent, parent2, agent] = await Promise.all([as('admin'), as('dt'), as('coach'), as('parent'), as('parent2'), as('agent')]);
     otherCoach = await login('dt@tcsay.tn', 'temporaire', 'coach'); // le directeur technique, dans son espace entraîneur
@@ -26,6 +29,11 @@ describe('Exercices', () => {
     adam = players.find((p) => p.firstName === 'Adam');
     poussines = ok(await coach('GET', '/evaluations/groups')).find((g) => g.name === 'Poussines F');
     assert.ok(lina && yassine && adam && poussines, 'démo incomplète (relancer npm run db:demo)');
+    restoreAccess = await openAccess(admin, parent, [lina]);
+  });
+
+  after(async () => {
+    await restoreAccess();
   });
 
   test('création : champs obligatoires et lien vidéo en https', async () => {

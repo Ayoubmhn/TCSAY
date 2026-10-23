@@ -2,13 +2,16 @@
 // Base de DÉMONSTRATION uniquement (voir paiement.e2e.mjs).
 // Lina Ben Ali est dans « Poussines F » (entraîneur Iheb) ; Adam Sassi n'est dans aucun groupe d'Iheb.
 import assert from 'node:assert/strict';
-import { before, describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import { as, ok, refused, uid } from './helpers.mjs';
+import { openAccess } from './helpers-paiements.mjs';
 
 describe('Bilans des joueurs et niveau', () => {
   let admin, dt, coach, parent, parent2, agent, lina, adam, poussines, evaluationId;
   const level = `Niveau E2E ${uid()}`;
   const scores = { forehand: 4, backhand: 3, serve: 3, footwork: 4, confidence: 5 };
+
+  let restoreAccess = async () => {};
 
   before(async () => {
     [admin, dt, coach, parent, parent2, agent] = await Promise.all([as('admin'), as('dt'), as('coach'), as('parent'), as('parent2'), as('agent')]);
@@ -16,6 +19,11 @@ describe('Bilans des joueurs et niveau', () => {
     lina = players.find((p) => p.firstName === 'Lina' && p.lastName === 'Ben Ali');
     adam = players.find((p) => p.firstName === 'Adam');
     assert.ok(lina && adam, 'démo incomplète (relancer npm run db:demo)');
+    restoreAccess = await openAccess(admin, parent, [lina]);
+  });
+
+  after(async () => {
+    await restoreAccess();
   });
 
   test('critères et périodes du bilan', async () => {
