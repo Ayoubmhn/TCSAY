@@ -11,6 +11,8 @@ import { UpdatesService } from './imports/updates.service';
 import { LoginThrottle } from './security/login-throttle';
 import { PermissionsCodeGuard, PermissionsCodeService } from './permissions/permissions-code';
 import { Module } from '@nestjs/common';
+import { AlertsController } from './alerts/alerts.controller';
+import { AlertsService } from './alerts/alerts.service';
 import { APP_GUARD } from '@nestjs/core';
 import { CoachAbsencesController } from './absences/coach-absences.controller';
 import { AttendanceController } from './attendance/attendance.controller';
@@ -83,6 +85,7 @@ import { StaffController } from './staff/staff.controller';
 @Module({
   imports: [PrismaModule, CoreModule, SeasonsModule],
   controllers: [
+    AlertsController,
     AiImportController,
     SeasonReportsController,
     HistoryController,
@@ -140,6 +143,7 @@ import { StaffController } from './staff/staff.controller';
     AlbumsController,
   ],
   providers: [
+    AlertsService,
     AiImportService,
     SeasonReportsService,
     HistoryService,

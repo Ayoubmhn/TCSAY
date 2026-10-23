@@ -1,8 +1,17 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { apiUrl } from '../lib/api';
 import { OfflinePageError } from '../lib/lazy-page';
 
 type Props = { children: ReactNode; resetKey?: string; full?: boolean };
 type State = { error: Error | null };
+
+/** Signale la page plantée au serveur (alerte Telegram du développeur) : message et adresse de la page, sans ses paramètres. */
+function reportError(error: Error) {
+  const url = apiUrl('/alerts/client-error');
+  if (!url) return;
+  const body = JSON.stringify({ message: String(error.message || error.name).slice(0, 500), page: window.location.pathname.slice(0, 200), stack: (error.stack ?? '').slice(0, 1500) });
+  void fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body, keepalive: true }).catch(() => undefined);
+}
 
 /**
  * Écran de secours : une page qui ne s'ouvre pas (pas de réseau, erreur) n'affiche plus un écran noir,
@@ -17,6 +26,7 @@ export class PageErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Page en erreur', error, info.componentStack);
+    if (!(error instanceof OfflinePageError) && navigator.onLine) reportError(error);
   }
 
   componentDidUpdate(prev: Props) {

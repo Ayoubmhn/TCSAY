@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
 import { EmailKind, EmailStatus, type EmailLog } from '@prisma/client';
+import { alert, describeError } from '../alerts/telegram';
 import { PrismaService } from '../prisma/prisma.service';
 import { mailTransportFromEnv, missingHttpSettings, sendHttp, type MailTransport } from './http-mail';
 import { sendSmtp, smtpConfigFromEnv, type SmtpConfig } from './smtp';
@@ -203,6 +204,7 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
       }
     } catch (e) {
       this.logger.error(`File d'emails interrompue : ${e instanceof Error ? e.message : String(e)}`);
+      void alert('error', 'File d’emails interrompue', describeError(e), 'mail-queue');
     } finally {
       this.running = false;
     }
@@ -223,6 +225,7 @@ export class MailService implements OnApplicationBootstrap, OnModuleDestroy {
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
       this.logger.warn(`Email non envoyé à ${row.to} : ${error}`);
+      if (process.env.ALERT_MAIL !== 'false') void alert('warn', 'Email non envoyé', [error, 'Écran Emails envoyés : « Renvoyer » après correction.'], `mail:${error}`);
     }
     await this.prisma.emailLog.update({
       where: { id: row.id },
