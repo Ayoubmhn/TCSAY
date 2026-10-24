@@ -487,6 +487,7 @@ const DICT: Record<string, [string, string]> = {
   'Les devis, la décision du bureau, le budget de la saison et la trésorerie.': ['Quotes, the board\'s decision, the season budget and cash flow.', 'عروض الأسعار وقرار الهيئة وميزانية الموسم والخزينة.'],
   'Les saisons passées : joueurs, recettes et dépenses depuis Excel, Word ou les cahiers.': ['Past seasons: players, income and expenses from Excel, Word or the notebooks.', 'المواسم السابقة: اللاعبون والمداخيل والمصاريف من Excel أو Word أو الكراسات.'],
   'Les bilans par trimestre, le niveau validé par la direction technique et le suivi technique.': ['Term reports, the level validated by the technical director and technical follow-up.', 'تقارير الثلاثي والمستوى المصادق عليه من الإدارة الفنية والمتابعة الفنية.'],
+  'Masquer le mot de passe': ['Hide password', 'إخفاء كلمة المرور'],
 };
 
 const INDEX: Record<Lang, number> = { fr: -1, en: 0, ar: 1 };

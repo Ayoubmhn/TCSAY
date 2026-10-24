@@ -1,11 +1,13 @@
 import {
   forwardRef,
+  useState,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
 import { useI18n } from '../../lib/i18n';
+import { IconEye, IconEyeOff } from './Icons';
 
 /** Libellé de formulaire (label.lb) : 12px 500 gris, champ en dessous. */
 function Label({ label, full, children }: { label: string; full?: boolean; children: ReactNode }) {
@@ -23,10 +25,36 @@ type Common = { label: string; full?: boolean };
 export const TextField = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement> & Common>(
   ({ label, full, className = '', ...props }, ref) => (
     <Label label={label} full={full}>
-      <input ref={ref} className={`fld text-[15px] text-fg ${className}`} {...props} />
+      {props.type === 'password' ? (
+        <PasswordInput ref={ref} className={className} {...props} />
+      ) : (
+        <input ref={ref} className={`fld text-[15px] text-fg ${className}`} {...props} />
+      )}
     </Label>
   ),
 );
+
+/** Mot de passe ou code : bouton œil pour l'afficher en clair (fautes de frappe sur téléphone), masqué par défaut. */
+const PasswordInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(({ className = '', ...props }, ref) => {
+  const { t } = useI18n();
+  const [shown, setShown] = useState(false);
+  const label = t(shown ? 'Masquer le mot de passe' : 'Afficher le mot de passe');
+  return (
+    <span className="relative flex">
+      <input ref={ref} {...props} type={shown ? 'text' : 'password'} className={`fld pe-12 text-[15px] text-fg ${className}`} />
+      <button
+        type="button"
+        onClick={() => setShown((v) => !v)}
+        aria-label={label}
+        aria-pressed={shown}
+        title={label}
+        className="absolute inset-y-0 end-1.5 my-auto grid h-9 w-9 place-items-center rounded-full text-mut hover:bg-btn hover:text-fg"
+      >
+        {shown ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+      </button>
+    </span>
+  );
+});
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement> & Common>(
   ({ label, full, className = '', rows = 2, ...props }, ref) => (
