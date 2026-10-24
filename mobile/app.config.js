@@ -32,7 +32,6 @@ module.exports = ({ config }) => {
   return {
     ...config,
     ...(demo ? { name: 'TCSAY Démo', icon: './assets/demo/icon.png' } : {}),
-    version: '0.4.0',
     android: {
       ...config.android,
       package: pkg,
