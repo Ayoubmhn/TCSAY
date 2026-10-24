@@ -14,15 +14,21 @@ const addDays = (iso, n) => {
 const wd = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay();
 
 describe('Emploi du temps (grille, brouillon, volumes)', () => {
-  let admin, coach, court, other, unlit, coachA, coachB, G, H, version;
+  let admin, coach, court, other, unlit, coachA, coachB, G, H, version, draft;
   const groups = [];
+  const drafts = [];
   const slot = (o = {}) => ({ day: 1, startTime: '08:00', endTime: '09:30', courtId: court.id, coachIds: [coachA], kind: 'TENNIS', ...o });
-  const load = async () => {
-    const t = ok(await admin('GET', '/timetable'));
-    version = t.draft.version;
+  const load = async (id = draft) => {
+    const t = ok(await admin('GET', `/timetable${id ? `?draft=${id}` : ''}`));
+    if (t.draft) version = t.draft.version;
     return t;
   };
-  const put = (groupId, slots, v = version) => admin('PUT', `/timetable/draft/groups/${groupId}`, { slots, version: v });
+  const newDraft = async (name) => {
+    const t = ok(await admin('POST', '/timetable/drafts', { name }));
+    drafts.push(t.draft.id);
+    return t.draft;
+  };
+  const put = (groupId, slots, v = version, id = draft) => admin('PUT', `/timetable/drafts/${id}/groups/${groupId}`, { slots, version: v });
 
   before(async () => {
     admin = await as('admin');
@@ -34,11 +40,10 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
     const mkCoach = async () => ok(await admin('POST', '/coaches', { firstName: 'Coach', lastName: `Grille${uid()}`, cin: fakeCin(), payMode: 'HOURLY', payRate: 10 })).id;
     coachA = await mkCoach();
     coachB = await mkCoach();
-    await admin('DELETE', '/timetable/draft'); // brouillon laissé par un passage interrompu
   });
 
   after(async () => {
-    await admin('DELETE', '/timetable/draft');
+    for (const id of drafts) await admin('DELETE', `/timetable/drafts/${id}`);
     for (const id of groups) await admin('POST', `/groups/${id}/archive`);
   });
 
@@ -59,8 +64,11 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
     assert.equal(G.slots.length, 0);
   });
 
-  test('la grille donne les groupes, leurs volumes et le brouillon vide', async () => {
+  test('la grille donne les groupes, leurs volumes ; nouveau brouillon vide', async () => {
+    draft = (await newDraft(`Essai ${uid()}`)).id;
     const t = await load();
+    assert.ok(t.drafts.some((d) => d.id === draft));
+    assert.equal(t.draft.changes.length, 0);
     const g = t.groups.find((x) => x.id === G.id);
     assert.equal(g.sessionMinutes, 90);
     assert.deepEqual(g.published, []);
@@ -115,23 +123,34 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
 
   test('placement automatique de la séance qui manque', async () => {
     await load();
-    const t = ok(await admin('POST', `/timetable/draft/auto/${G.id}`, { version }));
+    const t = ok(await admin('POST', `/timetable/drafts/${draft}/auto/${G.id}`, { version }));
     assert.equal(t.placed, 1);
-    const draft = t.groups.find((x) => x.id === G.id).draft;
-    assert.equal(draft.filter((s) => s.kind === 'TENNIS').length, 2);
+    const slots = t.groups.find((x) => x.id === G.id).draft;
+    assert.equal(slots.filter((s) => s.kind === 'TENNIS').length, 2);
     version = t.draft.version;
-    refused(await admin('POST', `/timetable/draft/auto/${G.id}`, { version }), 409);
+    refused(await admin('POST', `/timetable/drafts/${draft}/auto/${G.id}`, { version }), 409);
   });
 
-  test('publication : l’emploi du temps habituel change, brouillon vidé', async () => {
-    const r = ok(await admin('POST', '/timetable/draft/publish', { version, notify: false }));
+  test('deux brouillons indépendants : un changement ne passe pas dans l’autre', async () => {
+    const other = (await newDraft(`Plus tard ${uid()}`)).id;
+    const t = await load(other);
+    assert.equal(t.groups.find((x) => x.id === G.id).draft, null);
+    ok(await put(H.id, [slot({ day: 4, startTime: '08:00', endTime: '09:00', coachIds: [] })], t.draft.version, other));
+    const back = await load();
+    assert.equal(back.groups.find((x) => x.id === H.id).draft, null, 'H inchangé dans le premier brouillon');
+    assert.ok(back.drafts.find((d) => d.id === other).groups >= 1);
+  });
+
+  test('publication : l’emploi du temps habituel change, brouillon supprimé, l’autre reste', async () => {
+    const r = ok(await admin('POST', `/timetable/drafts/${draft}/publish`, { version, notify: false }));
     assert.ok(r.groups >= 1);
     const g = ok(await admin('GET', '/groups')).find((x) => x.id === G.id);
     assert.equal(g.slots.length, 3);
     assert.ok(g.slots.some((s) => s.kind === 'PHYSICAL' && !s.court));
-    const t = await load();
-    assert.equal(t.groups.find((x) => x.id === G.id).draft, null);
-    assert.equal(t.draft.changes.length, 0);
+    const t = await load(null);
+    assert.equal(t.draft, null);
+    assert.ok(!t.drafts.some((d) => d.id === draft), 'brouillon publié supprimé');
+    assert.ok(t.drafts.length >= 1, 'l’autre brouillon reste pour plus tard');
     const today = new Date().toISOString().slice(0, 10);
     let monday = addDays(today, 7);
     while (wd(monday) !== 1) monday = addDays(monday, 1);
@@ -140,7 +159,9 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
   });
 
   test('rien à publier', async () => {
-    refused(await admin('POST', '/timetable/draft/publish', { version, notify: false }), 400);
+    draft = (await newDraft(`Vide ${uid()}`)).id;
+    await load();
+    refused(await admin('POST', `/timetable/drafts/${draft}/publish`, { version, notify: false }), 400);
   });
 
   test('revenir à l’horaire publié pour un groupe', async () => {
@@ -148,7 +169,7 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
     ok(await put(G.id, g.published.filter((s) => s.kind === 'TENNIS')));
     const t1 = await load();
     assert.ok(t1.groups.find((x) => x.id === G.id).draft);
-    ok(await admin('DELETE', `/timetable/draft/groups/${G.id}?version=${version}`));
+    ok(await admin('DELETE', `/timetable/drafts/${draft}/groups/${G.id}?version=${version}`));
     assert.equal((await load()).groups.find((x) => x.id === G.id).draft, null);
   });
 
@@ -160,6 +181,13 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
     const r = ok(await admin('PATCH', `/groups/${G.id}`, { ...base, weeklyMinutes: 270, volumeReason: 'Une séance de plus' }));
     assert.equal(r.weeklyMinutes, 270);
     assert.equal(r.slots.length, 3, 'créneaux gardés quand la demande n’en contient pas');
+  });
+
+  test('renommer puis supprimer un brouillon', async () => {
+    const t = ok(await admin('PATCH', `/timetable/drafts/${draft}`, { name: 'Rentrée de janvier', version }));
+    assert.equal(t.draft.name, 'Rentrée de janvier');
+    ok(await admin('DELETE', `/timetable/drafts/${draft}?version=${t.draft.version}`));
+    refused(await admin('GET', `/timetable?draft=${draft}`), 404);
   });
 
   test('réservé à la direction (entraîneur : 403)', async () => {

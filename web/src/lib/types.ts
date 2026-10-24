@@ -1030,6 +1030,9 @@ export type Timetable = {
   courts: { id: string; name: string; lit: boolean; active: boolean; maintenance: boolean }[];
   coaches: { id: string; color: string; firstName: string; lastName: string }[];
   groups: TimetableGroup[];
-  draft: { version: number; updatedAt: string | null; changes: { groupId: string; groupName: string; before: string; after: string }[] };
+  /** Brouillons de la saison (nom, groupes modifiés). */
+  drafts: { id: string; name: string; groups: number; updatedAt: string }[];
+  /** Brouillon affiché (null : emploi du temps publié). */
+  draft: { id: string; name: string; version: number; updatedAt: string; changes: { groupId: string; groupName: string; before: string; after: string }[] } | null;
   schedules: { id: string; name: string; startDate: string; endDate: string; published: boolean }[];
 };

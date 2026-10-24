@@ -44,7 +44,7 @@ async function wipe() {
   // Projet ↔ devis choisi : lien circulaire défait avant de vider les tables.
   await prisma.project.updateMany({ data: { chosenQuoteId: null } });
   for (const model of [
-    'budgetLine', 'seasonReportDraft', 'seasonReportFile', 'reservationBlock', 'courtClosure',
+    'timetableDraft', 'budgetLine', 'seasonReportDraft', 'seasonReportFile', 'reservationBlock', 'courtClosure',
     'photoTag', 'albumPhoto', 'albumMember', 'album', 'complaintMessage', 'complaint', 'profilePhoto', 'eventResponse', 'eventMember', 'invitation', 'nativePushToken',
     'extractedRecord', 'scannedPage', 'historicalEntry', 'importBatch', 'payment', 'installment', 'membership', 'paymentTemplate', 'feeSchedule',
     'availabilityException', 'availability', 'sessionChange', 'matchPoint', 'match', 'tournamentEntry', 'tournament', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'tempScheduleGroup', 'tempSchedule', 'trainingGroup',

@@ -28,7 +28,7 @@ const KEYS = [['timetable'], ['temp-schedule'], ['temp-schedules'], ['groups'], 
 /** Séance prise (bouton « placer ») ou déplacée : groupe, type, durée, entraîneurs, et sa place si elle existe déjà. */
 type Picked = { groupId: string; kind: SlotKind; dur: number; coachIds: string[]; fromIdx?: number; id?: string; courtId?: string | null };
 type Target = { day: number; courtId: string | null; start: number };
-type Drag = Picked & { x: number; y: number; grab: number; active: boolean; sx: number; sy: number; target?: Target; problem?: string | null; kindOfSource: 'chip' | 'block' };
+type Drag = Picked & { x: number; y: number; grab: number; active: boolean; sx: number; sy: number; target?: Target; problem?: string | null; remove?: boolean; kindOfSource: 'chip' | 'block' };
 /** Créneau affiché : modifiable (habituel ou de l'emploi des vacances) ou seulement montré (horaire habituel gardé). */
 type Row = Placed & { key: string; editable: boolean; changed: boolean; idx: number };
 
@@ -43,7 +43,8 @@ export function TimetablePage() {
   const canManage = Boolean(me?.permissions.includes('groups.manage'));
   const [params, setParams] = useSearchParams();
   const mode = params.get('vacances') ?? '';
-  const q = useQuery({ queryKey: ['timetable'], queryFn: () => api.get<Timetable>('/timetable') });
+  const draftId = params.get('brouillon') ?? '';
+  const q = useQuery({ queryKey: ['timetable', draftId], queryFn: () => api.get<Timetable>(`/timetable${draftId ? `?draft=${draftId}` : ''}`) });
   const tq = useQuery({ queryKey: ['temp-schedule', mode], queryFn: () => api.get<TempScheduleDetail>(`/temp-schedules/${mode}`), enabled: Boolean(mode) });
   const t = q.data;
   const temp = mode ? tq.data : undefined;
@@ -68,6 +69,20 @@ export function TimetablePage() {
   const [discarding, setDiscarding] = useState(false);
   // Toute la semaine (défaut sur ordinateur) : séances à placer repliées pour voir toute la grille.
   const [panelOpen, setPanelOpen] = useState(false);
+  const [creatingVac, setCreatingVac] = useState(false);
+  const [publishingVac, setPublishingVac] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  // Vacances : groupe ajouté en « séances en plus » (enregistré à sa première séance placée).
+  const [addMode, setAddMode] = useState<Record<string, 'ADD'>>({});
+  // Brouillon publié ou supprimé (lien ancien) : retour à l'emploi publié.
+  useEffect(() => {
+    if (q.isError && draftId) setParams({});
+  }, [q.isError, draftId, setParams]);
+  const switchTo = (next: { brouillon?: string; vacances?: string }) => {
+    setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)) as Record<string, string>);
+    setPicked(undefined);
+    undo.current = [];
+  };
   const undo = useRef<{ groupId: string; slots: RawSlot[] }[]>([]);
   const [, bump] = useState(0);
   const focusGroup = params.get('groupe');
@@ -141,12 +156,13 @@ export function TimetablePage() {
       if (temp) {
         const g = temp.groups.find((x) => x.id === groupId);
         await api.put(`/temp-schedules/${temp.id}/groups/${groupId}`, {
-          mode: g?.mode ?? 'REPLACE',
+          mode: g?.mode ?? addMode[groupId] ?? 'REPLACE',
           version: temp.version,
           slots: slots.map((s) => ({ ...s, courtId: s.courtId ?? undefined })),
         });
       } else {
-        await api.put(`/timetable/draft/groups/${groupId}`, { version: t!.draft.version, slots: slots.map((s) => ({ ...s, courtId: s.courtId ?? undefined })) });
+        const d = await ensureDraft();
+        await api.put(`/timetable/drafts/${d.id}/groups/${groupId}`, { version: d.version, slots: slots.map((s) => ({ ...s, courtId: s.courtId ?? undefined })) });
       }
       if (push) {
         undo.current.push({ groupId, slots: prev });
@@ -163,22 +179,53 @@ export function TimetablePage() {
     if (last) save(last.groupId, last.slots, false);
   };
 
-  const auto = useAction((v: { groupId: string; kind: SlotKind }) => api.post<{ placed: number }>(`/timetable/draft/auto/${v.groupId}`, { version: t!.draft.version, kind: v.kind }), {
+  // Emploi publié affiché : la première modification ouvre un nouveau brouillon (l'emploi publié ne change qu'à la publication).
+  const ensureDraft = async () => {
+    if (t?.draft) return t.draft;
+    const created = await api.post<Timetable>('/timetable/drafts', {});
+    setParams({ brouillon: created.draft!.id });
+    return created.draft!;
+  };
+  const newDraft = useAction(() => api.post<Timetable>('/timetable/drafts', {}), {
+    invalidate: KEYS,
+    success: 'Nouveau brouillon : modifiez la grille, puis publiez quand vous voulez.',
+    onSuccess: (r) => switchTo({ brouillon: r.draft!.id }),
+  });
+  const auto = useAction(async (v: { groupId: string; kind: SlotKind }) => {
+    const d = await ensureDraft();
+    return api.post<{ placed: number }>(`/timetable/drafts/${d.id}/auto/${v.groupId}`, { version: d.version, kind: v.kind });
+  }, {
     invalidate: KEYS,
     success: (r) => `${r.placed} séance${r.placed > 1 ? 's' : ''} placée${r.placed > 1 ? 's' : ''} : vérifiez puis publiez.`,
   });
-  const revert = useAction((groupId: string) => api.delete(`/timetable/draft/groups/${groupId}`, { version: t!.draft.version }), {
+  const revert = useAction((groupId: string) => api.delete(`/timetable/drafts/${t!.draft!.id}/groups/${groupId}`, { version: t!.draft!.version }), {
     invalidate: KEYS,
     success: 'Changements du groupe annulés.',
   });
-  const discard = useAction(() => api.delete('/timetable/draft', { version: t!.draft.version }), {
+  const discard = useAction(() => api.delete(`/timetable/drafts/${t!.draft!.id}`, { version: t!.draft!.version }), {
     invalidate: KEYS,
-    success: 'Brouillon abandonné.',
+    success: 'Brouillon supprimé.',
     onSuccess: () => {
-      undo.current = [];
       setDiscarding(false);
+      switchTo({});
     },
   });
+  const rename = useAction((name: string) => api.patch(`/timetable/drafts/${t!.draft!.id}`, { name, version: t!.draft!.version }), {
+    invalidate: KEYS,
+    success: 'Brouillon renommé.',
+    onSuccess: () => setRenaming(false),
+  });
+  // Vacances ajoutées depuis la grille : horaire habituel recopié (jours compris), modifiable ensuite.
+  const joinVac = useAction(
+    (groupId: string) => {
+      const g = temp!.groups.find((x) => x.id === groupId)!;
+      const slots = g.usualSlots
+        .filter((x) => temp!.days.includes(x.day))
+        .map((x) => ({ day: x.day, startTime: x.startTime, endTime: x.endTime, courtId: x.court?.id, coachIds: x.coaches.map((c) => c.id), kind: x.kind ?? 'TENNIS' }));
+      return api.put(`/temp-schedules/${temp!.id}/groups/${groupId}`, { mode: 'REPLACE', version: temp!.version, slots });
+    },
+    { invalidate: KEYS, success: 'Groupe ajouté aux vacances (horaire habituel recopié, à modifier).' },
+  );
 
   // Colonnes : jours de la semaine pour un terrain, ou terrains (et hors terrain) pour un jour.
   const columns: { day: number; courtId: string | null; label: string; first?: boolean }[] = useMemo(() => {
@@ -247,14 +294,19 @@ export function TimetablePage() {
       const d = dragRef.current;
       if (!d) return;
       const active = d.active || Math.hypot(e.clientX - d.sx, e.clientY - d.sy) > 6;
-      const target = active ? targetFromPoint(e.clientX, e.clientY, d.grab) : undefined;
-      setDrag({ ...d, x: e.clientX, y: e.clientY, active, target, problem: target ? problemAt(d, target) : undefined });
+      // Séance de la grille ramenée sur la liste (ou la zone « Retirer ») : elle sera retirée.
+      const remove = active && d.fromIdx !== undefined && Boolean(document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-unplace]'));
+      const target = active && !remove ? targetFromPoint(e.clientX, e.clientY, d.grab) : undefined;
+      setDrag({ ...d, x: e.clientX, y: e.clientY, active, remove, target, problem: target ? problemAt(d, target) : undefined });
     };
     const up = () => {
       const d = dragRef.current;
       setDrag(undefined);
       if (!d) return;
-      if (d.active && d.target) {
+      if (d.active && d.remove && d.fromIdx !== undefined) {
+        save(d.groupId, editableOf(d.groupId).filter((_, i) => i !== d.fromIdx));
+        toast('Séance retirée (↶ Annuler pour la remettre).');
+      } else if (d.active && d.target) {
         if (d.problem) toast(d.problem);
         else place(d, d.target);
       } else if (!d.active) {
@@ -298,9 +350,9 @@ export function TimetablePage() {
   const opening = t.hours.opening * 60;
   const closing = t.hours.closing * 60;
   const nRows = (closing - opening) / 30;
-  const changes = t.draft.changes;
+  const changes = t.draft?.changes ?? [];
   const groupsShown = t.groups.filter((g) => {
-    if (temp && !temp.groups.find((x) => x.id === g.id)?.mode) return false;
+    if (temp && !temp.groups.find((x) => x.id === g.id)?.mode && !addMode[g.id]) return false;
     if (search && !g.name.toLowerCase().includes(search.toLowerCase())) return false;
     if (todoOnly && !temp) {
       const eff = g.draft ?? g.published;
@@ -330,24 +382,29 @@ export function TimetablePage() {
         action={
           canManage && (
             <div className="no-print flex flex-wrap items-center gap-2">
-              {!temp &&
-                (changes.length ? (
-                  <Pill tone="s">{`Brouillon · ${changes.length} groupe${changes.length > 1 ? 's' : ''} modifié${changes.length > 1 ? 's' : ''}`}</Pill>
-                ) : (
-                  <Pill tone="g">À jour</Pill>
-                ))}
+              {!temp && !t.draft && <Pill tone="g">Emploi publié</Pill>}
+              {!temp && t.draft && (
+                <Pill tone="s">{`${t.draft.name} · ${changes.length} groupe${changes.length > 1 ? 's' : ''} modifié${changes.length > 1 ? 's' : ''}`}</Pill>
+              )}
               {temp && <Pill tone={temp.status === 'PUBLISHED' ? 'g' : 's'}>{temp.status === 'PUBLISHED' ? 'Vacances publiées' : 'Vacances en brouillon'}</Pill>}
               <Button onClick={undoLast} disabled={!undo.current.length || saveAction.isPending}>
                 ↶ Annuler
               </Button>
               <Button onClick={() => window.print()}>Imprimer</Button>
-              {!temp && changes.length > 0 && <Button onClick={() => setDiscarding(true)}>Abandonner</Button>}
-              {!temp ? (
+              {!temp && t.draft && <Button onClick={() => setRenaming(true)}>Renommer</Button>}
+              {!temp && t.draft && <Button onClick={() => setDiscarding(true)}>Supprimer le brouillon</Button>}
+              {!temp && t.draft && (
                 <Button variant="primary" onClick={() => setPublishing(true)} disabled={!changes.length}>
                   Publier…
                 </Button>
-              ) : (
-                <Link to={`/admin/vacances/${temp.id}`} className="inline-flex items-center rounded-full bg-pri px-4 py-[9px] text-sm font-medium text-white">
+              )}
+              {temp && temp.status === 'DRAFT' && (
+                <Button variant="primary" onClick={() => setPublishingVac(true)} disabled={!temp.groups.some((g) => g.mode)}>
+                  Publier les vacances…
+                </Button>
+              )}
+              {temp && (
+                <Link to={`/admin/vacances/${temp.id}`} className="inline-flex items-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium">
                   Fiche des vacances
                 </Link>
               )}
@@ -357,18 +414,47 @@ export function TimetablePage() {
       />
 
       <div className="no-print mb-3 flex flex-wrap items-center gap-2">
-        {t.schedules.length > 0 && (
-          <Segmented<string>
-            label="Horaire affiché"
-            value={mode}
-            onChange={(v) => {
-              setParams(v ? { vacances: v } : {});
-              setPicked(undefined);
-              undo.current = [];
+        {/* Emploi affiché : publié, un brouillon (à publier plus tard) ou des vacances. */}
+        <label className="inline-flex items-center gap-2">
+          <span className="sr-only">Emploi affiché</span>
+          <select
+            aria-label="Emploi affiché"
+            value={mode ? `v:${mode}` : draftId ? `b:${draftId}` : ''}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'new-draft') return newDraft.mutate();
+              if (v === 'new-vac') return setCreatingVac(true);
+              switchTo(v.startsWith('b:') ? { brouillon: v.slice(2) } : v.startsWith('v:') ? { vacances: v.slice(2) } : {});
             }}
-            options={[{ value: '', label: 'Horaire habituel' }, ...t.schedules.map((s) => ({ value: s.id, label: s.name }))]}
-          />
-        )}
+            className="rounded-full bg-fld px-4 py-[9px] text-sm font-medium"
+          >
+            <option value="">Emploi publié</option>
+            {t.drafts.length > 0 && (
+              <optgroup label="Brouillons (à publier plus tard)">
+                {t.drafts.map((d) => (
+                  <option key={d.id} value={`b:${d.id}`}>
+                    {`✎ ${d.name}${d.groups ? ` (${d.groups} groupe${d.groups > 1 ? 's' : ''})` : ''}`}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {t.schedules.length > 0 && (
+              <optgroup label="Vacances et stages">
+                {t.schedules.map((x) => (
+                  <option key={x.id} value={`v:${x.id}`}>
+                    {`${x.name} (${x.published ? 'publié' : 'brouillon'})`}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {canManage && (
+              <optgroup label="Nouveau">
+                <option value="new-draft">+ Nouveau brouillon</option>
+                <option value="new-vac">+ Nouvelles vacances / stage</option>
+              </optgroup>
+            )}
+          </select>
+        </label>
         <Segmented<'all' | 'week' | 'day'>
           label="Vue"
           value={view}
@@ -403,7 +489,10 @@ export function TimetablePage() {
       {/* Toute la semaine : la grille prend toute la largeur, les séances à placer passent en bandeau au-dessus. */}
       <div className={`grid grid-cols-1 items-start gap-4 ${view === 'all' ? '' : 'min-[1100px]:grid-cols-[300px_1fr]'}`}>
         {/* Séances à placer */}
-        <div className="no-print flex flex-col gap-2.5">
+        <div
+          data-unplace
+          className={`no-print flex flex-col gap-2.5 rounded-[24px] ${drag?.active && drag.fromIdx !== undefined ? `outline-dashed outline-[2.5px] outline-offset-4 ${drag.remove ? 'outline-[#e5484d]' : 'outline-line'}` : ''}`}
+        >
           <Card>
             <CardRow>
               <h3>
@@ -418,8 +507,10 @@ export function TimetablePage() {
               <>
                 <p className="m-0 text-[12.5px] text-mut">
                   {temp
-                    ? 'Créneaux des vacances de chaque groupe. Ajoutez un groupe depuis la fiche des vacances.'
-                    : 'Volume de chaque groupe réglé dans sa fiche : il ne peut pas être dépassé.'}
+                    ? 'Créneaux des vacances de chaque groupe. Ajoutez un groupe ci-dessous ; glissez une séance de la grille ici pour la retirer.'
+                    : t.draft
+                      ? 'Volume de chaque groupe réglé dans sa fiche : il ne peut pas être dépassé. Glissez une séance de la grille ici pour la retirer.'
+                      : 'Emploi publié : votre première modification ouvre un brouillon, publié seulement quand vous le décidez.'}
                 </p>
                 <TextField label="Chercher un groupe" value={search} onChange={(e) => setSearch(e.target.value)} />
                 {!temp && (
@@ -450,6 +541,30 @@ export function TimetablePage() {
               />
             ))}
             </div>
+          )}
+          {panelShown && temp && canManage && (
+            <Card>
+              <CardRow>
+                <h3>Ajouter un groupe aux vacances</h3>
+              </CardRow>
+              <div className="flex flex-col gap-1.5">
+                {temp.groups
+                  .filter((g) => !g.mode && !addMode[g.id])
+                  .map((g) => (
+                    <div key={g.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[14px] bg-fld px-3 py-2 text-[13px]">
+                      <b className="font-semibold">{g.name}</b>
+                      <span className="flex gap-1.5">
+                        <button type="button" className="rounded-full bg-btn px-3 py-1 text-[12px] font-medium" onClick={() => joinVac.mutate(g.id)}>
+                          Horaire remplacé
+                        </button>
+                        <button type="button" className="rounded-full bg-btn px-3 py-1 text-[12px] font-medium" onClick={() => setAddMode({ ...addMode, [g.id]: 'ADD' })}>
+                          Séances en plus
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+              </div>
+            </Card>
           )}
           {panelShown && (
             <Note>
@@ -650,12 +765,26 @@ export function TimetablePage() {
           }}
         />
       )}
-      {publishing && <PublishModal t={t} onClose={() => setPublishing(false)} onDone={() => (undo.current = [])} />}
+      {publishing && t.draft && <PublishModal t={t} onClose={() => setPublishing(false)} onDone={() => switchTo({})} />}
+      {publishingVac && temp && <PublishVacModal temp={temp} onClose={() => setPublishingVac(false)} />}
+      {creatingVac && <NewVacModal onClose={() => setCreatingVac(false)} onCreated={(id) => switchTo({ vacances: id })} />}
+      {renaming && t.draft && <RenameModal name={t.draft.name} pending={rename.isPending} onSave={(n) => rename.mutate(n)} onClose={() => setRenaming(false)} />}
+      {/* Zone pour retirer une séance tenue (aussi quand la liste est repliée ou sur téléphone). */}
+      {drag?.active && drag.fromIdx !== undefined && (
+        <div
+          data-unplace
+          className={`no-print fixed bottom-24 left-1/2 z-[65] -translate-x-1/2 rounded-full border-[2.5px] border-dashed px-5 py-3 text-sm font-semibold text-[#111] ${
+            drag.remove ? 'border-[#e5484d] bg-[#fdb3b0]' : 'border-[#e5484d] bg-card'
+          }`}
+        >
+          Déposer ici pour retirer la séance
+        </div>
+      )}
       <ConfirmModal
         open={discarding}
-        title="Abandonner le brouillon ?"
-        text="Tous les changements non publiés seront perdus ; l’emploi du temps publié reste tel quel."
-        cta="Abandonner"
+        title="Supprimer ce brouillon ?"
+        text="Ses changements seront perdus ; l’emploi du temps publié et les autres brouillons restent tels quels."
+        cta="Supprimer"
         pending={discard.isPending}
         onConfirm={() => discard.mutate()}
         onClose={() => setDiscarding(false)}
@@ -866,7 +995,7 @@ function SlotModal({
 /** Publication du brouillon : résumé des changements, familles et entraîneurs prévenus au choix. */
 function PublishModal({ t, onClose, onDone }: { t: Timetable; onClose: () => void; onDone: () => void }) {
   const [notify, setNotify] = useState(true);
-  const publish = useAction(() => api.post<{ groups: number; notified: number }>('/timetable/draft/publish', { version: t.draft.version, notify }), {
+  const publish = useAction(() => api.post<{ groups: number; notified: number }>(`/timetable/drafts/${t.draft!.id}/publish`, { version: t.draft!.version, notify }), {
     invalidate: KEYS,
     success: (r) => `Emploi du temps publié (${r.groups} groupe${r.groups > 1 ? 's' : ''}${r.notified ? `, ${r.notified} personnes prévenues` : ''}).`,
     onSuccess: () => {
@@ -878,7 +1007,7 @@ function PublishModal({ t, onClose, onDone }: { t: Timetable; onClose: () => voi
     <Modal
       open
       size="lg"
-      title="Publier le nouvel emploi du temps ?"
+      title={`Publier « ${t.draft!.name} » ?`}
       onClose={onClose}
       footer={
         <>
@@ -891,7 +1020,7 @@ function PublishModal({ t, onClose, onDone }: { t: Timetable; onClose: () => voi
     >
       <p className="m-0 text-mut">Le planning, les séances et les présences suivent le nouvel horaire dès la publication.</p>
       <div className="mt-3 flex flex-col gap-2">
-        {t.draft.changes.map((c) => (
+        {t.draft!.changes.map((c) => (
           <div key={c.groupId} className="rounded-[16px] bg-fld px-3 py-2 text-[13px]">
             <b className="font-semibold">{c.groupName}</b>
             <div className="text-mut">Avant : {c.before}</div>
@@ -903,6 +1032,101 @@ function PublishModal({ t, onClose, onDone }: { t: Timetable; onClose: () => voi
         <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="h-4 w-4 accent-pri" />
         Prévenir les familles et les entraîneurs (notification)
       </label>
+    </Modal>
+  );
+}
+
+/** Publication des vacances depuis la grille : familles et entraîneurs prévenus au choix. */
+function PublishVacModal({ temp, onClose }: { temp: TempScheduleDetail; onClose: () => void }) {
+  const [notify, setNotify] = useState(true);
+  const publish = useAction(() => api.post<{ notified: number }>(`/temp-schedules/${temp.id}/publish`, { version: temp.version, notify }), {
+    invalidate: KEYS,
+    success: (r) => (r.notified ? `Vacances publiées : ${r.notified} personnes prévenues.` : 'Vacances publiées.'),
+    onSuccess: onClose,
+  });
+  return (
+    <Modal
+      open
+      title={`Publier « ${temp.name} » ?`}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button variant="primary" data-primary onClick={() => publish.mutate()} disabled={publish.isPending}>
+            Publier
+          </Button>
+        </>
+      }
+    >
+      <p className="m-0 text-mut">
+        Du {temp.startDate.split('-').reverse().join('/')} au {temp.endDate.split('-').reverse().join('/')}, le planning et les séances suivent ces vacances. Toute
+        modification ensuite prévient les familles et les entraîneurs concernés.
+      </p>
+      <label className="mt-3 inline-flex cursor-pointer items-center gap-2 text-sm text-fg">
+        <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="h-4 w-4 accent-pri" />
+        Prévenir les familles et les entraîneurs (notification)
+      </label>
+    </Modal>
+  );
+}
+
+/** Nouvelles vacances (ou stage) créées depuis la grille : nom et dates, puis groupes et séances sur la grille. */
+function NewVacModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const toast = useToast();
+  const [f, setF] = useState({ name: '', startDate: '', endDate: '' });
+  const create = useAction(() => api.post<{ id: string }>('/temp-schedules', f), {
+    invalidate: KEYS,
+    success: 'Vacances créées : ajoutez les groupes, puis placez leurs séances.',
+    onSuccess: (r) => {
+      onClose();
+      onCreated(r.id);
+    },
+  });
+  const submit = () => {
+    if (!f.name.trim()) return toast('Nom obligatoire (ex. « Vacances de printemps »).');
+    if (!f.startDate || !f.endDate || f.endDate < f.startDate) return toast('Dates de début et de fin à vérifier.');
+    create.mutate();
+  };
+  return (
+    <Modal
+      open
+      title="Nouvelles vacances ou stage"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button variant="primary" onClick={submit} disabled={create.isPending}>
+            Créer
+          </Button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-1 gap-3 min-[521px]:grid-cols-2">
+        <TextField label="Nom *" full maxLength={80} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex. Vacances de printemps" />
+        <TextField label="Du *" type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} />
+        <TextField label="Au (inclus) *" type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} />
+      </div>
+    </Modal>
+  );
+}
+
+function RenameModal({ name, pending, onSave, onClose }: { name: string; pending: boolean; onSave: (name: string) => void; onClose: () => void }) {
+  const [v, setV] = useState(name);
+  return (
+    <Modal
+      open
+      title="Renommer le brouillon"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button variant="primary" onClick={() => v.trim() && onSave(v.trim())} disabled={pending}>
+            Enregistrer
+          </Button>
+        </>
+      }
+    >
+      <TextField label="Nom du brouillon" full maxLength={60} value={v} onChange={(e) => setV(e.target.value)} placeholder="Ex. Rentrée de janvier" />
     </Modal>
   );
 }

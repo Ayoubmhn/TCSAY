@@ -186,3 +186,53 @@ describe('Emplois temporaires (vacances)', () => {
     assert.ok(!list.schedules.some((x) => x.id === sched));
   });
 });
+
+describe('Vacances publiées : modification annoncée', () => {
+  let admin, coach, iheb, group, sched;
+  const day = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+  const plus = (iso, n) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  before(async () => {
+    admin = await as('admin');
+    coach = await as('coach');
+    iheb = ok(await admin('GET', '/coaches')).find((c) => c.email === 'iheb@exemple.tn');
+    const court = ok(await admin('GET', '/courts')).find((c) => c.active);
+    group = ok(await admin('POST', '/groups', { name: `Annonce ${uid()}`, capacity: 6, weeklyMinutes: 120, sessionMinutes: 60 }));
+    const season = ok(await admin('GET', '/seasons/active'));
+    let D = plus(new Date().toISOString().slice(0, 10), 40);
+    if (plus(D, 6) > season.endDate.slice(0, 10)) D = plus(season.endDate.slice(0, 10), -10);
+    sched = ok(await admin('POST', '/temp-schedules', { name: `Annonce ${uid()}`, startDate: D, endDate: plus(D, 6) })).id;
+    const v = ok(await admin('GET', `/temp-schedules/${sched}`)).version;
+    const slot = { day: day(D), startTime: '07:00', endTime: '08:00', courtId: court.id, coachIds: [iheb.id] };
+    ok(await admin('PUT', `/temp-schedules/${sched}/groups/${group.id}`, { mode: 'ADD', version: v, slots: [slot] }));
+    const v2 = ok(await admin('GET', `/temp-schedules/${sched}`)).version;
+    ok(await admin('POST', `/temp-schedules/${sched}/publish`, { version: v2, notify: false }));
+  });
+
+  after(async () => {
+    const s = ok(await admin('GET', `/temp-schedules/${sched}`));
+    await admin('POST', `/temp-schedules/${sched}/unpublish`, { version: s.version, reason: 'Fin du test' });
+    const s2 = ok(await admin('GET', `/temp-schedules/${sched}`));
+    await admin('POST', `/temp-schedules/${sched}/archive`, { version: s2.version, reason: 'Fin du test' });
+    await admin('POST', `/groups/${group.id}/archive`);
+  });
+
+  test('séance modifiée : l’entraîneur est prévenu, un seul avis pour plusieurs changements', async (t) => {
+    if (!iheb) return t.skip('entraîneur de démo absent');
+    const s = ok(await admin('GET', `/temp-schedules/${sched}`));
+    const g = s.groups.find((x) => x.id === group.id);
+    const moved = g.slots.map((x) => ({ day: x.day, startTime: '07:30', endTime: '08:30', courtId: x.court.id, coachIds: [iheb.id] }));
+    ok(await admin('PUT', `/temp-schedules/${sched}/groups/${group.id}`, { mode: 'ADD', version: s.version, slots: moved }));
+    const s2 = ok(await admin('GET', `/temp-schedules/${sched}`));
+    const again = moved.map((x) => ({ ...x, startTime: '07:00', endTime: '08:00' }));
+    ok(await admin('PUT', `/temp-schedules/${sched}/groups/${group.id}`, { mode: 'ADD', version: s2.version, slots: again }));
+    const notes = ok(await coach('GET', '/notifications')).filter((n) => n.title === `Vacances modifiées : ${s.name}`);
+    assert.equal(notes.length, 1, 'un seul avis, le plus récent');
+    assert.match(notes[0].body, new RegExp(group.name));
+    assert.match(notes[0].body, /07:00/);
+  });
+});

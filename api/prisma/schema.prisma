@@ -374,7 +374,7 @@ model Season {
   projects          Project[]
   budgetLines       BudgetLine[]
   tempSchedules     TempSchedule[]
-  timetableDraft    TimetableDraft?
+  timetableDrafts   TimetableDraft[]
 
   @@index([status])
 }
@@ -549,17 +549,22 @@ enum SlotKind {
   PHYSICAL
 }
 
-/// Brouillon de l'emploi du temps habituel d'une saison (grille) : créneaux modifiés par groupe, appliqués à la publication.
+/// Brouillon de l'emploi du temps habituel (grille) : un ou plusieurs par saison, chacun avec un nom, publié quand on veut.
 model TimetableDraft {
-  seasonId    String   @id @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  seasonId    String   @db.Uuid
+  name        String
   /// { [groupId]: [{ id?, day, startTime, endTime, courtId, coachIds, kind }] }
   groups      Json
   version     Int      @default(1)
+  createdById String?  @db.Uuid
   updatedById String?  @db.Uuid
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   season Season @relation(fields: [seasonId], references: [id])
+
+  @@index([seasonId])
 }
 
 enum TempScheduleStatus {

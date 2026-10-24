@@ -1,8 +1,8 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EmailKind, Prisma, SlotKind, TempScheduleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsUUID, Matches, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
@@ -23,6 +23,31 @@ class SeasonQuery {
   seasonId?: string;
 }
 
+class LoadQuery extends SeasonQuery {
+  /** Brouillon affiché (sinon : l'emploi du temps publié). */
+  @IsOptional()
+  @IsUUID()
+  draft?: string;
+}
+
+class CreateDraftDto extends SeasonQuery {
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  name?: string;
+}
+
+class RenameDraftDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Nom du brouillon obligatoire.' })
+  @MaxLength(60)
+  name: string;
+
+  @IsInt()
+  @Min(1)
+  version: number;
+}
+
 class VersionQuery extends SeasonQuery {
   @IsOptional()
   @Matches(/^\d+$/)
@@ -36,9 +61,9 @@ class DraftGroupDto {
   @Type(() => SlotDto)
   slots: SlotDto[];
 
-  /** Version du brouillon (0 s'il n'existe pas encore) : R13. */
+  /** Version du brouillon : R13. */
   @IsInt()
-  @Min(0)
+  @Min(1)
   version: number;
 }
 
@@ -92,16 +117,55 @@ export class TimetableController {
 
   @Get()
   @Perm('groups.manage', 'planning.view')
-  async get(@Query() q: SeasonQuery) {
+  async get(@Query() q: LoadQuery) {
     const season = await this.access.seasonOrActive(q.seasonId);
-    return this.load(season.id);
+    return this.load(season.id, q.draft);
   }
 
-  /** Brouillon d'un groupe : ses créneaux tels qu'ils seront publiés (volume, conflits, éclairage vérifiés). */
-  @Put('draft/groups/:groupId')
+  /** Nouveau brouillon (vide : il part de l'emploi du temps publié). */
+  @Post('drafts')
   @Perm('groups.manage')
-  async setGroup(@CurrentUser() user: AuthUser, @Param('groupId', ParseUUIDPipe) groupId: string, @Body() dto: DraftGroupDto) {
-    const ctx = await this.context(groupId);
+  async createDraft(@CurrentUser() user: AuthUser, @Body() dto: CreateDraftDto) {
+    const season = await this.access.seasonOrActive(dto.seasonId);
+    assertSeasonOpen(season);
+    const count = await this.prisma.timetableDraft.count({ where: { seasonId: season.id } });
+    if (count >= 10) throw new BadRequestException('10 brouillons au plus : publiez ou supprimez-en un.');
+    const name = dto.name?.trim() || `Brouillon ${count + 1}`;
+    const d = await this.prisma.timetableDraft.create({ data: { seasonId: season.id, name, groups: {}, createdById: user.id, updatedById: user.id } });
+    await this.audit.log(user.id, { action: 'Brouillon d’emploi du temps créé', entity: 'TimetableDraft', entityId: d.id, target: name });
+    return this.load(season.id, d.id);
+  }
+
+  @Patch('drafts/:id')
+  @Perm('groups.manage')
+  async renameDraft(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: RenameDraftDto) {
+    const d = await this.findDraft(id);
+    this.assertDraftVersion(d.version, dto.version);
+    await this.prisma.timetableDraft.update({ where: { id }, data: { name: dto.name.trim(), updatedById: user.id, version: { increment: 1 } } });
+    return this.load(d.seasonId, id);
+  }
+
+  /** Supprimer un brouillon (rien n'est encore publié : aucune donnée liée). */
+  @Delete('drafts/:id')
+  @Perm('groups.manage')
+  async deleteDraft(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Query() q: VersionQuery) {
+    const d = await this.findDraft(id);
+    this.assertDraftVersion(d.version, q.version === undefined ? undefined : Number(q.version));
+    await this.prisma.timetableDraft.delete({ where: { id } });
+    await this.audit.log(user.id, { action: 'Brouillon d’emploi du temps supprimé', entity: 'TimetableDraft', entityId: id, target: d.name });
+    return this.load(d.seasonId);
+  }
+
+  /** Créneaux d'un groupe dans un brouillon, tels qu'ils seront publiés (volume, conflits, éclairage vérifiés). */
+  @Put('drafts/:id/groups/:groupId')
+  @Perm('groups.manage')
+  async setGroup(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: DraftGroupDto,
+  ) {
+    const ctx = await this.context(id, groupId);
     this.assertDraftVersion(ctx.draftVersion, dto.version);
     // Identifiant gardé seulement pour un créneau publié de ce groupe (une seule fois) : sinon nouvelle séance.
     const seen = new Set<string>();
@@ -112,46 +176,42 @@ export class TimetableController {
     });
     await this.validate(ctx, ctx.group, slots);
     await this.saveGroup(user, ctx, ctx.group, slots);
-    return this.load(ctx.group.seasonId);
+    return this.load(ctx.season.id, id);
   }
 
-  /** Revenir à l'horaire publié pour un groupe. */
-  @Delete('draft/groups/:groupId')
+  /** Revenir à l'horaire publié pour un groupe, dans ce brouillon. */
+  @Delete('drafts/:id/groups/:groupId')
   @Perm('groups.manage')
-  async revertGroup(@CurrentUser() user: AuthUser, @Param('groupId', ParseUUIDPipe) groupId: string, @Query() q: VersionQuery) {
-    const ctx = await this.context(groupId);
+  async revertGroup(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Query() q: VersionQuery,
+  ) {
+    const ctx = await this.context(id, groupId);
     this.assertDraftVersion(ctx.draftVersion, q.version === undefined ? undefined : Number(q.version));
     if (ctx.draft[groupId]) {
       const next = { ...ctx.draft };
       delete next[groupId];
-      await this.write(user, ctx.group.seasonId, next);
+      await this.write(user, id, next);
     }
-    return this.load(ctx.group.seasonId);
-  }
-
-  /** Abandonner tout le brouillon. */
-  @Delete('draft')
-  @Perm('groups.manage')
-  async discard(@CurrentUser() user: AuthUser, @Query() q: VersionQuery) {
-    const season = await this.access.seasonOrActive(q.seasonId);
-    const row = await this.prisma.timetableDraft.findUnique({ where: { seasonId: season.id } });
-    this.assertDraftVersion(row?.version ?? 0, q.version === undefined ? undefined : Number(q.version));
-    if (row) {
-      await this.prisma.timetableDraft.delete({ where: { seasonId: season.id } });
-      await this.audit.log(user.id, { action: 'Brouillon de l’emploi du temps abandonné', entity: 'TimetableDraft', entityId: season.id, target: season.label });
-    }
-    return this.load(season.id);
+    return this.load(ctx.season.id, id);
   }
 
   /**
    * Placement automatique : séances qui manquent au volume du groupe, sur les jours où il ne s'entraîne pas encore, avec
    * son entraîneur principal (ou l'encadrant de la séance physique) et son terrain de préférence, terrain éclairé la nuit.
    */
-  @Post('draft/auto/:groupId')
+  @Post('drafts/:id/auto/:groupId')
   @HttpCode(200)
   @Perm('groups.manage')
-  async auto(@CurrentUser() user: AuthUser, @Param('groupId', ParseUUIDPipe) groupId: string, @Body() dto: AutoDto) {
-    const ctx = await this.context(groupId);
+  async auto(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() dto: AutoDto,
+  ) {
+    const ctx = await this.context(id, groupId);
     this.assertDraftVersion(ctx.draftVersion, dto.version);
     const g = ctx.group;
     const kind = dto.kind ?? SlotKind.TENNIS;
@@ -201,23 +261,26 @@ export class TimetableController {
     if (!added) throw rule.conflict('R5', `Aucune place libre pour « ${g.name} » (terrain, entraîneur ou éclairage).`);
     await this.validate(ctx, g, placed);
     await this.saveGroup(user, ctx, g, placed);
-    return { ...(await this.load(g.seasonId)), placed: added };
+    return { ...(await this.load(ctx.season.id, id)), placed: added };
   }
 
-  /** Publication : le brouillon devient l'emploi du temps habituel (contrôles refaits sur l'ensemble). */
-  @Post('draft/publish')
+  /**
+   * Publication d'un brouillon : il devient l'emploi du temps habituel (contrôles refaits sur l'emploi publié d'aujourd'hui),
+   * puis il est supprimé. Les autres brouillons restent pour plus tard.
+   */
+  @Post('drafts/:id/publish')
   @HttpCode(200)
   @Perm('groups.manage')
-  async publish(@CurrentUser() user: AuthUser, @Query() q: SeasonQuery, @Body() dto: PublishDto) {
-    const season = await this.access.seasonOrActive(q.seasonId);
-    assertSeasonOpen(season);
-    const ctx = await this.seasonContext(season.id);
+  async publish(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Body() dto: PublishDto) {
+    const d = await this.findDraft(id);
+    const ctx = await this.seasonContext(d.seasonId, id);
+    assertSeasonOpen(ctx.season);
     this.assertDraftVersion(ctx.draftVersion, dto.version);
     const changed = ctx.groups.filter((g) => ctx.draft[g.id]);
     if (!changed.length) throw new BadRequestException('Aucun changement à publier.');
     for (const g of changed) await this.validate(ctx, g, ctx.draft[g.id]);
 
-    const removedIds = changed.flatMap((g) => g.slots.filter((s) => !ctx.draft[g.id].some((d) => d.id === s.id)).map((s) => s.id));
+    const removedIds = changed.flatMap((g) => g.slots.filter((s) => !ctx.draft[g.id].some((x) => x.id === s.id)).map((s) => s.id));
     if (removedIds.length && (await this.prisma.attendance.count({ where: { slotId: { in: removedIds } } }))) {
       throw rule.conflict('R8', 'Une séance retirée a déjà des présences pointées : déplacez-la plutôt que de la retirer.');
     }
@@ -236,13 +299,13 @@ export class TimetableController {
         }
         await tx.trainingGroup.update({ where: { id: g.id }, data: { version: { increment: 1 } } });
       }
-      await tx.timetableDraft.delete({ where: { seasonId: season.id } });
+      await tx.timetableDraft.delete({ where: { id } });
     });
     let notified = 0;
     for (const g of changed) {
       const after = describe(ctx.draft[g.id].map((s) => ({ ...s, court: s.courtId ? (ctx.courts.find((c) => c.id === s.courtId) ?? null) : null })));
       await this.audit.log(user.id, {
-        action: 'Emploi du temps publié',
+        action: `Emploi du temps publié (${d.name})`,
         entity: 'TrainingGroup',
         entityId: g.id,
         target: g.name,
@@ -262,23 +325,30 @@ export class TimetableController {
     }
   }
 
-  private async context(groupId: string) {
-    const group = await this.prisma.trainingGroup.findUnique({ where: { id: groupId }, select: { seasonId: true, archivedAt: true } });
-    if (!group || group.archivedAt) throw notFound('Groupe');
-    const ctx = await this.seasonContext(group.seasonId);
-    const g = ctx.groups.find((x) => x.id === groupId)!;
+  private async findDraft(id: string) {
+    const d = await this.prisma.timetableDraft.findUnique({ where: { id } });
+    if (!d) throw notFound('Brouillon');
+    return d;
+  }
+
+  private async context(draftId: string, groupId: string) {
+    const d = await this.findDraft(draftId);
+    const ctx = await this.seasonContext(d.seasonId, draftId);
+    const g = ctx.groups.find((x) => x.id === groupId);
+    if (!g) throw notFound('Groupe');
     return { ...ctx, group: g };
   }
 
-  /** Saison, groupes (créneaux publiés), brouillon, terrains et entraîneurs ; créneaux effectifs = brouillon sinon publiés. */
-  private async seasonContext(seasonId: string) {
+  /** Saison, groupes (créneaux publiés), brouillon choisi, terrains et entraîneurs ; créneaux effectifs = brouillon sinon publiés. */
+  private async seasonContext(seasonId: string, draftId?: string) {
     const [season, groups, row, courts, coaches] = await Promise.all([
       this.prisma.season.findUniqueOrThrow({ where: { id: seasonId } }),
       this.prisma.trainingGroup.findMany({ where: { seasonId, archivedAt: null }, include: groupInclude, orderBy: { name: 'asc' } }),
-      this.prisma.timetableDraft.findUnique({ where: { seasonId } }),
+      draftId ? this.prisma.timetableDraft.findFirst({ where: { id: draftId, seasonId } }) : Promise.resolve(null),
       this.prisma.court.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true, active: true, maintenance: true } }),
       this.prisma.coach.findMany({ where: { user: { isActive: true } }, select: { id: true, color: true, user: { select: { firstName: true, lastName: true } } } }),
     ]);
+    if (draftId && !row) throw notFound('Brouillon');
     const ids = new Set(groups.map((g) => g.id));
     const draft = Object.fromEntries(Object.entries((row?.groups ?? {}) as DraftMap).filter(([id]) => ids.has(id))) as DraftMap;
     const published = (g: GroupRow): RawSlot[] =>
@@ -286,7 +356,7 @@ export class TimetableController {
     const effective = (groupId: string): RawSlot[] => draft[groupId] ?? published(groups.find((g) => g.id === groupId)!);
     const othersThan = (groupId: string): Placed[] =>
       groups.filter((g) => g.id !== groupId).flatMap((g) => effective(g.id).map((s) => ({ ...s, groupId: g.id, groupName: g.name })));
-    return { season, groups, draft, draftVersion: row?.version ?? 0, draftUpdatedAt: row?.updatedAt ?? null, courts, coaches, published, effective, othersThan };
+    return { season, groups, row, draft, draftVersion: row?.version ?? 0, courts, coaches, published, effective, othersThan };
   }
 
   /** Volume, terrains (existants, éclairés la nuit), entraîneurs actifs, conflits avec le reste de la grille (R5). */
@@ -321,19 +391,11 @@ export class TimetableController {
     const next = { ...ctx.draft };
     if (sameSlots(slots, ctx.published(g))) delete next[g.id];
     else next[g.id] = slots;
-    await this.write(user, g.seasonId, next);
+    await this.write(user, ctx.row!.id, next);
   }
 
-  private async write(user: AuthUser, seasonId: string, groups: DraftMap) {
-    if (!Object.keys(groups).length) {
-      await this.prisma.timetableDraft.deleteMany({ where: { seasonId } });
-      return;
-    }
-    await this.prisma.timetableDraft.upsert({
-      where: { seasonId },
-      create: { seasonId, groups: groups as Prisma.InputJsonValue, updatedById: user.id },
-      update: { groups: groups as Prisma.InputJsonValue, updatedById: user.id, version: { increment: 1 } },
-    });
+  private async write(user: AuthUser, id: string, groups: DraftMap) {
+    await this.prisma.timetableDraft.update({ where: { id }, data: { groups: groups as Prisma.InputJsonValue, updatedById: user.id, version: { increment: 1 } } });
   }
 
   /** Familles des joueurs du groupe et entraîneurs (anciens et nouveaux) prévenus du nouvel horaire. */
@@ -363,14 +425,17 @@ export class TimetableController {
     return rows.length;
   }
 
-  private async load(seasonId: string) {
-    const ctx = await this.seasonContext(seasonId);
+  private async load(seasonId: string, draftId?: string) {
+    const ctx = await this.seasonContext(seasonId, draftId);
     const s = await this.settings.all();
-    const schedules = await this.prisma.tempSchedule.findMany({
-      where: { seasonId, archivedAt: null },
-      orderBy: { startDate: 'asc' },
-      select: { id: true, name: true, startDate: true, endDate: true, status: true },
-    });
+    const [schedules, drafts] = await Promise.all([
+      this.prisma.tempSchedule.findMany({
+        where: { seasonId, archivedAt: null },
+        orderBy: { startDate: 'asc' },
+        select: { id: true, name: true, startDate: true, endDate: true, status: true },
+      }),
+      this.prisma.timetableDraft.findMany({ where: { seasonId }, orderBy: { createdAt: 'asc' }, select: { id: true, name: true, groups: true, updatedAt: true } }),
+    ]);
     const today = todayIso();
     const courtName = (id: string | null) => (id ? (ctx.courts.find((c) => c.id === id) ?? null) : null);
     return {
@@ -395,9 +460,12 @@ export class TimetableController {
         published: ctx.published(g),
         draft: ctx.draft[g.id] ?? null,
       })),
-      draft: {
-        version: ctx.draftVersion,
-        updatedAt: ctx.draftUpdatedAt,
+      drafts: drafts.map((x) => ({ id: x.id, name: x.name, groups: Object.keys((x.groups ?? {}) as DraftMap).length, updatedAt: x.updatedAt })),
+      draft: ctx.row && {
+        id: ctx.row.id,
+        name: ctx.row.name,
+        version: ctx.row.version,
+        updatedAt: ctx.row.updatedAt,
         changes: ctx.groups
           .filter((g) => ctx.draft[g.id])
           .map((g) => ({

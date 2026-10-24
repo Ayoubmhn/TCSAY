@@ -232,6 +232,10 @@ export class TempSchedulesController {
       before: `${s.name} · ${frDate(was.from)} → ${frDate(was.to)}`,
       after: `${dto.name.trim()} · ${frDate(dto.startDate)} → ${frDate(dto.endDate)}`,
     });
+    // Emploi publié : nouvelles dates annoncées aux familles et aux entraîneurs des groupes concernés.
+    if (s.status === TempScheduleStatus.PUBLISHED && (was.from !== dto.startDate || was.to !== dto.endDate)) {
+      await this.notify(s, `Vacances modifiées : ${dto.name.trim()}`, `Nouvelles dates : du ${frDate(dto.startDate)} au ${frDate(dto.endDate)}. Détail dans « Mes séances ».`, { latest: true });
+    }
     return { ok: true };
   }
 
@@ -291,6 +295,16 @@ export class TempSchedulesController {
       before: before ? `${MODE_LABEL[before.mode]} · ${describe(current)}` : undefined,
       after: `${MODE_LABEL[dto.mode]} · ${describeDto(dto.slots)}`,
     });
+    // Emploi publié : le planning du groupe change tout de suite, ses familles et ses entraîneurs sont prévenus.
+    if (s.status === TempScheduleStatus.PUBLISHED) {
+      const what = dto.slots.length
+        ? `${dto.mode === TempScheduleMode.ADD ? 'séances en plus' : 'nouvel horaire'} : ${describeDto(dto.slots)}`
+        : 'pas de séance';
+      await this.notify(s, `Vacances modifiées : ${s.name}`, `${group.name}, du ${frDate(range.from)} au ${frDate(range.to)} : ${what}. Détail dans « Mes séances ».`, {
+        groupIds: [groupId],
+        latest: true,
+      });
+    }
     return { ok: true };
   }
 
@@ -326,6 +340,14 @@ export class TempSchedulesController {
       target: `${s.name} · ${entry.group.name}`,
       before: `${MODE_LABEL[entry.mode]} · ${describe(slots)}`,
     });
+    if (s.status === TempScheduleStatus.PUBLISHED) {
+      await this.notify(
+        s,
+        `Vacances modifiées : ${s.name}`,
+        `${entry.group.name}, du ${frDate(isoDay(s.startDate))} au ${frDate(isoDay(s.endDate))} : retour à l’horaire habituel. Détail dans « Mes séances ».`,
+        { groupIds: [groupId], latest: true },
+      );
+    }
     return { ok: true };
   }
 
@@ -494,9 +516,12 @@ export class TempSchedulesController {
     }
   }
 
-  /** Familles (joueurs avec compte, parents actifs) et entraîneurs des groupes de l'emploi. */
-  private async notify(s: ScheduleRow, title: string, body: string): Promise<number> {
-    const groupIds = s.groups.map((g) => g.groupId);
+  /**
+   * Familles (joueurs avec compte, parents actifs) et entraîneurs des groupes de l'emploi (ou des groupes donnés).
+   * `latest` : une modification remplace l'avis non lu de la dernière demi-heure (pas de série de messages en cours de saisie).
+   */
+  private async notify(s: ScheduleRow, title: string, body: string, opts: { groupIds?: string[]; latest?: boolean } = {}): Promise<number> {
+    const groupIds = opts.groupIds ?? s.groups.map((g) => g.groupId);
     if (!groupIds.length) return 0;
     const [members, coaches] = await Promise.all([
       this.prisma.groupMember.findMany({
@@ -520,6 +545,11 @@ export class TempSchedulesController {
       ...[...families].map((userId) => ({ userId, kind: EmailKind.OTHER, title, body, link: '/seances' })),
       ...[...coachIds].map((userId) => ({ userId, kind: EmailKind.OTHER, title, body, link: '/coach/seances' })),
     ];
+    if (opts.latest && rows.length) {
+      await this.prisma.notification.deleteMany({
+        where: { userId: { in: rows.map((x) => x.userId) }, title, readAt: null, createdAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+      });
+    }
     if (rows.length) await this.prisma.notification.createMany({ data: rows });
     return rows.length;
   }
