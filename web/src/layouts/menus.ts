@@ -114,6 +114,7 @@ const ADMIN_MENU: MenuItem[] = [
     label: 'Entraînement',
     icon: IconRacket,
     children: [
+      { label: 'Emploi du temps', path: '/admin/emploi-du-temps', perm: ['groups.manage', 'planning.view'] },
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
       { label: 'Emplois temporaires (vacances)', path: '/admin/vacances', perm: ['groups.manage', 'planning.view'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },

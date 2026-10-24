@@ -49,6 +49,7 @@ function SessionCard({ s }: { s: PlayerSession }) {
           {s.startTime} – {s.endTime}
         </Pill>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
+        {s.kind === 'PHYSICAL' && <Pill tone="s">Séance physique</Pill>}
         {s.holiday && <Pill tone="s">{s.holiday}</Pill>}
         {s.change?.kind === 'MOVED' && <Pill tone="s">Déplacée : terrain pris par un tournoi</Pill>}
       </Pills>

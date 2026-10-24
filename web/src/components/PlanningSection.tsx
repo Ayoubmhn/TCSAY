@@ -46,7 +46,7 @@ function ListRow({ item, date, onSelect }: { item: PItem; date: string; onSelect
         <b className="block truncate text-[15px] font-semibold">{item.kind === 'session' ? item.s.group.name : reservationLabel(item.r)}</b>
         <span className={`block truncate text-[13px] ${noCoach ? 'font-semibold text-fg' : 'text-mut'}`}>
           {item.kind === 'session'
-            ? `${noCoach ? '⚠ ' : ''}${coachLine(item.s)}${item.s.members ? ` · ${item.s.members} joueur${item.s.members > 1 ? 's' : ''}` : ''}${item.s.holiday ? ` · ${item.s.holiday}` : ''}`
+            ? `${noCoach ? '⚠ ' : ''}${coachLine(item.s)}${item.s.members ? ` · ${item.s.members} joueur${item.s.members > 1 ? 's' : ''}` : ''}${item.s.kind === 'PHYSICAL' ? ' · séance physique' : ''}${item.s.holiday ? ` · ${item.s.holiday}` : ''}`
             : item.r.match
               ? item.r.match.players
               : (item.r.player ?? item.r.coach?.name ?? '—')}

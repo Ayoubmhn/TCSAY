@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { fullName } from '../lib/format';
-import type { Coach, Court, Slot } from '../lib/types';
+import type { Coach, Court, Slot, SlotKind } from '../lib/types';
 import { IconButton } from './ui/Button';
 import { SelectField, TextField } from './ui/Field';
 
@@ -9,10 +9,10 @@ export const WEEK = [1, 2, 3, 4, 5, 6, 0]; // lundi → dimanche
 export const DAY_FULL = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
 
 /** Créneau en cours de saisie : jour, horaire, terrain, un ou plusieurs entraîneurs. */
-export type SlotForm = { key: string; id?: string; day: number; startTime: string; endTime: string; courtId: string; coachIds: string[] };
+export type SlotForm = { key: string; id?: string; day: number; startTime: string; endTime: string; courtId: string; coachIds: string[]; kind: SlotKind };
 
 let seq = 0;
-export const newSlot = (day = 1): SlotForm => ({ key: `n${seq++}`, day, startTime: '17:30', endTime: '19:00', courtId: '', coachIds: [] });
+export const newSlot = (day = 1): SlotForm => ({ key: `n${seq++}`, day, startTime: '17:30', endTime: '19:00', courtId: '', coachIds: [], kind: 'TENNIS' });
 
 /** Créneau existant → formulaire (`keepId` : modification ; sinon copie, ex. « Copier l'horaire habituel »). */
 export const slotToForm = (s: Slot, keepId = true): SlotForm => ({
@@ -23,10 +23,11 @@ export const slotToForm = (s: Slot, keepId = true): SlotForm => ({
   endTime: s.endTime,
   courtId: s.court?.id ?? '',
   coachIds: s.coaches.map((c) => c.id),
+  kind: s.kind ?? 'TENNIS',
 });
 
 export const slotsPayload = (slots: SlotForm[]) =>
-  slots.map((s) => ({ id: s.id, day: s.day, startTime: s.startTime, endTime: s.endTime, courtId: s.courtId || undefined, coachIds: s.coachIds }));
+  slots.map((s) => ({ id: s.id, day: s.day, startTime: s.startTime, endTime: s.endTime, courtId: s.courtId || undefined, coachIds: s.coachIds, kind: s.kind }));
 
 /** Premier créneau dont la fin ne suit pas le début (message prêt à afficher). */
 export function badSlot(slots: SlotForm[]): string | null {
@@ -50,7 +51,11 @@ export function SlotsEditor({ slots, onChange, days = WEEK }: { slots: SlotForm[
       {slots.map((s, i) => (
         <fieldset key={s.key} className="flex flex-col gap-2.5 rounded-[20px] border-[1.5px] border-line p-3">
           <legend className="sr-only">Créneau {i + 1}</legend>
-          <div className="grid grid-cols-2 gap-2.5 min-[521px]:grid-cols-[1.2fr_1fr_1fr_1.3fr_auto]">
+          <div className="grid grid-cols-2 gap-2.5 min-[521px]:grid-cols-[1fr_1.1fr_1fr_1fr_1.3fr_auto]">
+            <SelectField label="Séance" value={s.kind} onChange={(e) => setSlot(s.key, { kind: e.target.value as SlotKind })}>
+              <option value="TENNIS">Tennis</option>
+              <option value="PHYSICAL">Physique</option>
+            </SelectField>
             <SelectField label="Jour" value={String(s.day)} onChange={(e) => setSlot(s.key, { day: Number(e.target.value) })}>
               {(ordered.includes(s.day) ? ordered : [s.day, ...ordered]).map((d) => (
                 <option key={d} value={d}>
@@ -61,7 +66,7 @@ export function SlotsEditor({ slots, onChange, days = WEEK }: { slots: SlotForm[
             <TextField label="Début" type="time" value={s.startTime} onChange={(e) => setSlot(s.key, { startTime: e.target.value })} />
             <TextField label="Fin" type="time" value={s.endTime} onChange={(e) => setSlot(s.key, { endTime: e.target.value })} />
             <SelectField label="Terrain" value={s.courtId} onChange={(e) => setSlot(s.key, { courtId: e.target.value })}>
-              <option value="">—</option>
+              <option value="">{s.kind === 'PHYSICAL' ? 'Hors terrain' : '—'}</option>
               {courts.data
                 ?.filter((c) => c.active)
                 .map((c) => (

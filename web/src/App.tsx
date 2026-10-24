@@ -28,6 +28,7 @@ const DashboardPage = page(() => import('./pages/admin/DashboardPage'), 'Dashboa
 const EmailsPage = page(() => import('./pages/admin/EmailsPage'), 'EmailsPage');
 const FeesPage = page(() => import('./pages/admin/FeesPage'), 'FeesPage');
 const GroupDetailPage = page(() => import('./pages/admin/GroupDetailPage'), 'GroupDetailPage');
+const TimetablePage = page(() => import('./features/timetable/TimetablePage'), 'TimetablePage');
 const TempSchedulesPage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulesPage');
 const TempSchedulePage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulePage');
 const GroupsPage = page(() => import('./pages/admin/GroupsPage'), 'GroupsPage');
@@ -239,6 +240,7 @@ export function App() {
         <Route path="admin/fiche-inscription" element={admin(['players.manage'], <RegistrationFormPage />)} />
         <Route path="admin/groupes" element={admin(['groups.manage'], <GroupsPage />)} />
         <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
+        <Route path="admin/emploi-du-temps" element={admin(['groups.manage', 'planning.view'], <TimetablePage />)} />
         <Route path="admin/vacances" element={admin(['groups.manage', 'planning.view'], <TempSchedulesPage />)} />
         <Route path="admin/vacances/:id" element={admin(['groups.manage', 'planning.view'], <TempSchedulePage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />

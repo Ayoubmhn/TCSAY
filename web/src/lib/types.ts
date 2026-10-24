@@ -178,13 +178,28 @@ export type Staff = {
 /** Identifiants renvoyés à la création d'un compte (mot de passe affiché si pas d'email). */
 export type Credentials = { sentTo: string | null; login: string; temporaryPassword: string | null };
 
+/** Séance de tennis (sur un terrain) ou séance physique (hors terrain le plus souvent). */
+export type SlotKind = 'TENNIS' | 'PHYSICAL';
+
 export type Slot = {
   id: string;
   day: number;
   startTime: string;
   endTime: string;
+  kind?: SlotKind;
   court: { id: string; name: string } | null;
   coaches: CoachRef[];
+};
+
+/** Volumes d'un groupe (minutes) et préférences de placement sur la grille de l'emploi du temps. */
+export type GroupVolumes = {
+  weeklyMinutes: number | null;
+  sessionMinutes: number | null;
+  physicalMinutes: number | null;
+  physicalSessionMinutes: number | null;
+  mainCoachId: string | null;
+  physicalCoachId: string | null;
+  preferredCourtId: string | null;
 };
 
 export type CourtSurface = 'CLAY' | 'HARD' | 'GRASS';
@@ -246,7 +261,7 @@ export type Group = {
   slots: Slot[];
   coaches: CoachRef[];
   members: { playerId: string; firstName: string; lastName: string; category: string; derogationReason: string | null }[];
-};
+} & GroupVolumes;
 
 export type Fee = {
   id: string;
@@ -495,6 +510,7 @@ export type CoachSession = {
   recorded: boolean;
   /** Séance d'un emploi temporaire (vacances, stage) : son nom. */
   holiday?: string | null;
+  kind?: SlotKind;
   change?: SessionChange;
 };
 
@@ -513,6 +529,7 @@ export type PlayerSession = {
   replacement: CoachRef | null;
   /** Séance d'un emploi temporaire (vacances, stage) : son nom. */
   holiday?: string | null;
+  kind?: SlotKind;
   change?: SessionChange;
 };
 
@@ -606,6 +623,7 @@ export type Overview = {
     court: string | null;
     coaches: CoachRef[];
     holiday?: string | null;
+    kind?: SlotKind;
   } | null;
   hasGroup: boolean;
   /** Accès après paiement : planning fermé tant que la tranche en retard n'est pas payée. */
@@ -991,4 +1009,27 @@ export type TempScheduleDetail = Omit<TempScheduleSummary, 'groups' | 'slotsCoun
     mode: TempScheduleMode | null;
     slots: Slot[];
   }[];
+};
+
+/** Grille de l'emploi du temps : créneau brut (habituel publié ou brouillon). */
+export type RawSlot = { id?: string; day: number; startTime: string; endTime: string; courtId: string | null; coachIds: string[]; kind: SlotKind };
+export type TimetableGroup = GroupVolumes & {
+  id: string;
+  name: string;
+  kind: GroupKind;
+  category: string | null;
+  members: number;
+  capacity: number;
+  published: RawSlot[];
+  /** Créneaux du brouillon (null : pas de changement). */
+  draft: RawSlot[] | null;
+};
+export type Timetable = {
+  season: { id: string; label: string; status: string };
+  hours: { opening: number; closing: number; nightStart: number };
+  courts: { id: string; name: string; lit: boolean; active: boolean; maintenance: boolean }[];
+  coaches: { id: string; color: string; firstName: string; lastName: string }[];
+  groups: TimetableGroup[];
+  draft: { version: number; updatedAt: string | null; changes: { groupId: string; groupName: string; before: string; after: string }[] };
+  schedules: { id: string; name: string; startDate: string; endDate: string; published: boolean }[];
 };

@@ -22,6 +22,7 @@ export function SlotLine({ slot, showDay = true }: { slot: Slot; showDay?: boole
           {slot.startTime}–{slot.endTime}
         </span>
       </Pill>
+      {slot.kind === 'PHYSICAL' && <Pill tone="s">Séance physique</Pill>}
       {slot.court && <Pill tone="g">{slot.court.name}</Pill>}
       {slot.coaches.length ? slot.coaches.map((c) => <CoachChip key={c.id} coach={c} />) : <Pill tone="s">Entraîneur à affecter</Pill>}
     </div>
