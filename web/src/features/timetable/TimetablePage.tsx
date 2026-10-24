@@ -33,7 +33,7 @@ type Drag = Picked & { x: number; y: number; grab: number; active: boolean; sx: 
 type Row = Placed & { key: string; editable: boolean; changed: boolean; idx: number };
 
 /** « Court 2 » → « C2 » (colonnes étroites de la vue « Toute la semaine »). */
-const shortCourt = (name: string) => name.replace(/^court\s*/i, 'C').slice(0, 6);
+const shortCourt = (name: string) => (/^court\s*\d+/i.test(name) ? name.replace(/^court\s*/i, 'C') : name.length > 4 ? `${name.slice(0, 3)}.` : name);
 
 const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches;
 
@@ -49,6 +49,8 @@ export function TimetablePage() {
   const temp = mode ? tq.data : undefined;
 
   const [view, setView] = useState<'all' | 'week' | 'day'>(isPhone() ? 'day' : 'all');
+  // Toute la semaine : demi-heures plus basses pour voir toute la journée (8 h – 22 h) d'un coup.
+  const rowPx = view === 'all' ? 20 : ROW;
   const [courtTab, setCourtTab] = useState<string>('');
   const [day, setDay] = useState(1);
   const [search, setSearch] = useState('');
@@ -64,7 +66,8 @@ export function TimetablePage() {
   const [editing, setEditing] = useState<Row>();
   const [publishing, setPublishing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const [panelOpen, setPanelOpen] = useState(!isPhone());
+  // Toute la semaine (défaut sur ordinateur) : séances à placer repliées pour voir toute la grille.
+  const [panelOpen, setPanelOpen] = useState(false);
   const undo = useRef<{ groupId: string; slots: RawSlot[] }[]>([]);
   const [, bump] = useState(0);
   const focusGroup = params.get('groupe');
@@ -75,7 +78,10 @@ export function TimetablePage() {
   useEffect(() => {
     if (!t || !focusGroup) return;
     const g = t.groups.find((x) => x.id === focusGroup);
-    if (g) setSearch(g.name);
+    if (g) {
+      setSearch(g.name);
+      setPanelOpen(true);
+    }
   }, [t, focusGroup]);
 
   // Créneaux modifiables par groupe (brouillon de l'horaire habituel, ou créneaux de l'emploi des vacances).
@@ -181,7 +187,7 @@ export function TimetablePage() {
     if (view === 'all') {
       return WEEK.flatMap((d) => [
         ...t.courts.map((c, i) => ({ day: d, courtId: c.id as string | null, label: shortCourt(c.name), first: i === 0 })),
-        { day: d, courtId: null, label: 'Phys.' },
+        { day: d, courtId: null, label: 'Ph.' },
       ]);
     }
     if (view === 'week') return WEEK.map((d) => ({ day: d, courtId: courtTab === PHYSICAL ? null : courtTab, label: DAY_NAMES[d] }));
@@ -231,7 +237,7 @@ export function TimetablePage() {
     const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-col]');
     if (!el || !t) return undefined;
     const rect = el.getBoundingClientRect();
-    const steps = Math.round((y - rect.top - grab) / ROW);
+    const steps = Math.round((y - rect.top - grab) / rowPx);
     const start = t.hours.opening * 60 + Math.max(0, steps) * 30;
     return { day: Number(el.dataset.day), courtId: el.dataset.court || null, start };
   };
@@ -274,7 +280,7 @@ export function TimetablePage() {
   const startDrag = (e: ReactPointerEvent, p: Picked, source: 'chip' | 'block') => {
     if (!canManage || e.button > 0) return;
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const grab = source === 'block' ? e.clientY - rect.top : ROW / 2;
+    const grab = source === 'block' ? e.clientY - rect.top : rowPx / 2;
     setDrag({ ...p, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, grab, active: false, kindOfSource: source });
   };
 
@@ -302,6 +308,12 @@ export function TimetablePage() {
     }
     return true;
   });
+
+  const toPlace = t.groups.filter((g) => {
+    const eff = g.draft ?? g.published;
+    return (remaining(g, eff, 'TENNIS') ?? 0) > 0 || (remaining(g, eff, 'PHYSICAL') ?? 0) > 0;
+  }).length;
+  const panelShown = panelOpen || (view !== 'all' && !isPhone());
 
   // Heures des entraîneurs dans la semaine affichée (salaires).
   const coachMinutes = new Map<string, number>();
@@ -394,12 +406,15 @@ export function TimetablePage() {
         <div className="no-print flex flex-col gap-2.5">
           <Card>
             <CardRow>
-              <h3>{temp ? `Groupes de « ${temp.name} »` : 'Séances à placer'}</h3>
-              <Button className="min-[1100px]:hidden" onClick={() => setPanelOpen(!panelOpen)}>
-                {panelOpen ? 'Masquer' : 'Afficher'}
+              <h3>
+                {temp ? `Groupes de « ${temp.name} »` : 'Séances à placer'}
+                {!temp && toPlace > 0 && <span className="ms-2 text-[13px] font-medium text-mut">{`${toPlace} groupe${toPlace > 1 ? 's' : ''} à compléter`}</span>}
+              </h3>
+              <Button className={view === 'all' ? '' : 'min-[1100px]:hidden'} onClick={() => setPanelOpen(!panelShown)}>
+                {panelShown ? 'Masquer' : 'Afficher'}
               </Button>
             </CardRow>
-            {panelOpen && (
+            {panelShown && (
               <>
                 <p className="m-0 text-[12.5px] text-mut">
                   {temp
@@ -416,7 +431,7 @@ export function TimetablePage() {
               </>
             )}
           </Card>
-          {panelOpen && (
+          {panelShown && (
             <div className={view === 'all' ? 'flex gap-2.5 overflow-x-auto pb-1 [&>*]:w-[280px] [&>*]:flex-none' : 'contents'}>
             {groupsShown.map((g) => (
               <GroupCard
@@ -436,7 +451,7 @@ export function TimetablePage() {
             ))}
             </div>
           )}
-          {panelOpen && (
+          {panelShown && (
             <Note>
               {'Heures des entraîneurs cette semaine : '}
               {[...coachMinutes.entries()]
@@ -452,7 +467,7 @@ export function TimetablePage() {
         {/* Grille */}
         <div className="min-w-0">
           <div className="overflow-x-auto rounded-[20px] border-[1.5px] border-line bg-card">
-            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${columns.length}, minmax(${view === 'all' ? 40 : view === 'week' ? 92 : 104}px, 1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${columns.length}, ${view === 'all' ? 'minmax(0, 1fr)' : `minmax(${view === 'week' ? 92 : 104}px, 1fr)`})` }}>
               {view === 'all' && (
                 <>
                   <div className="bg-dr" />
@@ -480,7 +495,7 @@ export function TimetablePage() {
                 {Array.from({ length: nRows }, (_, i) => {
                   const m = opening + i * 30;
                   return (
-                    <div key={i} className="pe-1.5 pt-0.5 text-end text-[11px] text-mut" style={{ height: ROW }} dir="ltr">
+                    <div key={i} className={`pe-1.5 text-end text-mut ${view === 'all' ? 'text-[10px] leading-none' : 'pt-0.5 text-[11px]'}`} style={{ height: rowPx }} dir="ltr">
                       {m % 60 === 0 ? `${toTime(m)}${m >= t.hours.nightStart * 60 ? ' ☾' : ''}` : ''}
                     </div>
                   );
@@ -509,7 +524,7 @@ export function TimetablePage() {
                         className={`block w-full border-b ${i % 2 ? 'border-line' : 'border-dashed border-line/60'} ${
                           state === 'ok' ? 'bg-[#dff3a8]/60' : state === 'bad' ? 'bg-[#fdb3b0]/25' : night ? 'bg-day' : ''
                         }`}
-                        style={{ height: ROW }}
+                        style={{ height: rowPx }}
                       />
                     );
                   })}
@@ -517,8 +532,8 @@ export function TimetablePage() {
                     .filter((r) => inColumn(r, col))
                     .map((r) => {
                       const color = coachColor(r.slot.coachIds);
-                      const top = ((toMin(r.slot.startTime) - opening) / 30) * ROW;
-                      const height = (durationOf(r.slot) / 30) * ROW - 3;
+                      const top = ((toMin(r.slot.startTime) - opening) / 30) * rowPx;
+                      const height = (durationOf(r.slot) / 30) * rowPx - 3;
                       const g = t.groups.find((x) => x.id === r.groupId)!;
                       const moving = drag?.active && drag.kindOfSource === 'block' && drag.groupId === r.groupId && drag.fromIdx === r.idx && r.editable;
                       return (
@@ -562,7 +577,7 @@ export function TimetablePage() {
                     <div
                       aria-hidden="true"
                       className={`pointer-events-none absolute inset-x-1 rounded-[12px] border-[2.5px] border-dashed ${drag.problem ? 'border-[#e5484d] bg-[#fdb3b0]/50' : 'border-[#2f9e44] bg-[#dff3a8]/60'}`}
-                      style={{ top: ((drag.target.start - opening) / 30) * ROW + 1, height: (drag.dur / 30) * ROW - 3 }}
+                      style={{ top: ((drag.target.start - opening) / 30) * rowPx + 1, height: (drag.dur / 30) * rowPx - 3 }}
                     />
                   )}
                 </div>
