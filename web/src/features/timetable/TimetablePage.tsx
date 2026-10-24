@@ -32,6 +32,9 @@ type Drag = Picked & { x: number; y: number; grab: number; active: boolean; sx: 
 /** Créneau affiché : modifiable (habituel ou de l'emploi des vacances) ou seulement montré (horaire habituel gardé). */
 type Row = Placed & { key: string; editable: boolean; changed: boolean; idx: number };
 
+/** « Court 2 » → « C2 » (colonnes étroites de la vue « Toute la semaine »). */
+const shortCourt = (name: string) => name.replace(/^court\s*/i, 'C').slice(0, 6);
+
 const isPhone = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 860px)').matches;
 
 export function TimetablePage() {
@@ -45,7 +48,7 @@ export function TimetablePage() {
   const t = q.data;
   const temp = mode ? tq.data : undefined;
 
-  const [view, setView] = useState<'week' | 'day'>(isPhone() ? 'day' : 'week');
+  const [view, setView] = useState<'all' | 'week' | 'day'>(isPhone() ? 'day' : 'all');
   const [courtTab, setCourtTab] = useState<string>('');
   const [day, setDay] = useState(1);
   const [search, setSearch] = useState('');
@@ -172,8 +175,15 @@ export function TimetablePage() {
   });
 
   // Colonnes : jours de la semaine pour un terrain, ou terrains (et hors terrain) pour un jour.
-  const columns: { day: number; courtId: string | null; label: string }[] = useMemo(() => {
+  const columns: { day: number; courtId: string | null; label: string; first?: boolean }[] = useMemo(() => {
     if (!t) return [];
+    // Toute la semaine : chaque jour découpé en terrains (et hors terrain).
+    if (view === 'all') {
+      return WEEK.flatMap((d) => [
+        ...t.courts.map((c, i) => ({ day: d, courtId: c.id as string | null, label: shortCourt(c.name), first: i === 0 })),
+        { day: d, courtId: null, label: 'Phys.' },
+      ]);
+    }
     if (view === 'week') return WEEK.map((d) => ({ day: d, courtId: courtTab === PHYSICAL ? null : courtTab, label: DAY_NAMES[d] }));
     return [...t.courts.map((c) => ({ day, courtId: c.id as string | null, label: `${c.name}${c.lit ? ' ☀' : ''}` })), { day, courtId: null, label: 'Physique' }];
   }, [t, view, courtTab, day]);
@@ -347,16 +357,17 @@ export function TimetablePage() {
             options={[{ value: '', label: 'Horaire habituel' }, ...t.schedules.map((s) => ({ value: s.id, label: s.name }))]}
           />
         )}
-        <Segmented<'week' | 'day'>
+        <Segmented<'all' | 'week' | 'day'>
           label="Vue"
           value={view}
           onChange={setView}
           options={[
+            { value: 'all', label: 'Toute la semaine' },
             { value: 'week', label: 'Semaine par terrain' },
             { value: 'day', label: 'Jour (tous les terrains)' },
           ]}
         />
-        {view === 'week' ? (
+        {view === 'all' ? null : view === 'week' ? (
           <Segmented<string>
             label="Terrain"
             value={courtTab}
@@ -377,7 +388,8 @@ export function TimetablePage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 items-start gap-4 min-[1100px]:grid-cols-[300px_1fr]">
+      {/* Toute la semaine : la grille prend toute la largeur, les séances à placer passent en bandeau au-dessus. */}
+      <div className={`grid grid-cols-1 items-start gap-4 ${view === 'all' ? '' : 'min-[1100px]:grid-cols-[300px_1fr]'}`}>
         {/* Séances à placer */}
         <div className="no-print flex flex-col gap-2.5">
           <Card>
@@ -404,8 +416,9 @@ export function TimetablePage() {
               </>
             )}
           </Card>
-          {panelOpen &&
-            groupsShown.map((g) => (
+          {panelOpen && (
+            <div className={view === 'all' ? 'flex gap-2.5 overflow-x-auto pb-1 [&>*]:w-[280px] [&>*]:flex-none' : 'contents'}>
+            {groupsShown.map((g) => (
               <GroupCard
                 key={g.id}
                 g={g}
@@ -421,6 +434,8 @@ export function TimetablePage() {
                 onRevert={() => revert.mutate(g.id)}
               />
             ))}
+            </div>
+          )}
           {panelOpen && (
             <Note>
               {'Heures des entraîneurs cette semaine : '}
@@ -437,10 +452,27 @@ export function TimetablePage() {
         {/* Grille */}
         <div className="min-w-0">
           <div className="overflow-x-auto rounded-[20px] border-[1.5px] border-line bg-card">
-            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${columns.length}, minmax(${view === 'week' ? 92 : 104}px, 1fr))` }}>
+            <div className="grid" style={{ gridTemplateColumns: `52px repeat(${columns.length}, minmax(${view === 'all' ? 40 : view === 'week' ? 92 : 104}px, 1fr))` }}>
+              {view === 'all' && (
+                <>
+                  <div className="bg-dr" />
+                  {WEEK.map((d) => (
+                    <div
+                      key={d}
+                      className="border-s-2 border-line bg-dr pt-2 text-center text-[13px] font-semibold"
+                      style={{ gridColumn: `span ${t.courts.length + 1}` }}
+                    >
+                      {DAY_FULL[d]}
+                    </div>
+                  ))}
+                </>
+              )}
               <div className="sticky start-0 border-b-[1.5px] border-line bg-dr" />
               {columns.map((c) => (
-                <div key={`${c.day}${c.courtId}`} className="border-b-[1.5px] border-line bg-dr py-2 text-center text-[13px] font-semibold">
+                <div
+                  key={`${c.day}${c.courtId}`}
+                  className={`border-b-[1.5px] border-line bg-dr text-center font-semibold ${view === 'all' ? `py-1 text-[11px] text-mut ${c.first ? 'border-s-2' : ''}` : 'py-2 text-[13px]'}`}
+                >
                   {c.label}
                 </div>
               ))}
@@ -455,7 +487,13 @@ export function TimetablePage() {
                 })}
               </div>
               {columns.map((col) => (
-                <div key={`${col.day}${col.courtId}`} data-col data-day={col.day} data-court={col.courtId ?? ''} className="relative border-e border-line last:border-e-0">
+                <div
+                  key={`${col.day}${col.courtId}`}
+                  data-col
+                  data-day={col.day}
+                  data-court={col.courtId ?? ''}
+                  className={`relative border-e border-line last:border-e-0 ${col.first ? 'border-s-2' : ''}`}
+                >
                   {Array.from({ length: nRows }, (_, i) => {
                     const start = opening + i * 30;
                     const night = start >= t.hours.nightStart * 60;
@@ -501,7 +539,8 @@ export function TimetablePage() {
                             }
                           }}
                           aria-label={`${g.name}, ${DAY_FULL[r.slot.day]} ${r.slot.startTime}–${r.slot.endTime}${r.slot.kind === 'PHYSICAL' ? ', séance physique' : ''}${r.editable ? '. Modifier' : ''}`}
-                          className={`absolute inset-x-1 overflow-hidden rounded-[12px] px-1.5 py-1 text-start text-[11.5px] font-semibold leading-tight ${r.editable ? 'cursor-grab touch-none' : 'opacity-60'} ${moving ? 'opacity-30' : ''}`}
+                          title={`${g.name} · ${DAY_FULL[r.slot.day]} ${r.slot.startTime}–${r.slot.endTime}${r.slot.courtId ? ` · ${t.courts.find((c) => c.id === r.slot.courtId)?.name}` : ''}`}
+                          className={`absolute overflow-hidden rounded-[12px] text-start font-semibold leading-tight ${view === 'all' ? 'inset-x-0.5 px-1 py-0.5 text-[10px]' : 'inset-x-1 px-1.5 py-1 text-[11.5px]'} ${r.editable ? 'cursor-grab touch-none' : 'opacity-60'} ${moving ? 'opacity-30' : ''}`}
                           style={{
                             top: top + 1,
                             height,
@@ -511,11 +550,11 @@ export function TimetablePage() {
                             outlineOffset: r.slot.kind === 'PHYSICAL' ? -4 : 0,
                           }}
                         >
-                          {g.name}
-                          <span className="block font-medium opacity-90" dir="ltr">
-                            {r.slot.startTime}–{r.slot.endTime}
+                          <span className="block truncate">{g.name}</span>
+                          <span className="block truncate font-medium opacity-90" dir="ltr">
+                            {view === 'all' ? r.slot.startTime : `${r.slot.startTime}–${r.slot.endTime}`}
                           </span>
-                          {r.slot.kind === 'PHYSICAL' && <span className="block font-medium opacity-90">Physique</span>}
+                          {r.slot.kind === 'PHYSICAL' && <span className="block truncate font-medium opacity-90">Physique</span>}
                         </button>
                       );
                     })}
