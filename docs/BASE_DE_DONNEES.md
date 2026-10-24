@@ -52,6 +52,12 @@ npm run db:restore -- backups/<fichier>.json   # restaure dans une base NEUVE (a
 - **Copiez `api/backups/` hors du PC** (clé USB, Google Drive) au moins une fois par semaine.
 - `api/backups/` n'est jamais envoyé sur GitHub (données personnelles, dont des mineurs).
 
+## Mot de passe perdu (président…)
+```bash
+npm run db:set-password        # liste les comptes de l'administration, demande l'email et le nouveau mot de passe, puis OUI
+```
+Agit sur la base de `DATABASE_URL` (base du club : `export DATABASE_URL="…adresse Neon…"` avant, `unset DATABASE_URL` après). Rien d'autre n'est modifié ; l'action est notée dans l'historique.
+
 ## À ne jamais faire sur la base de production
 - `npx prisma migrate reset` ou `npx prisma migrate dev` (peuvent effacer la base) ;
 - `npx prisma db seed` / `npm run db:demo` (refusés par les verrous) ;

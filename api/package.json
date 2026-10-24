@@ -16,6 +16,7 @@
     "db:backup": "node prisma/db-tools.mjs backup",
     "db:restore": "node prisma/db-tools.mjs restore",
     "db:init-prod": "node prisma/init-prod.mjs",
+    "db:set-password": "node prisma/set-password.mjs",
     "db:demo": "prisma migrate deploy && prisma generate && prisma db seed",
     "start:prod": "node dist/main",
     "start:demo": "prisma migrate deploy && node prisma/seed-if-empty.mjs && node dist/main",
