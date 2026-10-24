@@ -594,6 +594,17 @@ export function TimetablePage() {
                 </span>
               ))}
             <span>☾ dès {t.hours.nightStart} h (terrain éclairé ☀)</span>
+            <span>
+              Club ouvert de {t.hours.opening} h à {t.hours.closing} h
+              {canManage && (
+                <>
+                  {' · '}
+                  <Link to="/admin/horaires" className="text-pri hover:underline">
+                    Régler les horaires
+                  </Link>
+                </>
+              )}
+            </span>
             <span>Bordure pointillée : séance physique</span>
             {!temp && <span>Bordure indigo : modifié, pas encore publié</span>}
           </div>

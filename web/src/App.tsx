@@ -28,6 +28,7 @@ const DashboardPage = page(() => import('./pages/admin/DashboardPage'), 'Dashboa
 const EmailsPage = page(() => import('./pages/admin/EmailsPage'), 'EmailsPage');
 const FeesPage = page(() => import('./pages/admin/FeesPage'), 'FeesPage');
 const GroupDetailPage = page(() => import('./pages/admin/GroupDetailPage'), 'GroupDetailPage');
+const ClubHoursPage = page(() => import('./pages/admin/ClubHoursPage'), 'ClubHoursPage');
 const TimetablePage = page(() => import('./features/timetable/TimetablePage'), 'TimetablePage');
 const TempSchedulesPage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulesPage');
 const TempSchedulePage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulePage');
@@ -253,6 +254,7 @@ export function App() {
         <Route path="admin/saisons/:id" element={admin(['seasons.manage', 'stats.view'], <SeasonDetailPage />)} />
         <Route path="admin/terrains" element={admin(['courts.manage'], <CourtsPage />)} />
         <Route path="admin/reservations" element={admin(['reservations.manage'], <ReservationsAdminPage />)} />
+        <Route path="admin/horaires" element={admin(['reservations.manage', 'courts.manage'], <ClubHoursPage />)} />
         <Route path="admin/regles-reservation" element={admin(['reservations.manage', 'permissions.manage'], <BookingRulesPage />)} />
         <Route path="admin/tarifs-terrains" element={admin(['courts.manage'], <CourtRatesPage />)} />
         <Route path="admin/paiements" element={admin(['payments.collect'], <PaymentsAdminPage />)} />
