@@ -33,8 +33,9 @@ export function CardActions({ children }: { children: ReactNode }) {
 }
 
 /** KPI (.kpi) : 28px 600 chiffres tabulaires. */
+/** Chiffre clé : coupé seulement entre le nombre et l'unité (jamais au milieu de « 25 263,833 »), plus petit sur téléphone. */
 export function Kpi({ children }: { children: ReactNode }) {
-  return <span className="text-[28px] font-semibold leading-[1.1] tabular-nums">{children}</span>;
+  return <span className="text-[clamp(21px,6vw,28px)] font-semibold leading-[1.1] tabular-nums [overflow-wrap:normal] [word-break:keep-all]">{children}</span>;
 }
 
 /**
