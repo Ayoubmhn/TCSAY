@@ -106,6 +106,8 @@ L'API doit tourner sur le PC : `cd api && npm run start:dev` (port 3000).
   À la fin, un lien et un QR code téléchargent l'APK. Les deux applications s'installent côte à côte (identifiants
   différents). Adresses : club `https://tcsay.vercel.app`, démo `https://tcsay-demo.vercel.app` (`EXPO_PUBLIC_WEB_URL`
   d'`eas.json`).
+- **En local** (téléphone sur le même Wi-Fi que le PC) : site lancé avec `npm run dev:demo -- --host` (ou `dev:club`) dans `web/`,
+  puis `EXPO_PUBLIC_WEB_URL=http://<IP du PC>:5173 npx expo start` ici et Expo Go (docs/VERSION_CLUB.md).
 - **Démo** (`APP_VARIANT=demo`, `app.config.js`) : nom « TCSAY Démo », icônes `assets/demo/` (bandeau « DÉMO »).
   Notifications : ajoutez l'application `tn.tcsay.demo` dans Firebase (Paramètres du projet › Ajouter une application
   Android), puis remplacez `google-services.json` (il contient alors les deux) ; sans cela l'APK de démo marche, sans

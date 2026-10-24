@@ -11,9 +11,11 @@ import { ThemeToggle } from '../../components/ui/ThemeToggle';
 import { useToast } from '../../components/ui/Toast';
 import { errorMessage } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
+import { IS_CLUB_DEV, IS_DEMO } from '../../lib/variant';
+import { ServerWaking } from '../../components/ServerWaking';
 import { isStandalone } from '../../lib/pwa';
 
-/** Comptes du seed de démonstration (affichés en développement et sur la démo en ligne, VITE_DEMO=1). */
+/** Comptes du seed de démonstration (affichés sur la démo, en ligne et en local ; jamais sur la version du club). */
 const DEMO = [
   { label: 'Joueur', hint: 'Omar Trabelsi, adulte', email: 'omar.trabelsi@exemple.tn', password: 'temporaire' },
   { label: 'Parent', hint: 'Sana Ben Ali, 2 enfants', email: 'sana.benali@exemple.tn', password: 'temporaire' },
@@ -90,6 +92,9 @@ export function LoginPage() {
             <Button variant="primary" type="submit" disabled={pending}>
               Se connecter
             </Button>
+            <div className="self-center">
+              <ServerWaking active={pending} />
+            </div>
             <button type="button" className="self-center text-sm font-medium text-pri hover:underline" onClick={() => setForgot(true)}>
               {t('Mot de passe oublié ?')}
             </button>
@@ -97,11 +102,11 @@ export function LoginPage() {
         </Card>
         <ForgotPasswordModal open={forgot} email={email.includes('@') ? email.trim() : ''} onClose={() => setForgot(false)} />
 
-        {(import.meta.env.DEV || import.meta.env.VITE_DEMO === '1') && (
+        {((import.meta.env.DEV && !IS_CLUB_DEV) || IS_DEMO) && (
           <>
             <div>
               <h2>Comptes de démonstration</h2>
-              <p className="mt-1 text-mut">Développement uniquement : données du seed.</p>
+              <p className="mt-1 text-mut">{t("Données fictives : un clic pour se connecter.")}</p>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               {DEMO.map((d) => (

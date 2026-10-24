@@ -5,15 +5,15 @@ Un seul code, deux mises en ligne :
 | | Version complète (la vôtre) | Version du club |
 |---|---|---|
 | Code | le même dépôt | le même dépôt |
-| Branche | `claude/tcsay-platform-dev-p3t75p` (développement, essais) | `club` (stable : seulement ce qui est validé) |
+| Branche | `claude/tcsay-platform-dev-p3t75p` (développement, essais) | `main` (stable : seulement ce qui est validé ; branche par défaut de GitHub) |
 | Nom de l'application | **TCSAY Démo** (icône avec bandeau « DÉMO ») | **TCSAY** |
 | Application Android | `tn.tcsay.demo` (`eas build --profile demo`) | `tn.tcsay.app` (`--profile preview` ou `production`) |
 | API (Render) | `tcsay-demo` | `tcsay-club` |
-| Site (Vercel) | `tcsay-demo.vercel.app` (projet `tcsay-demo`, `VITE_DEMO=1`, renvoie `/api` vers la démo) | `tcsay.vercel.app` (projet `tcsay`, branche `club`, `VITE_API_URL` = API du club) |
+| Site (Vercel) | `tcsay-demo.vercel.app` (projet `tcsay-demo`, `VITE_DEMO=1`, renvoie `/api` vers la démo) | `tcsay.vercel.app` (projet `tcsay`, branche `main`, `VITE_API_URL` = API du club) |
 | Base (Neon) | démo (données fictives) | **base du club** (données réelles), jamais la démo |
 | Modules | tous | ceux validés ci-dessous |
 
-Une correction faite dans le code profite aux deux versions : la démo la reçoit tout de suite, le club quand vous la recopiez sur `club`.
+Une correction faite dans le code profite aux deux versions : la démo la reçoit tout de suite, le club quand vous la recopiez sur `main`.
 
 **Qui fait quoi** : Neon = la base de données ; Render = l'API (le serveur : connexion, paiements, emails, notifications, tâches automatiques, toujours en marche) ; Vercel = le site (les pages affichées dans le navigateur et l'application). Les trois sont nécessaires.
 
@@ -21,13 +21,55 @@ Une correction faite dans le code profite aux deux versions : la démo la reçoi
 
 Quand une amélioration est testée sur la démo :
 ```bash
-git checkout club
-git pull origin club
+git checkout main
+git pull origin main
 git merge claude/tcsay-platform-dev-p3t75p   # ou seulement un commit : git cherry-pick <commit>
-git push origin club
+git push origin main
 git checkout claude/tcsay-platform-dev-p3t75p
 ```
-Puis Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure). Le site du club (Vercel, branche de production `club`) se met à jour tout seul.
+Le site du club (Vercel, projet `tcsay`, branche de production `main`) se met à jour tout seul. Si l'API change : Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure).
+
+## Les deux versions partout (en ligne, en local, téléphone)
+
+| | Démo | Club |
+|---|---|---|
+| En ligne | `https://tcsay-demo.vercel.app` (API `tcsay-demo`) | `https://tcsay.vercel.app` (API `tcsay-club`) |
+| En local (PC) | `npm run dev:demo` dans `api/` **et** dans `web/` | `npm run dev:club` dans `api/` **et** dans `web/` |
+| Téléphone (APK) | `npx eas-cli@latest build -p android --profile demo` (« TCSAY Démo ») | `… --profile preview` (« TCSAY ») |
+
+Le logo de la démo porte un bandeau orange « DÉMO » (menu, connexion, icône, favicon) ; la version du club n'a jamais les boutons de comptes de démo.
+
+### En local
+Chaque version a **sa base**, choisie toute seule (rien à taper, aucun `export`) :
+
+| Version | Base | À mettre dans `api/.env` |
+|---|---|---|
+| Démo | base de démo locale, données fictives | `DATABASE_URL_DEMO=postgresql://tcsay:tcsay@localhost:5432/tcsay_demo?schema=public` (mêmes identifiants que votre `DATABASE_URL`) |
+| Club | **la vraie base du club** (Neon) | `DATABASE_URL_CLUB=<adresse Neon du club, Direct connection>` (secrète, jamais sur GitHub : `api/.env` n'y va pas) |
+
+Une fois : `npm run demo:reset` dans `api/` crée la base de démo et la remplit (à refaire pour remettre la démo à zéro).
+
+Ensuite, une seule version à la fois (même port 3000), dans deux terminaux Git Bash :
+```bash
+cd ~/TCSAY/TCSAY/api && npm run dev:demo      # ou dev:club
+cd ~/TCSAY/TCSAY/web && npm run dev:demo      # ou dev:club  → http://localhost:5173
+```
+Au démarrage, l'API affiche la version et la base : `▶ Version DÉMO · base « tcsay_demo »` ou `▶ Version du CLUB (vraies données) · base « neondb »`.
+
+- **Démo** : tous les modules, comptes de démo. Refuse de démarrer si `DATABASE_URL_DEMO` est la base du club.
+- **Club** : modules du club, base protégée (seed et remise à zéro refusés). **Attention : ce que vous faites en local en version club modifie les vraies données** (mêmes joueurs, mêmes paiements que `tcsay.vercel.app`).
+- Commandes sur la base du club sans `export` : `npm run club:status`, `club:backup`, `club:migrate`, `club:set-password` ; sur la démo : `npm run demo:status`, `demo:reset`.
+- L'ancienne base locale `tcsay` (démo et vraies données mélangées) n'est plus utilisée par ces commandes ; gardez-la comme sauvegarde ou supprimez-la plus tard.
+
+### Sur le téléphone en local
+Site local ouvert dans l'application (même Wi-Fi) : `npm run dev:demo -- --host` (ou `dev:club -- --host`) dans `web/`, puis dans `mobile/` :
+```bash
+EXPO_PUBLIC_WEB_URL=http://<adresse IP du PC>:5173 npx expo start
+```
+et scanner le QR code avec Expo Go. L'adresse IP du PC : `ipconfig` (ligne IPv4).
+
+### Ouverture lente
+L'offre gratuite de Render endort l'API après 15 minutes sans visite (30 à 60 s au réveil). Le site affiche « Le serveur se réveille… » au lieu de rester figé. Pour le club, `.github/workflows/garder-eveille.yml` appelle l'API toutes les 10 minutes de 7 h à 23 h (actif quand il est sur `main` ; GitHub › Actions pour vérifier). La démo n'est pas tenue éveillée : 750 h gratuites par mois pour tout le compte Render ne suffisent pas pour deux services jour et nuit. Sans aucune attente : Render **Starter** (~7 $/mois) pour `tcsay-club`.
 
 ## Modules validés pour le club
 
@@ -81,7 +123,7 @@ Le président ne peut pas rallumer un module depuis l'application : c'est un ré
    - emails (`MAIL_TRANSPORT`, `MAIL_FROM` et leurs clés, docs/MAILING.md), Telegram (docs/ALERTES_TELEGRAM.md), `GEMINI_API_KEY` si l'IA est utilisée.
 4. **Sites (Vercel)** : l'adresse `tcsay.vercel.app` passe au club, la démo prend `tcsay-demo.vercel.app`. Dans cet ordre (la démo n'est jamais coupée) :
    - **Démo d'abord** : Add New › Project › ce dépôt, nom **`tcsay-demo`**, *Root Directory* `web`, variable `VITE_DEMO` = `1`, Deploy ; Settings › Git › *Production Branch* = `claude/tcsay-platform-dev-p3t75p`. Puis Render › `tcsay-demo` › `APP_URL` = `https://tcsay-demo.vercel.app` › Save.
-   - **Puis le club** sur l'ancien projet **`tcsay`** : Settings › Environment Variables : **supprimez** `VITE_DEMO`, ajoutez `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) ; Settings › Git › *Production Branch* = `club` ; Deployments › Redeploy.
+   - **Puis le club** sur l'ancien projet **`tcsay`** : Settings › Environment Variables : **supprimez** `VITE_DEMO`, ajoutez `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) ; Settings › Git › *Production Branch* = `main` ; Deployments › Redeploy.
 5. **Vérifier** : ouvrez le site du club, connectez-vous avec le compte du président : le menu ne montre pas les modules coupés, Paramètres › Langue propose français et anglais seulement.
 6. **Application Android du club** (facultatif) : `npx eas-cli@latest build -p android --profile preview` (adresse du site du club dans `eas.json`, mobile/README.md). La démo : `--profile demo`.
 
