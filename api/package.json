@@ -10,6 +10,8 @@
     "start": "nest start",
     "prestart:dev": "prisma generate || echo \"Client Prisma non régénéré (une API tourne déjà ?) : on continue.\"",
     "start:dev": "nest start --watch",
+    "dev:demo": "node scripts/version.mjs demo",
+    "dev:club": "node scripts/version.mjs club",
     "db:update": "node prisma/db-tools.mjs migrate",
     "db:migrate": "node prisma/db-tools.mjs migrate",
     "db:status": "node prisma/db-tools.mjs status",

@@ -29,6 +29,46 @@ git checkout claude/tcsay-platform-dev-p3t75p
 ```
 Le site du club (Vercel, projet `tcsay`, branche de production `main`) se met à jour tout seul. Si l'API change : Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure).
 
+## Les deux versions partout (en ligne, en local, téléphone)
+
+| | Démo | Club |
+|---|---|---|
+| En ligne | `https://tcsay-demo.vercel.app` (API `tcsay-demo`) | `https://tcsay.vercel.app` (API `tcsay-club`) |
+| En local (PC) | `npm run dev:demo` dans `api/` **et** dans `web/` | `npm run dev:club` dans `api/` **et** dans `web/` |
+| Téléphone (APK) | `npx eas-cli@latest build -p android --profile demo` (« TCSAY Démo ») | `… --profile preview` (« TCSAY ») |
+
+Le logo de la démo porte un bandeau orange « DÉMO » (menu, connexion, icône, favicon) ; la version du club n'a jamais les boutons de comptes de démo.
+
+### En local
+Une seule version à la fois (même port 3000), dans deux terminaux Git Bash :
+```bash
+cd ~/TCSAY/TCSAY/api && npm run dev:demo      # ou dev:club
+cd ~/TCSAY/TCSAY/web && npm run dev:demo      # ou dev:club  → http://localhost:5173
+```
+- **Démo** : la base de `api/.env` (`DATABASE_URL`, données de démo), tous les modules.
+- **Club** : une **copie locale** de la base du club (jamais la base en ligne pour des essais), modules du club, seed refusé. À préparer une fois :
+  1. Créer la base vide `tcsay_club` (pgAdmin › Databases › Create, propriétaire `tcsay` ; ou `psql -U postgres -c "CREATE DATABASE tcsay_club OWNER tcsay"`).
+  2. Copier la base en ligne du club dedans :
+     ```bash
+     cd ~/TCSAY/TCSAY/api
+     export DATABASE_URL="…adresse Neon du club…"; npm run db:backup      # → backups/…_neondb_sauvegarde.json
+     export DATABASE_URL="postgresql://tcsay:tcsay@localhost:5432/tcsay_club?schema=public"
+     npm run db:migrate && npm run db:restore -- backups/<fichier>.json
+     unset DATABASE_URL
+     ```
+  3. Dans `api/.env`, ajouter : `DATABASE_URL_CLUB=postgresql://tcsay:tcsay@localhost:5432/tcsay_club?schema=public` (mêmes identifiants que votre `DATABASE_URL`).
+  Refaire l'étape 2 (base vidée d'abord) pour avoir des données plus récentes.
+
+### Sur le téléphone en local
+Site local ouvert dans l'application (même Wi-Fi) : `npm run dev:demo -- --host` (ou `dev:club -- --host`) dans `web/`, puis dans `mobile/` :
+```bash
+EXPO_PUBLIC_WEB_URL=http://<adresse IP du PC>:5173 npx expo start
+```
+et scanner le QR code avec Expo Go. L'adresse IP du PC : `ipconfig` (ligne IPv4).
+
+### Ouverture lente
+L'offre gratuite de Render endort l'API après 15 minutes sans visite (30 à 60 s au réveil). Le site affiche « Le serveur se réveille… » au lieu de rester figé. Pour le club, `.github/workflows/garder-eveille.yml` appelle l'API toutes les 10 minutes de 7 h à 23 h (actif quand il est sur `main` ; GitHub › Actions pour vérifier). La démo n'est pas tenue éveillée : 750 h gratuites par mois pour tout le compte Render ne suffisent pas pour deux services jour et nuit. Sans aucune attente : Render **Starter** (~7 $/mois) pour `tcsay-club`.
+
 ## Modules validés pour le club
 
 Inclus :

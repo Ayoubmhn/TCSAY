@@ -43,15 +43,14 @@ function serviceWorkerVersion(): Plugin {
 }
 
 /**
- * Version démo (VITE_DEMO=1, projet Vercel de la démo) : nom « TCSAY Démo » (onglet, site installé) et icônes avec le
- * bandeau « DÉMO » (public/demo/icons). Sans VITE_DEMO : nom et icônes du club. Le dossier demo/ n'est jamais publié.
+ * Version démo (VITE_DEMO=1 sur le projet Vercel de la démo, ou `--mode demo` en local) : nom « TCSAY Démo » (onglet,
+ * site installé), icônes et favicon avec le bandeau « DÉMO » (public/demo). Sans elle : nom et icônes du club. Le dossier
+ * demo/ n'est jamais publié.
  */
-function demoVariant(): Plugin {
-  const demo = process.env.VITE_DEMO === '1';
+function demoVariant(demo: boolean): Plugin {
   let outDir = 'dist';
   return {
     name: 'tcsay-demo-variant',
-    apply: 'build',
     configResolved(config) {
       outDir = config.build.outDir;
     },
@@ -66,6 +65,7 @@ function demoVariant(): Plugin {
       if (demo) {
         if (!existsSync(icons)) throw new Error('public/demo/icons introuvable');
         cpSync(icons, `${outDir}/icons`, { recursive: true });
+        cpSync(`${outDir}/demo/favicon.png`, `${outDir}/favicon.png`);
         const file = `${outDir}/manifest.webmanifest`;
         const manifest = JSON.parse(String(readFileSync(file, 'utf8')));
         manifest.name = 'TCSAY Démo · Tennis Club de Sayada';
@@ -77,16 +77,26 @@ function demoVariant(): Plugin {
   };
 }
 
-export default defineConfig({
-  plugins: [react(), tailwindcss(), serviceWorkerVersion(), demoVariant()],
-  define: {
-    __APP_VERSION__: JSON.stringify(`${commit()} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`),
-  },
-  server: {
-    port: 5173,
-    // Les appels /api passent par Vite vers l'API NestJS : pas de CORS en développement.
-    proxy: { '/api': 'http://localhost:3000' },
-    // Partage provisoire depuis le PC (tunnel Cloudflare) : adresse https://….trycloudflare.com.
-    allowedHosts: ['.trycloudflare.com'],
-  },
+/**
+ * Variantes : `vite --mode demo` (= VITE_DEMO=1) pour la démo, `vite --mode club` pour la version du club en local
+ * (pas de boutons de comptes de démo). Valeurs lues par le site dans import.meta.env.VITE_DEMO / VITE_CLUB.
+ */
+export default defineConfig(({ mode }) => {
+  const demo = process.env.VITE_DEMO === '1' || mode === 'demo';
+  const club = mode === 'club';
+  return {
+    plugins: [react(), tailwindcss(), serviceWorkerVersion(), demoVariant(demo)],
+    define: {
+      __APP_VERSION__: JSON.stringify(`${commit()} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`),
+      'import.meta.env.VITE_DEMO': JSON.stringify(demo ? '1' : ''),
+      'import.meta.env.VITE_CLUB': JSON.stringify(club ? '1' : ''),
+    },
+    server: {
+      port: 5173,
+      // Les appels /api passent par Vite vers l'API NestJS : pas de CORS en développement.
+      proxy: { '/api': 'http://localhost:3000' },
+      // Partage provisoire depuis le PC (tunnel Cloudflare) : adresse https://….trycloudflare.com.
+      allowedHosts: ['.trycloudflare.com'],
+    },
+  };
 });

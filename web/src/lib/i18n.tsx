@@ -488,6 +488,8 @@ const DICT: Record<string, [string, string]> = {
   'Les saisons passées : joueurs, recettes et dépenses depuis Excel, Word ou les cahiers.': ['Past seasons: players, income and expenses from Excel, Word or the notebooks.', 'المواسم السابقة: اللاعبون والمداخيل والمصاريف من Excel أو Word أو الكراسات.'],
   'Les bilans par trimestre, le niveau validé par la direction technique et le suivi technique.': ['Term reports, the level validated by the technical director and technical follow-up.', 'تقارير الثلاثي والمستوى المصادق عليه من الإدارة الفنية والمتابعة الفنية.'],
   'Masquer le mot de passe': ['Hide password', 'إخفاء كلمة المرور'],
+  'Le serveur se réveille : la première ouverture peut prendre jusqu’à une minute. Merci de patienter.': ['The server is waking up: the first opening can take up to a minute. Please wait.', 'الخادم بصدد التشغيل: قد يستغرق الفتح الأول دقيقة. يرجى الانتظار.'],
+  'Données fictives : un clic pour se connecter.': ['Sample data: one click to sign in.', 'بيانات تجريبية: نقرة واحدة للدخول.'],
 };
 
 const INDEX: Record<Lang, number> = { fr: -1, en: 0, ar: 1 };

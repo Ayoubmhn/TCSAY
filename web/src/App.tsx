@@ -12,6 +12,7 @@ import { PaymentGate } from './components/PaymentGate';
 import { PermissionsGate } from './components/PermissionsGate';
 import { page } from './lib/lazy-page';
 import { PageErrorBoundary } from './components/PageErrorBoundary';
+import { ServerWaking } from './components/ServerWaking';
 
 // Chaque écran est chargé à sa première ouverture (fichiers séparés) : premier affichage plus rapide, surtout sur téléphone.
 const SeasonDetailPage = page(() => import('./features/seasons/SeasonDetailPage'), 'SeasonDetailPage');
@@ -115,7 +116,10 @@ function Protected({ roles, perm, children }: { roles?: Role[]; perm?: string[];
   if (loading) {
     return (
       <div className="grid min-h-full place-items-center p-6">
-        <EmptyState>Chargement…</EmptyState>
+        <div className="flex flex-col items-center gap-2">
+          <EmptyState>Chargement…</EmptyState>
+          <ServerWaking active />
+        </div>
       </div>
     );
   }
