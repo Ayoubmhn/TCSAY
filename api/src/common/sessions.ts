@@ -12,23 +12,51 @@ export function groupPeriod(kind: GroupKindLike, season: PeriodSeason): { from: 
   return { from: isoDay(season.startDate), to: isoDay(season.endDate) };
 }
 
+/** Emplois temporaires publiés d'un groupe (vacances, stage) : dates et mode (horaire remplacé ou séances en plus). */
+export type TempPeriod = { mode: 'REPLACE' | 'ADD'; scheduleId: string; schedule: { name: string; startDate: Date; endDate: Date } };
+export type PeriodGroup = { kind: GroupKindLike; season: PeriodSeason; tempSchedules: TempPeriod[] };
+
+/** Emplois temporaires à joindre au groupe : seulement publiés et non archivés (un brouillon ne change rien). */
+export const tempSchedulesSelect = {
+  where: { schedule: { status: 'PUBLISHED', archivedAt: null } },
+  select: { mode: true, scheduleId: true, schedule: { select: { name: true, startDate: true, endDate: true } } },
+} as const;
+
 /** Sélection Prisma à inclure dans `group` pour connaître la période d'un créneau. */
 export const periodSelect = {
   kind: true,
   season: { select: { startDate: true, endDate: true, leisureStartDate: true, leisureEndDate: true } },
+  tempSchedules: tempSchedulesSelect,
 } as const;
 
-/** Ajoute à un créneau sa période (périodeFrom / periodTo) à partir de son groupe. */
-export function withPeriod<S extends { group: { kind: GroupKindLike; season: PeriodSeason } }>(slot: S): S & { periodFrom: string; periodTo: string } {
+/** Dates d'un créneau : période de son groupe, jours retirés (emploi temporaire qui remplace l'horaire), vacances. */
+export type SlotPeriod = { periodFrom: string; periodTo: string; excluded: { from: string; to: string }[]; holiday: string | null };
+
+/**
+ * Ajoute à un créneau ses dates de séance :
+ * - créneau habituel : période du groupe, moins les emplois temporaires publiés qui remplacent son horaire ;
+ * - créneau d'un emploi temporaire : seulement les dates de cet emploi, une fois publié (brouillon : jamais).
+ */
+export function withPeriod<S extends { scheduleId?: string | null; group: PeriodGroup }>(slot: S): S & SlotPeriod {
+  const temps = slot.group.tempSchedules ?? [];
+  if (slot.scheduleId) {
+    const t = temps.find((x) => x.scheduleId === slot.scheduleId);
+    if (!t) return { ...slot, periodFrom: '9999-12-31', periodTo: '0000-01-01', excluded: [], holiday: null };
+    return { ...slot, periodFrom: isoDay(t.schedule.startDate), periodTo: isoDay(t.schedule.endDate), excluded: [], holiday: t.schedule.name };
+  }
   const { from, to } = groupPeriod(slot.group.kind, slot.group.season);
-  return { ...slot, periodFrom: from, periodTo: to };
+  const excluded = temps.filter((t) => t.mode === 'REPLACE').map((t) => ({ from: isoDay(t.schedule.startDate), to: isoDay(t.schedule.endDate) }));
+  return { ...slot, periodFrom: from, periodTo: to, excluded, holiday: null };
 }
 
-/** Le créneau a-t-il lieu ce jour (bon jour de semaine, dans la période de son groupe) ? */
-export function slotRunsOn(slot: { day: number; periodFrom?: string; periodTo?: string }, day: string): boolean {
+type RunsOn = { day: number; periodFrom?: string; periodTo?: string; excluded?: { from: string; to: string }[] };
+
+/** Le créneau a-t-il lieu ce jour (bon jour de semaine, dans la période de son groupe, hors horaire remplacé) ? */
+export function slotRunsOn(slot: RunsOn, day: string): boolean {
   if (slot.day !== weekday(day)) return false;
   if (slot.periodFrom && day < slot.periodFrom) return false;
   if (slot.periodTo && day > slot.periodTo) return false;
+  if (slot.excluded?.some((r) => day >= r.from && day <= r.to)) return false;
   return true;
 }
 
@@ -36,7 +64,7 @@ export function slotRunsOn(slot: { day: number; periodFrom?: string; periodTo?: 
  * Créneau hebdomadaire d'un groupe (GroupSlot) : chaque jour a son horaire, son terrain et ses entraîneurs.
  * Les séances ne sont pas stockées : elles découlent des créneaux.
  */
-export type SlotLike = { id: string; day: number; startTime: string; endTime: string; periodFrom?: string; periodTo?: string };
+export type SlotLike = RunsOn & { id: string; startTime: string; endTime: string };
 
 export type Session<S extends SlotLike> = { slot: S; date: string; start: Date; end: Date; minutes: number };
 
@@ -59,7 +87,7 @@ export function sessionsBetween<S extends SlotLike>(slots: S[], from: string, to
   return out.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
 
-type Slot = Omit<SlotLike, 'id'>;
+type Slot = { day: number; startTime: string; endTime: string };
 
 /** Deux créneaux se chevauchent-ils (même jour, horaires qui se croisent) ? */
 export function slotsOverlap(a: Slot, b: Slot): boolean {
@@ -68,7 +96,7 @@ export function slotsOverlap(a: Slot, b: Slot): boolean {
 
 /** Le créneau occupe-t-il l'intervalle [startMin, startMin + durationMin[ (minutes depuis minuit) ce jour-là ? */
 export function slotOccupies(
-  slot: Slot & { periodFrom?: string; periodTo?: string },
+  slot: Slot & RunsOn,
   day: string,
   startMin: number,
   durationMin = 60,
@@ -78,7 +106,7 @@ export function slotOccupies(
 }
 
 /** Le créneau occupe-t-il l'heure pleine `hour` (réservation d'une heure) ce jour-là ? */
-export function slotOccupiesHour(slot: Slot & { periodFrom?: string; periodTo?: string }, day: string, hour: number): boolean {
+export function slotOccupiesHour(slot: Slot & RunsOn, day: string, hour: number): boolean {
   return slotOccupies(slot, day, hour * 60);
 }
 

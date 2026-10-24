@@ -149,7 +149,7 @@ export class AvailabilityController {
         user: { select: { firstName: true, lastName: true } },
         availability: true,
         availabilityExceptions: { where: { toDate: { gte: dayFromIso(todayIso()) } }, orderBy: { fromDate: 'asc' } },
-        slots: { where: { slot: { group: { seasonId: season.id, archivedAt: null } } }, include: { slot: { include: { group: { select: { name: true } }, court: { select: { name: true } } } } } },
+        slots: { where: { slot: { scheduleId: null, group: { seasonId: season.id, archivedAt: null } } }, include: { slot: { include: { group: { select: { name: true } }, court: { select: { name: true } } } } } },
       },
     });
     return {
@@ -181,7 +181,7 @@ export class AvailabilityController {
     const grid = (coach.availability?.grid ?? {}) as Grid;
     const [slots, courts, members] = await Promise.all([
       this.prisma.groupSlot.findMany({
-        where: { group: { seasonId: season.id, archivedAt: null } },
+        where: { scheduleId: null, group: { seasonId: season.id, archivedAt: null } },
         select: { day: true, startTime: true, endTime: true, courtId: true, groupId: true, coaches: { select: { coachId: true } } },
       }),
       this.prisma.court.findMany({ where: { active: true, maintenance: false }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true } }),
@@ -253,7 +253,7 @@ export class AvailabilityController {
     if (!group || group.archivedAt) throw new NotFoundException('Groupe introuvable.');
     const cand = { day: dto.day, startTime: dto.startTime, endTime: dto.endTime };
     const others = await this.prisma.groupSlot.findMany({
-      where: { day: dto.day, group: { seasonId: group.seasonId, archivedAt: null } },
+      where: { day: dto.day, scheduleId: null, group: { seasonId: group.seasonId, archivedAt: null } },
       include: { group: { select: { name: true } }, coaches: { select: { coachId: true } } },
     });
     for (const o of others.filter((o) => slotsOverlap(cand, o))) {

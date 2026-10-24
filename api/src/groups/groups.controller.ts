@@ -31,7 +31,7 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emptyToUndefined = ({ value }: { value: unknown }) => (value === '' || value === null ? undefined : value);
 
 /** Un créneau : un jour, son horaire, son terrain, ses entraîneurs (plusieurs possibles). */
-class SlotDto {
+export class SlotDto {
   @IsOptional()
   @IsUUID()
   id?: string;
@@ -124,7 +124,8 @@ export const slotInclude = {
 
 const groupInclude = {
   category: { select: { id: true, name: true, code: true, pairCode: true } },
-  slots: { include: slotInclude, orderBy: [{ day: 'asc' as const }, { startTime: 'asc' as const }] },
+  // Horaire habituel seulement : les créneaux des emplois temporaires (vacances) se gèrent à part.
+  slots: { where: { scheduleId: null }, include: slotInclude, orderBy: [{ day: 'asc' as const }, { startTime: 'asc' as const }] },
   members: {
     include: {
       enrollment: {
@@ -444,6 +445,7 @@ export class GroupsController {
     }
     const others = await this.prisma.groupSlot.findMany({
       where: {
+        scheduleId: null,
         group: { seasonId, archivedAt: null, id: excludeGroupId ? { not: excludeGroupId } : undefined },
         day: { in: [...new Set(slots.map((s) => s.day))] },
       },
@@ -464,7 +466,7 @@ export class GroupsController {
   }
 
   private async find(id: string) {
-    const group = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { season: true, slots: { include: slotInclude } } });
+    const group = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { season: true, slots: { where: { scheduleId: null }, include: slotInclude } } });
     if (!group || group.archivedAt) throw notFound('Groupe');
     return group;
   }

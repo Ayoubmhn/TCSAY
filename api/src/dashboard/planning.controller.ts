@@ -87,6 +87,7 @@ export class PlanningController {
           return {
             ...v,
             group: { id: slot.group.id, name: slot.group.name, kind: slot.group.kind },
+            holiday: slot.holiday,
             members: members.find((m) => m.groupId === slot.group.id)?._count ?? 0,
             attendance: {
               present: marks.find((m) => m.slotId === slot.id && m.status === 'PRESENT')?._count ?? 0,

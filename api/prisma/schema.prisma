@@ -373,6 +373,7 @@ model Season {
   historicalEntries HistoricalEntry[]
   projects          Project[]
   budgetLines       BudgetLine[]
+  tempSchedules     TempSchedule[]
 
   @@index([status])
 }
@@ -500,20 +501,24 @@ model TrainingGroup {
   reservations        Reservation[]
   feeSchedules        FeeSchedule[]
   albums              Album[]
+  tempSchedules       TempScheduleGroup[]
 
   @@unique([seasonId, name])
 }
 
 /// Créneau hebdomadaire d'un groupe : chaque jour peut avoir son horaire, son terrain et ses entraîneurs.
 model GroupSlot {
-  id        String  @id @default(uuid()) @db.Uuid
-  groupId   String  @db.Uuid
-  day       Int // 0 = dimanche … 6 = samedi
-  startTime String // « 17:30 »
-  endTime   String // « 19:00 »
-  courtId   String? @db.Uuid
+  id         String  @id @default(uuid()) @db.Uuid
+  groupId    String  @db.Uuid
+  day        Int // 0 = dimanche … 6 = samedi
+  startTime  String // « 17:30 »
+  endTime    String // « 19:00 »
+  courtId    String? @db.Uuid
+  /// Créneau d'un emploi temporaire (vacances, stage) : n'a lieu que pendant ses dates, une fois publié.
+  scheduleId String? @db.Uuid
 
   group          TrainingGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  schedule       TempSchedule?   @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
   court          Court?          @relation(fields: [courtId], references: [id])
   coaches        SlotCoach[]
   attendances    Attendance[]
@@ -523,6 +528,53 @@ model GroupSlot {
   changes        SessionChange[]
 
   @@index([day])
+  @@index([scheduleId])
+}
+
+enum TempScheduleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Place d'un groupe dans un emploi temporaire : son horaire habituel est remplacé, ou des séances s'ajoutent (stage).
+enum TempScheduleMode {
+  REPLACE
+  ADD
+}
+
+/// Emploi du temps temporaire (vacances, stage) : pendant ses dates, les groupes concernés suivent ses créneaux.
+model TempSchedule {
+  id          String             @id @default(uuid()) @db.Uuid
+  seasonId    String             @db.Uuid
+  name        String
+  startDate   DateTime           @db.Date
+  endDate     DateTime           @db.Date
+  note        String?
+  status      TempScheduleStatus @default(DRAFT)
+  publishedAt DateTime?
+  archivedAt  DateTime? // R8
+  version     Int                @default(1) // R13
+  createdById String             @db.Uuid
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  season Season              @relation(fields: [seasonId], references: [id])
+  groups TempScheduleGroup[]
+  slots  GroupSlot[]
+
+  @@index([seasonId, status])
+}
+
+model TempScheduleGroup {
+  scheduleId String           @db.Uuid
+  groupId    String           @db.Uuid
+  mode       TempScheduleMode @default(REPLACE)
+
+  schedule TempSchedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  group    TrainingGroup @relation(fields: [groupId], references: [id])
+
+  @@id([scheduleId, groupId])
+  @@index([groupId])
 }
 
 /// Une séance peut être animée par plusieurs entraîneurs.

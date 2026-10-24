@@ -7,7 +7,7 @@ import { PaymentAccessService } from '../access/payment-access.service';
 import { AuthUser, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, todayIso } from '../common/dates';
 import { num } from '../common/money';
-import { periodSelect, sessionsBetween, withPeriod } from '../common/sessions';
+import { periodSelect, sessionsBetween, tempSchedulesSelect, withPeriod } from '../common/sessions';
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -44,9 +44,9 @@ export class MeController {
     });
     const groups = await this.prisma.trainingGroup.findMany({
       where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId } } } },
-      include: { slots: { include: slotInclude }, season: periodSelect.season },
+      include: { slots: { include: slotInclude }, season: periodSelect.season, tempSchedules: tempSchedulesSelect },
     });
-    const slots = groups.flatMap((g) => g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season } })));
+    const slots = groups.flatMap((g) => g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season, tempSchedules: g.tempSchedules } })));
     const now = new Date();
     // Accès après paiement : le planning n'est pas montré tant que la tranche en retard n'est pas payée.
     const sessionsLocked = (await this.gate.status(playerId)).locked.sessions;
@@ -77,6 +77,7 @@ export class MeController {
             endTime: next.slot.endTime,
             court: next.slot.court?.name ?? null,
             coaches: slotView(next.slot).coaches,
+            holiday: next.slot.holiday,
           }
         : null,
       hasGroup: groups.length > 0,

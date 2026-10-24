@@ -40,11 +40,14 @@ async function wipe() {
   await prisma.$executeRawUnsafe('TRUNCATE "AuditLog"');
   // Les reçus refusent DELETE (déclencheur) : TRUNCATE aussi.
   await prisma.$executeRawUnsafe('TRUNCATE "Receipt"');
+  // Projet ↔ devis choisi : lien circulaire défait avant de vider les tables.
+  await prisma.project.updateMany({ data: { chosenQuoteId: null } });
   for (const model of [
+    'budgetLine', 'seasonReportDraft', 'seasonReportFile', 'reservationBlock', 'courtClosure',
     'photoTag', 'albumPhoto', 'albumMember', 'album', 'complaintMessage', 'complaint', 'profilePhoto', 'eventResponse', 'eventMember', 'invitation', 'nativePushToken',
-    'extractedRecord', 'scannedPage', 'importBatch', 'payment', 'installment', 'membership', 'feeSchedule',
-    'availabilityException', 'availability', 'sessionChange', 'matchPoint', 'match', 'tournamentEntry', 'tournament', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'trainingGroup',
-    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'passwordReset', 'pushSubscription', 'expense', 'user', 'courtRate', 'court',
+    'extractedRecord', 'scannedPage', 'historicalEntry', 'importBatch', 'payment', 'installment', 'membership', 'paymentTemplate', 'feeSchedule',
+    'availabilityException', 'availability', 'sessionChange', 'matchPoint', 'match', 'tournamentEntry', 'tournament', 'exerciseCompletion', 'exerciseAssignment', 'exercise', 'evaluation', 'sessionRating', 'sessionPlan', 'attendance', 'coachAbsence', 'reservation', 'groupMember', 'slotCoach', 'groupSlot', 'tempScheduleGroup', 'tempSchedule', 'trainingGroup',
+    'enrollment', 'salary', 'parentLink', 'player', 'coach', 'emailLog', 'notification', 'notificationBroadcast', 'passwordReset', 'pushSubscription', 'expense', 'projectQuote', 'project', 'user', 'courtRate', 'court',
     'category', 'season', 'event', 'setting', 'rolePermission',
   ]) {
     await prisma[model].deleteMany();

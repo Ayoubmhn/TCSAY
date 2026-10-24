@@ -9,7 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { addDaysIso, dayFromIso, isoDay, localInstant, todayIso } from '../common/dates';
 import { NIL_UUID, notFound } from '../common/rules';
-import { periodSelect, sessionsBetween, slotRunsOn, withPeriod } from '../common/sessions';
+import { periodSelect, sessionsBetween, slotRunsOn, tempSchedulesSelect, withPeriod } from '../common/sessions';
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -228,6 +228,7 @@ export class AttendanceController {
           recorded: done.has(`${s.slot.id}|${s.date}`),
           open: attendanceWindow(s.date, s.slot.startTime, s.slot.endTime).open,
           replacing: isReplacing,
+          holiday: s.slot.holiday,
           ...absenceView(absence),
           ...(change ? { change, court: change.court ?? s.slot.court } : {}),
         };
@@ -243,10 +244,10 @@ export class AttendanceController {
     const season = await this.access.activeSeason();
     const groups = await this.prisma.trainingGroup.findMany({
       where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId } } } },
-      include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] }, season: periodSelect.season },
+      include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] }, season: periodSelect.season, tempSchedules: tempSchedulesSelect },
     });
     const slots = groups.flatMap((g) =>
-      g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season } })),
+      g.slots.map((s) => withPeriod({ ...s, groupName: g.name, group: { kind: g.kind, season: g.season, tempSchedules: g.tempSchedules } })),
     );
     const from = q.from ?? addDaysIso(todayIso(), -21);
     const to = q.to ?? addDaysIso(todayIso(), 28);
@@ -263,7 +264,7 @@ export class AttendanceController {
     ]);
     const now = new Date();
     return {
-      groups: groups.map((g) => ({ id: g.id, name: g.name, kind: g.kind, slots: g.slots.map(slotView) })),
+      groups: groups.map((g) => ({ id: g.id, name: g.name, kind: g.kind, slots: g.slots.filter((s) => !s.scheduleId).map(slotView) })),
       sessions: sessionsBetween(slots, from, to).map((s) => {
         const mark = marks.find((m) => m.slotId === s.slot.id && isoDay(m.date) === s.date);
         const absence = absenceView(absenceFor(absences, s.slot, s.date));
@@ -277,6 +278,7 @@ export class AttendanceController {
           court: s.slot.court,
           coaches: slotView(s.slot).coaches,
           past: s.start < now,
+          holiday: s.slot.holiday,
           attendance: mark?.status ?? null,
           resolution: absence.resolution,
           replacement: absence.replacement,
@@ -370,10 +372,10 @@ export class AttendanceController {
     await this.access.assertSlotAccess(user, dto.slotId, dto.date);
     const slot = await this.prisma.groupSlot.findUnique({
       where: { id: dto.slotId },
-      include: { coaches: true, group: { include: { members: { include: { enrollment: true } }, season: periodSelect.season } } },
+      include: { coaches: true, group: { include: { members: { include: { enrollment: true } }, season: periodSelect.season, tempSchedules: tempSchedulesSelect } } },
     });
     if (!slot) throw notFound('Séance');
-    if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season } }), dto.date)) {
+    if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season, tempSchedules: slot.group.tempSchedules } }), dto.date)) {
       throw new BadRequestException('Pas de séance de ce créneau ce jour-là.');
     }
     const window = attendanceWindow(dto.date, slot.startTime, slot.endTime);

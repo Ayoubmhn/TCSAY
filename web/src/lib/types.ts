@@ -443,6 +443,8 @@ export type Planning = {
   courts: { id: string; name: string; lit: boolean; maintenance: boolean; active: boolean }[];
   sessions: (Slot & {
     group: { id: string; name: string; kind?: 'LEISURE' | 'COMPETITIVE' };
+    /** Séance d'un emploi temporaire (vacances, stage) : son nom. */
+    holiday?: string | null;
     absentCoachIds: string[];
     resolution: AbsenceResolution | null;
     replacement: CoachRef | null;
@@ -491,6 +493,8 @@ export type CoachSession = {
   capacity: number;
   started: boolean;
   recorded: boolean;
+  /** Séance d'un emploi temporaire (vacances, stage) : son nom. */
+  holiday?: string | null;
   change?: SessionChange;
 };
 
@@ -507,6 +511,8 @@ export type PlayerSession = {
   attendance: AttendanceStatus | null;
   resolution: AbsenceResolution | null;
   replacement: CoachRef | null;
+  /** Séance d'un emploi temporaire (vacances, stage) : son nom. */
+  holiday?: string | null;
   change?: SessionChange;
 };
 
@@ -599,6 +605,7 @@ export type Overview = {
     endTime: string;
     court: string | null;
     coaches: CoachRef[];
+    holiday?: string | null;
   } | null;
   hasGroup: boolean;
   /** Accès après paiement : planning fermé tant que la tranche en retard n'est pas payée. */
@@ -946,3 +953,42 @@ export type AiReadResult = {
 
 /** Ligne du tableau des paiements du cahier, corrigée à l'écran. */
 export type PaymentRawRow = { name: string; nameAr: string; amount: string; paid: string; method: string; receipt: string; date: string };
+
+/** Emploi du temps temporaire (vacances, stage). REPLACE : horaire habituel remplacé ; ADD : séances en plus. */
+export type TempScheduleMode = 'REPLACE' | 'ADD';
+export type TempSchedulePhase = 'UPCOMING' | 'RUNNING' | 'DONE';
+export type TempScheduleSummary = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  note: string | null;
+  status: 'DRAFT' | 'PUBLISHED';
+  phase: TempSchedulePhase;
+  version: number;
+  groups: { name: string; mode: TempScheduleMode }[];
+  slotsCount: number;
+};
+export type TempScheduleList = {
+  season: { id: string; label: string; status: string; startDate: string; endDate: string };
+  schedules: TempScheduleSummary[];
+};
+export type TempScheduleDetail = Omit<TempScheduleSummary, 'groups' | 'slotsCount'> & {
+  publishedAt: string | null;
+  season: TempScheduleList['season'];
+  /** Jours de la semaine compris dans les dates. */
+  days: number[];
+  groups: {
+    id: string;
+    name: string;
+    kind: GroupKind;
+    category: string | null;
+    members: number;
+    /** L'horaire habituel tombe-t-il pendant ces dates ? */
+    usualRuns: boolean;
+    usualSlots: Slot[];
+    /** null : groupe non concerné (horaire habituel). */
+    mode: TempScheduleMode | null;
+    slots: Slot[];
+  }[];
+};

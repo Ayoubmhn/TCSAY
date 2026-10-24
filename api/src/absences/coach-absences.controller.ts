@@ -7,7 +7,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuthUser, can, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { dayFromIso, isoDay, todayIso, weekday } from '../common/dates';
 import { fullName, NIL_UUID, notFound, rule } from '../common/rules';
-import { DAY_LONG, slotsOverlap } from '../common/sessions';
+import { DAY_LONG, periodSelect, slotRunsOn, slotsOverlap, withPeriod } from '../common/sessions';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -190,14 +190,23 @@ export class CoachAbsencesController {
     if (!replacement || !replacement.user.isActive || !replacement.user.roles.includes(Role.COACH)) throw notFound('Entraîneur remplaçant');
     const wd = weekday(date);
     const scope = { day: wd, group: { archivedAt: null, season: { status: 'ACTIVE' as const } } };
-    const covered = await this.prisma.groupSlot.findMany({
-      where: { ...scope, ...(slotId ? { id: slotId } : { coaches: { some: { coachId } } }) },
-      include: { group: { select: { name: true } } },
-    });
-    const busy = await this.prisma.groupSlot.findMany({
-      where: { ...scope, coaches: { some: { coachId: replacementCoachId } } },
-      include: { group: { select: { name: true } } },
-    });
+    // Séances de ce jour-là seulement (période du groupe, emploi temporaire des vacances).
+    const covered = (
+      await this.prisma.groupSlot.findMany({
+        where: { ...scope, ...(slotId ? { id: slotId } : { coaches: { some: { coachId } } }) },
+        include: { group: { select: { name: true, ...periodSelect } } },
+      })
+    )
+      .map(withPeriod)
+      .filter((s) => slotRunsOn(s, date));
+    const busy = (
+      await this.prisma.groupSlot.findMany({
+        where: { ...scope, coaches: { some: { coachId: replacementCoachId } } },
+        include: { group: { select: { name: true, ...periodSelect } } },
+      })
+    )
+      .map(withPeriod)
+      .filter((s) => slotRunsOn(s, date));
     for (const c of covered) {
       const clash = busy.find((b) => slotsOverlap(b, c));
       if (clash) {
@@ -263,6 +272,8 @@ export class CoachAbsencesController {
       include: {
         group: {
           include: {
+            season: periodSelect.season,
+            tempSchedules: periodSelect.tempSchedules,
             members: {
               include: {
                 enrollment: {
@@ -286,6 +297,7 @@ export class CoachAbsencesController {
           : 'La séance est annulée.';
     let sent = 0;
     for (const slot of slots) {
+      if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season, tempSchedules: slot.group.tempSchedules } }), day)) continue;
       const recipients = new Set<string>();
       for (const m of slot.group.members) {
         const p = m.enrollment.player;

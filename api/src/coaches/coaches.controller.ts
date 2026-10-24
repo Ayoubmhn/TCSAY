@@ -94,7 +94,7 @@ export class CoachesController {
     const coaches = await this.prisma.coach.findMany({
       include: {
         user: true,
-        slots: { where: { slot: { group: { seasonId: season?.id, archivedAt: null } } }, include: { slot: { include: { group: { select: { id: true, name: true } } } } } },
+        slots: { where: { slot: { scheduleId: null, group: { seasonId: season?.id, archivedAt: null } } }, include: { slot: { include: { group: { select: { id: true, name: true } } } } } },
       },
       orderBy: { user: { firstName: 'asc' } },
     });
@@ -115,7 +115,7 @@ export class CoachesController {
     const season = await this.access.activeSeason().catch(() => null);
     const [slots, salaries, absences] = await Promise.all([
       this.prisma.groupSlot.findMany({
-        where: { coaches: { some: { coachId: id } }, group: { seasonId: season?.id, archivedAt: null } },
+        where: { scheduleId: null, coaches: { some: { coachId: id } }, group: { seasonId: season?.id, archivedAt: null } },
         include: { ...slotInclude, group: { select: { id: true, name: true } } },
         orderBy: [{ day: 'asc' }, { startTime: 'asc' }],
       }),

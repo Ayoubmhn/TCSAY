@@ -57,6 +57,7 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
           {s.startTime} – {s.endTime}
         </Pill>
         {s.court && <Pill tone="g">{s.court.name}</Pill>}
+        {s.holiday && <Pill tone="s">{s.holiday}</Pill>}
         {s.change?.kind === 'MOVED' && <Pill tone="s">Déplacée (tournoi)</Pill>}
         {s.replacing ? <Pill tone="s">Vous remplacez</Pill> : <ResolutionPill resolution={s.resolution} replacement={s.replacement} />}
       </Pills>

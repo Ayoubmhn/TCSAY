@@ -79,6 +79,7 @@ export function HomePage() {
                         {o.nextSession.startTime} – {o.nextSession.endTime}
                       </Pill>
                       {o.nextSession.court && <Pill tone="g">{o.nextSession.court}</Pill>}
+                      {o.nextSession.holiday && <Pill tone="s">{o.nextSession.holiday}</Pill>}
                     </Pills>
                     {o.nextSession.coaches.length > 0 && (
                       <div className="text-sm opacity-90">

@@ -8,7 +8,7 @@ import { AuthUser, can, CurrentUser, Roles } from '../auth/auth-user';
 import { Feature } from '../modules/modules';
 import { addDaysIso, dayFromIso, isoDay, localInstant } from '../common/dates';
 import { notFound } from '../common/rules';
-import { periodSelect, slotRunsOn, withPeriod } from '../common/sessions';
+import { periodSelect, slotRunsOn, tempSchedulesSelect, withPeriod } from '../common/sessions';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -93,10 +93,10 @@ export class SessionReviewController {
     await this.access.assertSlotAccess(user, slotId, date);
     const slot = await this.prisma.groupSlot.findUnique({
       where: { id: slotId },
-      include: { group: { include: { season: periodSelect.season } } },
+      include: { group: { include: { season: periodSelect.season, tempSchedules: tempSchedulesSelect } } },
     });
     if (!slot) throw notFound('Séance');
-    if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season } }), date)) {
+    if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season, tempSchedules: slot.group.tempSchedules } }), date)) {
       throw new BadRequestException('Pas de séance de ce créneau ce jour-là.');
     }
     return slot;

@@ -29,7 +29,7 @@ export class SeasonStatsController {
       }),
       this.prisma.trainingGroup.findMany({
         where: { seasonId: id },
-        include: { _count: { select: { members: true, slots: true } }, category: { select: { name: true } } },
+        include: { _count: { select: { members: true, slots: { where: { scheduleId: null } } } }, category: { select: { name: true } } },
         orderBy: { name: 'asc' },
       }),
       this.prisma.installment.findMany({

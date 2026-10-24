@@ -187,7 +187,7 @@ export class PlayersService {
     const [groups, installments, absences, attendance] = await Promise.all([
       this.prisma.trainingGroup.findMany({
         where: { seasonId: season.id, archivedAt: null, members: { some: { enrollment: { playerId: id } } } },
-        include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+        include: { slots: { where: { scheduleId: null }, include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
       }),
       this.prisma.installment.findMany({
         where: { membership: { enrollment: { playerId: id, seasonId: season.id } } },

@@ -40,6 +40,7 @@ import { EventsController } from './events/events.controller';
 import { EventsService } from './events/events.service';
 import { FeesController } from './fees/fees.controller';
 import { GroupsController } from './groups/groups.controller';
+import { TempSchedulesController } from './schedules/temp-schedules.controller';
 import { HealthController } from './health.controller';
 import { EmailsController } from './mail/emails.controller';
 import { MeController } from './me/me.controller';
@@ -109,6 +110,7 @@ import { StaffController } from './staff/staff.controller';
     StaffController,
     CoachAbsencesController,
     GroupsController,
+    TempSchedulesController,
     CourtsController,
     CategoriesController,
     FeesController,

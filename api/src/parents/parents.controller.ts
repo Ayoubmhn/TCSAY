@@ -184,7 +184,7 @@ export class ParentsController {
               where: { seasonId: season?.id },
               include: {
                 category: { select: { name: true } },
-                groups: { include: { group: { include: { slots: { include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } } } },
+                groups: { include: { group: { include: { slots: { where: { scheduleId: null }, include: slotInclude, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } } } } },
               },
             },
           },
