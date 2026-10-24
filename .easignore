@@ -1,17 +1,28 @@
-# Archive envoyée à EAS Build (application mobile) : remplace .gitignore pour EAS. Seul le dossier mobile/ sert au build ;
-# sans ce fichier, tout le dépôt partait (rapports PDF, api/, web/, sauvegardes locales…), plus de 200 Mo.
-/*
-!/mobile/
-!/.easignore
+# Archive envoyée à EAS Build (application mobile). Ce fichier remplace .gitignore pour EAS : seul mobile/ sert au build ;
+# sans lui, tout le dépôt partait (rapports PDF, api/, web/, sauvegardes locales…), plus de 200 Mo.
+# Pas de règle « tout sauf mobile/ » (/* puis !/mobile/) : selon la version d'eas-cli, les chemins sont lus depuis la
+# racine du dépôt ou depuis mobile/, et l'archive partait vide. On retire donc les dossiers lourds par leur nom.
+/api/
+/web/
+/docs/
+/.github/
+/.vscode/
+*.pdf
+*.docx
+*.xlsx
+*.zip
 
 # Comme mobile/.gitignore
-/mobile/node_modules/
-/mobile/.expo/
-/mobile/dist/
-/mobile/web-build/
+node_modules/
+.expo/
+dist/
+web-build/
 /mobile/android/
+/android/
 /mobile/ios/
-mobile/google-services.json
+/ios/
+.kotlin/
+google-services.json
 *.jks
 *.p8
 *.p12
@@ -20,4 +31,6 @@ mobile/google-services.json
 *.mobileprovision
 .env*.local
 *.tsbuildinfo
+.metro-health-check*
+npm-debug.*
 .DS_Store
