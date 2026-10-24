@@ -9,11 +9,11 @@ Un seul code, deux mises en ligne :
 | Nom de l'application | **TCSAY Démo** (icône avec bandeau « DÉMO ») | **TCSAY** |
 | Application Android | `tn.tcsay.demo` (`eas build --profile demo`) | `tn.tcsay.app` (`--profile preview` ou `production`) |
 | API (Render) | `tcsay-demo` | `tcsay-club` |
-| Site (Vercel) | `tcsay-demo.vercel.app` (projet `tcsay-demo`, `VITE_DEMO=1`, renvoie `/api` vers la démo) | `tcsay.vercel.app` (projet `tcsay`, branche `club`, `VITE_API_URL` = API du club) |
+| Site (Vercel) | `tcsay-demo.vercel.app` (projet `tcsay-demo`, `VITE_DEMO=1`, renvoie `/api` vers la démo) | `tcsay.vercel.app` (projet `tcsay`, branche `main`, `VITE_API_URL` = API du club) |
 | Base (Neon) | démo (données fictives) | **base du club** (données réelles), jamais la démo |
 | Modules | tous | ceux validés ci-dessous |
 
-Une correction faite dans le code profite aux deux versions : la démo la reçoit tout de suite, le club quand vous la recopiez sur `club`.
+Une correction faite dans le code profite aux deux versions : la démo la reçoit tout de suite, le club quand vous la recopiez sur `main`.
 
 **Qui fait quoi** : Neon = la base de données ; Render = l'API (le serveur : connexion, paiements, emails, notifications, tâches automatiques, toujours en marche) ; Vercel = le site (les pages affichées dans le navigateur et l'application). Les trois sont nécessaires.
 
