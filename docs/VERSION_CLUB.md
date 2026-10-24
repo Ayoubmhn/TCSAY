@@ -5,7 +5,7 @@ Un seul code, deux mises en ligne :
 | | Version complète (la vôtre) | Version du club |
 |---|---|---|
 | Code | le même dépôt | le même dépôt |
-| Branche | `claude/tcsay-platform-dev-p3t75p` (développement, essais) | `club` (stable : seulement ce qui est validé) |
+| Branche | `claude/tcsay-platform-dev-p3t75p` (développement, essais) | `main` (stable : seulement ce qui est validé ; branche par défaut de GitHub) |
 | Nom de l'application | **TCSAY Démo** (icône avec bandeau « DÉMO ») | **TCSAY** |
 | Application Android | `tn.tcsay.demo` (`eas build --profile demo`) | `tn.tcsay.app` (`--profile preview` ou `production`) |
 | API (Render) | `tcsay-demo` | `tcsay-club` |
@@ -21,13 +21,13 @@ Une correction faite dans le code profite aux deux versions : la démo la reçoi
 
 Quand une amélioration est testée sur la démo :
 ```bash
-git checkout club
-git pull origin club
+git checkout main
+git pull origin main
 git merge claude/tcsay-platform-dev-p3t75p   # ou seulement un commit : git cherry-pick <commit>
-git push origin club
+git push origin main
 git checkout claude/tcsay-platform-dev-p3t75p
 ```
-Puis Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure). Le site du club (Vercel, branche de production `club`) se met à jour tout seul.
+Le site du club (Vercel, projet `tcsay`, branche de production `main`) se met à jour tout seul. Si l'API change : Render › `tcsay-club` › **Manual Deploy** (et `npm run db:migrate` sur la base du club si le commit annonce un changement de structure).
 
 ## Modules validés pour le club
 
@@ -81,7 +81,7 @@ Le président ne peut pas rallumer un module depuis l'application : c'est un ré
    - emails (`MAIL_TRANSPORT`, `MAIL_FROM` et leurs clés, docs/MAILING.md), Telegram (docs/ALERTES_TELEGRAM.md), `GEMINI_API_KEY` si l'IA est utilisée.
 4. **Sites (Vercel)** : l'adresse `tcsay.vercel.app` passe au club, la démo prend `tcsay-demo.vercel.app`. Dans cet ordre (la démo n'est jamais coupée) :
    - **Démo d'abord** : Add New › Project › ce dépôt, nom **`tcsay-demo`**, *Root Directory* `web`, variable `VITE_DEMO` = `1`, Deploy ; Settings › Git › *Production Branch* = `claude/tcsay-platform-dev-p3t75p`. Puis Render › `tcsay-demo` › `APP_URL` = `https://tcsay-demo.vercel.app` › Save.
-   - **Puis le club** sur l'ancien projet **`tcsay`** : Settings › Environment Variables : **supprimez** `VITE_DEMO`, ajoutez `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) ; Settings › Git › *Production Branch* = `club` ; Deployments › Redeploy.
+   - **Puis le club** sur l'ancien projet **`tcsay`** : Settings › Environment Variables : **supprimez** `VITE_DEMO`, ajoutez `VITE_API_URL` = `https://tcsay-club.onrender.com` (sans `/api/v1`) ; Settings › Git › *Production Branch* = `main` ; Deployments › Redeploy.
 5. **Vérifier** : ouvrez le site du club, connectez-vous avec le compte du président : le menu ne montre pas les modules coupés, Paramètres › Langue propose français et anglais seulement.
 6. **Application Android du club** (facultatif) : `npx eas-cli@latest build -p android --profile preview` (adresse du site du club dans `eas.json`, mobile/README.md). La démo : `--profile demo`.
 
