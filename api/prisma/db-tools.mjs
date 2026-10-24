@@ -100,18 +100,47 @@ function prune(keep) {
   }
 }
 
-/** Ordre d'insertion : une table après celles qu'elle référence. */
+/**
+ * Ordre d'insertion : une table après celles qu'elle référence. Deux tables qui se citent l'une l'autre (ex. un projet et
+ * son devis choisi) : la référence facultative est d'abord laissée vide, puis remise une fois les deux tables copiées.
+ */
 function insertionOrder() {
-  const deps = new Map(models.map((m) => [m.name, new Set(m.fields.filter((f) => f.relationFromFields?.length && f.type !== m.name).map((f) => f.type))]));
+  const relations = (m) => m.fields.filter((f) => f.relationFromFields?.length && f.type !== m.name);
   const order = [];
+  const deferred = new Map(); // table → champs remis après coup
   const done = new Set();
   while (order.length < models.length) {
-    const next = models.find((m) => !done.has(m.name) && [...deps.get(m.name)].every((d) => done.has(d)));
-    if (!next) throw new Error('Dépendances circulaires entre tables.');
+    let next = models.find((m) => !done.has(m.name) && relations(m).every((f) => done.has(f.type)));
+    if (!next) {
+      // Cycle : une table dont les références manquantes sont toutes facultatives.
+      next = models.find((m) => !done.has(m.name) && relations(m).every((f) => done.has(f.type) || !f.isRequired));
+      if (!next) throw new Error('Dépendances circulaires entre tables.');
+      deferred.set(
+        next.name,
+        relations(next)
+          .filter((f) => !done.has(f.type))
+          .flatMap((f) => f.relationFromFields),
+      );
+    }
     order.push(next.name);
     done.add(next.name);
   }
-  return order;
+  return { order, deferred };
+}
+
+/**
+ * Valeurs relues du JSON : fichiers (Bytes, enregistrés { type: 'Buffer', data }) remis en octets ; champ JSON vide = DbNull
+ * (Prisma refuse null pour un champ JSON).
+ */
+function revive(name, row) {
+  const model = models.find((m) => m.name === name);
+  const out = { ...row };
+  for (const f of model.fields) {
+    const v = out[f.name];
+    if (f.type === 'Bytes' && v && typeof v === 'object' && !Buffer.isBuffer(v)) out[f.name] = Buffer.from(v.type === 'Buffer' ? v.data : Object.values(v));
+    if (f.type === 'Json' && v === null) out[f.name] = Prisma.DbNull;
+  }
+  return out;
 }
 
 async function restore(file) {
@@ -123,10 +152,19 @@ async function restore(file) {
     throw new Error(`la base « ${databaseName()} » n'est pas vide : la restauration se fait dans une base neuve (après npm run db:migrate).`);
   }
   console.log(`Restauration de ${file} (sauvegarde du ${meta.date}, base ${meta.database}) dans « ${databaseName()} »…`);
-  for (const name of insertionOrder()) {
-    const rows = tables[name] ?? [];
+  const { order, deferred } = insertionOrder();
+  for (const name of order) {
+    const later = deferred.get(name) ?? [];
+    const rows = (tables[name] ?? []).map((r) => revive(name, later.length ? { ...r, ...Object.fromEntries(later.map((k) => [k, null])) } : r));
     for (let i = 0; i < rows.length; i += 500) await db[delegate(name)].createMany({ data: rows.slice(i, i + 500) });
     if (rows.length) console.log(`  ${name} : ${rows.length}`);
+  }
+  // Références laissées vides pendant la copie (cycles) : remises maintenant.
+  for (const [name, fields] of deferred) {
+    for (const row of tables[name] ?? []) {
+      const data = Object.fromEntries(fields.filter((k) => row[k] != null).map((k) => [k, row[k]]));
+      if (Object.keys(data).length) await db[delegate(name)].update({ where: { id: row.id }, data });
+    }
   }
   await db.$disconnect();
   console.log('✔ Restauration terminée.');
