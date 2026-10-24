@@ -1,6 +1,6 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { EmailKind, Prisma, TempScheduleMode, TempScheduleStatus } from '@prisma/client';
+import { EmailKind, Prisma, SlotKind, TempScheduleMode, TempScheduleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AccessService } from '../access/access.service';
@@ -272,7 +272,7 @@ export class TempSchedulesController {
       });
       await tx.groupSlot.deleteMany({ where: { id: { in: removed.map((x) => x.id) } } });
       for (const sl of dto.slots) {
-        const data = { day: sl.day, startTime: sl.startTime, endTime: sl.endTime, courtId: sl.courtId ?? null };
+        const data = { day: sl.day, startTime: sl.startTime, endTime: sl.endTime, courtId: sl.courtId ?? null, kind: sl.kind ?? SlotKind.TENNIS };
         const coaches = [...new Set(sl.coachIds)].map((coachId) => ({ coachId }));
         if (sl.id && current.some((x) => x.id === sl.id)) {
           await tx.slotCoach.deleteMany({ where: { slotId: sl.id } });
@@ -454,8 +454,8 @@ export class TempSchedulesController {
       for (let j = i + 1; j < slots.length; j++) {
         const a = slots[i];
         const b = slots[j];
-        if (slotsOverlap(a, b) && ((a.courtId && a.courtId === b.courtId) || a.coachIds.some((c) => b.coachIds.includes(c)))) {
-          throw rule.conflict('R5', `Deux créneaux du ${DAY_LONG[a.day]} se chevauchent sur le même terrain ou le même entraîneur.`);
+        if (slotsOverlap(a, b)) {
+          throw rule.conflict('R5', `Deux créneaux du ${DAY_LONG[a.day]} se chevauchent : le groupe ne peut pas être à deux séances à la fois.`);
         }
       }
     }

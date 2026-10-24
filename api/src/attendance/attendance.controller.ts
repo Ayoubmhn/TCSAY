@@ -229,6 +229,7 @@ export class AttendanceController {
           open: attendanceWindow(s.date, s.slot.startTime, s.slot.endTime).open,
           replacing: isReplacing,
           holiday: s.slot.holiday,
+          kind: s.slot.kind,
           ...absenceView(absence),
           ...(change ? { change, court: change.court ?? s.slot.court } : {}),
         };
@@ -279,6 +280,7 @@ export class AttendanceController {
           coaches: slotView(s.slot).coaches,
           past: s.start < now,
           holiday: s.slot.holiday,
+          kind: s.slot.kind,
           attendance: mark?.status ?? null,
           resolution: absence.resolution,
           replacement: absence.replacement,

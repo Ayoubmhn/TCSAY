@@ -7,6 +7,7 @@
 import { randomBytes, scryptSync } from 'node:crypto';
 import { createInterface } from 'node:readline/promises';
 import { PrismaClient } from '@prisma/client';
+import { fillGroupVolumes } from './group-volumes.mjs';
 import { databaseName, PRODUCTION_KEY } from './guard.mjs';
 import { categories, COACHES, COURTS, DEFAULT_SETTINGS, feeFor, PROGRAMME } from './reference-data.mjs';
 
@@ -95,6 +96,8 @@ async function main() {
           });
         }
       }
+
+      await fillGroupVolumes(tx);
 
       for (const [code, id] of Object.entries(cat)) {
         await tx.feeSchedule.create({ data: { seasonId: season.id, categoryId: id, amount: feeFor(code), depositAmount: 0 } });

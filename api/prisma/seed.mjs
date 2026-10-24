@@ -6,6 +6,7 @@ import { randomBytes, scryptSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { PrismaClient } from '@prisma/client';
+import { fillGroupVolumes } from './group-volumes.mjs';
 import { assertNotProduction } from './guard.mjs';
 import { categories, PROGRAMME, L, MA, ME, J, V, S, D, LUTINS } from './reference-data.mjs';
 
@@ -231,6 +232,10 @@ async function main() {
   }
   // Séance animée par deux entraîneurs (exemple) : Iheb rejoint Abdesattar sur Lutins 2 le samedi matin.
   await prisma.slotCoach.create({ data: { slotId: SLOT[`Lutins 2|${S}|09:30`], coachId: C.Iheb } });
+  // Volume par semaine déduit des créneaux (grille de l'emploi du temps) ; séance physique d'exemple pour les Minimes.
+  await fillGroupVolumes(prisma);
+  await prisma.trainingGroup.update({ where: { id: G['Minimes'] }, data: { physicalMinutes: 60, physicalSessionMinutes: 60 } });
+  await prisma.groupSlot.create({ data: { groupId: G['Minimes'], day: S, startTime: '12:00', endTime: '13:00', kind: 'PHYSICAL' } });
 
   for (const [pid, , , , , , groupName] of players) {
     if (groupName) await prisma.groupMember.create({ data: { groupId: G[groupName], enrollmentId: E[pid] } });

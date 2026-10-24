@@ -374,6 +374,7 @@ model Season {
   projects          Project[]
   budgetLines       BudgetLine[]
   tempSchedules     TempSchedule[]
+  timetableDraft    TimetableDraft?
 
   @@index([status])
 }
@@ -479,16 +480,26 @@ model ReservationBlock {
 }
 
 model TrainingGroup {
-  id         String    @id @default(uuid()) @db.Uuid
-  seasonId   String    @db.Uuid
-  name       String
-  categoryId String?   @db.Uuid // catégorie principale (facultative : groupes mixtes)
-  kind       GroupKind @default(COMPETITIVE)
-  capacity   Int
-  archivedAt DateTime?
-  version    Int       @default(1)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id                     String    @id @default(uuid()) @db.Uuid
+  seasonId               String    @db.Uuid
+  name                   String
+  categoryId             String?   @db.Uuid // catégorie principale (facultative : groupes mixtes)
+  kind                   GroupKind @default(COMPETITIVE)
+  capacity               Int
+  /// Volume de tennis par semaine (minutes) et durée d'une séance : jamais dépassé (null = libre, anciens groupes).
+  weeklyMinutes          Int?
+  sessionMinutes         Int?
+  /// Séance physique : volume par semaine et durée (null = pas de séance physique).
+  physicalMinutes        Int?
+  physicalSessionMinutes Int?
+  /// Entraîneur principal, encadrant de la séance physique et terrain de préférence (placement sur la grille).
+  mainCoachId            String?   @db.Uuid
+  physicalCoachId        String?   @db.Uuid
+  preferredCourtId       String?   @db.Uuid
+  archivedAt             DateTime?
+  version                Int       @default(1)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   season              Season               @relation(fields: [seasonId], references: [id])
   category            Category?            @relation(fields: [categoryId], references: [id])
@@ -508,14 +519,16 @@ model TrainingGroup {
 
 /// Créneau hebdomadaire d'un groupe : chaque jour peut avoir son horaire, son terrain et ses entraîneurs.
 model GroupSlot {
-  id         String  @id @default(uuid()) @db.Uuid
-  groupId    String  @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
+  groupId    String   @db.Uuid
   day        Int // 0 = dimanche … 6 = samedi
   startTime  String // « 17:30 »
   endTime    String // « 19:00 »
-  courtId    String? @db.Uuid
+  courtId    String?  @db.Uuid
+  /// Tennis (sur un terrain) ou séance physique (hors terrain le plus souvent).
+  kind       SlotKind @default(TENNIS)
   /// Créneau d'un emploi temporaire (vacances, stage) : n'a lieu que pendant ses dates, une fois publié.
-  scheduleId String? @db.Uuid
+  scheduleId String?  @db.Uuid
 
   group          TrainingGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   schedule       TempSchedule?   @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
@@ -529,6 +542,24 @@ model GroupSlot {
 
   @@index([day])
   @@index([scheduleId])
+}
+
+enum SlotKind {
+  TENNIS
+  PHYSICAL
+}
+
+/// Brouillon de l'emploi du temps habituel d'une saison (grille) : créneaux modifiés par groupe, appliqués à la publication.
+model TimetableDraft {
+  seasonId    String   @id @db.Uuid
+  /// { [groupId]: [{ id?, day, startTime, endTime, courtId, coachIds, kind }] }
+  groups      Json
+  version     Int      @default(1)
+  updatedById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id])
 }
 
 enum TempScheduleStatus {

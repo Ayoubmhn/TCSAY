@@ -1,10 +1,9 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { GroupKind, Prisma, Role } from '@prisma/client';
+import { GroupKind, Prisma, Role, SlotKind } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsEnum,
   IsInt,
@@ -24,11 +23,13 @@ import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { minutesOf } from '../common/dates';
 import { assertSeasonOpen, assertVersion, fullName, NIL_UUID, notFound, rule } from '../common/rules';
 import { DAY_LONG, DAY_NAMES, slotsOverlap } from '../common/sessions';
+import { assertVolumes, hm } from '../schedules/timetable-rules';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 const emptyToUndefined = ({ value }: { value: unknown }) => (value === '' || value === null ? undefined : value);
+const emptyToNull = ({ value }: { value: unknown }) => (value === '' ? null : value);
 
 /** Un créneau : un jour, son horaire, son terrain, ses entraîneurs (plusieurs possibles). */
 export class SlotDto {
@@ -56,7 +57,14 @@ export class SlotDto {
   @ArrayMaxSize(4)
   @IsUUID('all', { each: true })
   coachIds: string[];
+
+  /** Tennis (défaut) ou séance physique (hors terrain le plus souvent). */
+  @IsOptional()
+  @IsEnum(SlotKind, { message: 'Type de séance : tennis ou physique.' })
+  kind?: SlotKind;
 }
+
+const zeroToNull = ({ value }: { value: unknown }) => (value === '' || value === 0 || value === '0' ? null : value);
 
 class GroupFields {
   @IsString()
@@ -79,12 +87,58 @@ class GroupFields {
   @Max(60)
   capacity: number;
 
+  /** Créneaux habituels (facultatifs si le volume est réglé : ils se placent ensuite sur la grille de l'emploi du temps). */
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1, { message: 'Ajoutez au moins un créneau.' })
   @ArrayMaxSize(14)
   @ValidateNested({ each: true })
   @Type(() => SlotDto)
-  slots: SlotDto[];
+  slots?: SlotDto[];
+
+  /** Tennis : minutes par semaine et durée d'une séance (0 / vide = libre). */
+  @IsOptional()
+  @Transform(zeroToNull)
+  @IsInt({ message: 'Heures par semaine : nombre de minutes.' })
+  @Min(30)
+  @Max(1800)
+  weeklyMinutes?: number | null;
+
+  @IsOptional()
+  @Transform(zeroToNull)
+  @IsInt()
+  @Min(30)
+  @Max(240)
+  sessionMinutes?: number | null;
+
+  /** Séance physique : minutes par semaine et durée (0 / vide = pas de séance physique). */
+  @IsOptional()
+  @Transform(zeroToNull)
+  @IsInt()
+  @Min(30)
+  @Max(900)
+  physicalMinutes?: number | null;
+
+  @IsOptional()
+  @Transform(zeroToNull)
+  @IsInt()
+  @Min(30)
+  @Max(240)
+  physicalSessionMinutes?: number | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsUUID()
+  mainCoachId?: string | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsUUID()
+  physicalCoachId?: string | null;
+
+  @IsOptional()
+  @Transform(emptyToNull)
+  @IsUUID()
+  preferredCourtId?: string | null;
 }
 
 class CreateGroupDto extends GroupFields {
@@ -97,6 +151,12 @@ class UpdateGroupDto extends GroupFields {
   @IsInt()
   @Min(1)
   version: number;
+
+  /** Motif obligatoire pour changer le volume d'un groupe qui en a déjà un. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  volumeReason?: string;
 }
 
 class AddMemberDto {
@@ -148,6 +208,7 @@ export function slotView(s: SlotRow) {
     day: s.day,
     startTime: s.startTime,
     endTime: s.endTime,
+    kind: s.kind,
     court: s.court,
     coaches: s.coaches.map((c) => ({ id: c.coach.id, color: c.coach.color, ...c.coach.user })),
   };
@@ -267,7 +328,12 @@ export class GroupsController {
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateGroupDto) {
     const season = await this.access.seasonOrActive(dto.seasonId);
     assertSeasonOpen(season);
-    await this.assertNoConflict(season.id, dto.slots);
+    const slots = dto.slots ?? [];
+    const volumes = volumeFields(dto);
+    // Sans volume réglé : au moins un créneau (ancien fonctionnement) ; avec volume : créneaux placés plus tard sur la grille.
+    if (!volumes.weeklyMinutes && !slots.length) throw new BadRequestException('Ajoutez au moins un créneau, ou réglez les heures par semaine.');
+    assertVolumes({ name: dto.name.trim(), ...volumes }, slots);
+    await this.assertNoConflict(season.id, slots);
     const group = await this.prisma.trainingGroup.create({
       data: {
         seasonId: season.id,
@@ -275,7 +341,8 @@ export class GroupsController {
         categoryId: dto.categoryId ?? null,
         kind: dto.kind ?? GroupKind.COMPETITIVE,
         capacity: dto.capacity,
-        slots: { create: dto.slots.map((s) => this.slotData(s)) },
+        ...volumes,
+        slots: { create: slots.map((s) => this.slotData(s)) },
       },
       include: groupInclude,
     });
@@ -284,7 +351,7 @@ export class GroupsController {
       entity: 'TrainingGroup',
       entityId: group.id,
       target: group.name,
-      after: describe(group.slots),
+      after: `${describeVolumes(group)} · ${describe(group.slots)}`,
     });
     return this.view(group);
   }
@@ -299,9 +366,19 @@ export class GroupsController {
     if (dto.capacity < members) {
       throw rule.conflict('R4', `Capacité ${dto.capacity} inférieure au nombre de joueurs (${members}).`);
     }
-    await this.assertNoConflict(group.seasonId, dto.slots, id);
+    // Créneaux absents de la demande : gardés tels quels (ils se modifient sur la grille de l'emploi du temps).
+    const slots: SlotDto[] =
+      dto.slots ?? group.slots.map((s) => ({ id: s.id, day: s.day, startTime: s.startTime, endTime: s.endTime, courtId: s.courtId ?? undefined, coachIds: s.coaches.map((c) => c.coachId), kind: s.kind }));
+    const volumes = { ...pickVolumes(group), ...volumeFields(dto) };
+    const volumeChanged = VOLUME_KEYS.some((k) => dto[k] !== undefined && (volumes[k] ?? null) !== (group[k] ?? null));
+    if (volumeChanged && group.weeklyMinutes && !dto.volumeReason?.trim()) {
+      throw new BadRequestException('Motif obligatoire pour changer le volume du groupe.');
+    }
+    if (!volumes.weeklyMinutes && !slots.length) throw new BadRequestException('Ajoutez au moins un créneau, ou réglez les heures par semaine.');
+    assertVolumes({ name: dto.name.trim(), ...volumes }, slots);
+    await this.assertNoConflict(group.seasonId, slots, id);
 
-    const keep = new Set(dto.slots.filter((s) => s.id).map((s) => s.id));
+    const keep = new Set(slots.filter((s) => s.id).map((s) => s.id));
     const removed = group.slots.filter((s) => !keep.has(s.id));
     if (removed.length) {
       const used = await this.prisma.attendance.count({ where: { slotId: { in: removed.map((s) => s.id) } } });
@@ -310,7 +387,7 @@ export class GroupsController {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       await tx.groupSlot.deleteMany({ where: { id: { in: removed.map((s) => s.id) } } });
-      for (const s of dto.slots) {
+      for (const s of dto.slots ? slots : []) {
         if (s.id && group.slots.some((x) => x.id === s.id)) {
           await tx.slotCoach.deleteMany({ where: { slotId: s.id } });
           await tx.groupSlot.update({
@@ -320,7 +397,8 @@ export class GroupsController {
               startTime: s.startTime,
               endTime: s.endTime,
               courtId: s.courtId ?? null,
-              coaches: { create: s.coachIds.map((coachId) => ({ coachId })) },
+              kind: s.kind ?? SlotKind.TENNIS,
+              coaches: { create: [...new Set(s.coachIds)].map((coachId) => ({ coachId })) },
             },
           });
         } else {
@@ -329,17 +407,25 @@ export class GroupsController {
       }
       return tx.trainingGroup.update({
         where: { id },
-        data: { name: dto.name.trim(), categoryId: dto.categoryId ?? null, kind: dto.kind ?? group.kind, capacity: dto.capacity, version: { increment: 1 } },
+        data: {
+          name: dto.name.trim(),
+          categoryId: dto.categoryId ?? null,
+          kind: dto.kind ?? group.kind,
+          capacity: dto.capacity,
+          ...volumes,
+          version: { increment: 1 },
+        },
         include: groupInclude,
       });
     });
     await this.audit.log(user.id, {
-      action: 'Groupe modifié',
+      action: volumeChanged ? 'Groupe modifié (volume)' : 'Groupe modifié',
       entity: 'TrainingGroup',
       entityId: id,
       target: updated.name,
-      before: describe(group.slots),
-      after: describe(updated.slots),
+      before: `${describeVolumes(group)} · ${describe(group.slots)}`,
+      after: `${describeVolumes(updated)} · ${describe(updated.slots)}`,
+      reason: volumeChanged ? dto.volumeReason : undefined,
     });
     return this.view(updated);
   }
@@ -421,6 +507,7 @@ export class GroupsController {
       startTime: s.startTime,
       endTime: s.endTime,
       courtId: s.courtId ?? null,
+      kind: s.kind ?? SlotKind.TENNIS,
       coaches: { create: [...new Set(s.coachIds)].map((coachId) => ({ coachId })) },
     };
   }
@@ -432,15 +519,13 @@ export class GroupsController {
         throw new BadRequestException(`${DAY_LONG[s.day]} : l’heure de fin doit suivre l’heure de début.`);
       }
     }
-    // Conflits internes au groupe.
+    // Conflits internes au groupe : ses joueurs ne peuvent pas être à deux séances à la fois (tennis et physique compris).
     for (let i = 0; i < slots.length; i++) {
       for (let j = i + 1; j < slots.length; j++) {
         const a = slots[i];
         const b = slots[j];
         if (!slotsOverlap(a, b)) continue;
-        if ((a.courtId && a.courtId === b.courtId) || a.coachIds.some((c) => b.coachIds.includes(c))) {
-          throw rule.conflict('R5', `Deux créneaux du ${DAY_LONG[a.day]} se chevauchent sur le même terrain ou le même entraîneur.`);
-        }
+        throw rule.conflict('R5', `Deux créneaux du ${DAY_LONG[a.day]} se chevauchent : le groupe ne peut pas être à deux séances à la fois.`);
       }
     }
     const others = await this.prisma.groupSlot.findMany({
@@ -482,6 +567,7 @@ export class GroupsController {
       kind: g.kind,
       capacity: g.capacity,
       version: g.version,
+      ...pickVolumes(g),
       category: g.category,
       slots,
       coaches: [...coaches.values()],
@@ -498,6 +584,31 @@ export class GroupsController {
   }
 }
 
-function describe(slots: { day: number; startTime: string; endTime: string; court?: { name: string } | null }[]): string {
-  return slots.map((s) => `${DAY_NAMES[s.day]} ${s.startTime}–${s.endTime}${s.court ? ' ' + s.court.name : ''}`).join(' · ') || '—';
+const VOLUME_KEYS = ['weeklyMinutes', 'sessionMinutes', 'physicalMinutes', 'physicalSessionMinutes', 'mainCoachId', 'physicalCoachId', 'preferredCourtId'] as const;
+type Volumes = { [K in (typeof VOLUME_KEYS)[number]]: K extends `${string}Id` ? string | null : number | null };
+
+/** Volumes et préférences envoyés (seulement les champs présents ; null = retiré). */
+function volumeFields(dto: Partial<Record<(typeof VOLUME_KEYS)[number], unknown>>): Volumes {
+  const out = {} as Record<string, unknown>;
+  for (const k of VOLUME_KEYS) if (dto[k] !== undefined) out[k] = dto[k];
+  if (out.physicalMinutes === null) out.physicalSessionMinutes = null; // pas de séance physique
+  return out as Volumes;
+}
+
+function pickVolumes(g: Volumes): Volumes {
+  return Object.fromEntries(VOLUME_KEYS.map((k) => [k, g[k] ?? null])) as Volumes;
+}
+
+function describeVolumes(g: Pick<Volumes, 'weeklyMinutes' | 'sessionMinutes' | 'physicalMinutes' | 'physicalSessionMinutes'>): string {
+  const tennis = g.weeklyMinutes ? `${hm(g.weeklyMinutes)}/sem.${g.sessionMinutes ? ` (séances de ${hm(g.sessionMinutes)})` : ''}` : 'volume libre';
+  const physical = g.physicalMinutes ? ` · physique ${hm(g.physicalMinutes)}/sem.` : '';
+  return tennis + physical;
+}
+
+export function describe(slots: { day: number; startTime: string; endTime: string; kind?: SlotKind; court?: { name: string } | null }[]): string {
+  return (
+    slots
+      .map((s) => `${DAY_NAMES[s.day]} ${s.startTime}–${s.endTime}${s.kind === SlotKind.PHYSICAL ? ' physique' : ''}${s.court ? ' ' + s.court.name : ''}`)
+      .join(' · ') || '—'
+  );
 }

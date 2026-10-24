@@ -78,6 +78,7 @@ export class MeController {
             court: next.slot.court?.name ?? null,
             coaches: slotView(next.slot).coaches,
             holiday: next.slot.holiday,
+            kind: next.slot.kind,
           }
         : null,
       hasGroup: groups.length > 0,
