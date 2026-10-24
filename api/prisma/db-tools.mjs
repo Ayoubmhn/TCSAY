@@ -149,23 +149,32 @@ async function restore(file) {
   const db = new PrismaClient();
   if ((await db.user.count()) > 0) {
     await db.$disconnect();
-    throw new Error(`la base « ${databaseName()} » n'est pas vide : la restauration se fait dans une base neuve (après npm run db:migrate).`);
+    throw new Error(`la base « ${databaseName()} » contient déjà des comptes : la restauration se fait dans une base neuve (après npm run db:migrate). Pour recommencer une copie ratée sur la base du club : arrêter son serveur, vider la base (docs/VERSION_CLUB.md), db:migrate, puis db:restore.`);
   }
   console.log(`Restauration de ${file} (sauvegarde du ${meta.date}, base ${meta.database}) dans « ${databaseName()} »…`);
   const { order, deferred } = insertionOrder();
-  for (const name of order) {
-    const later = deferred.get(name) ?? [];
-    const rows = (tables[name] ?? []).map((r) => revive(name, later.length ? { ...r, ...Object.fromEntries(later.map((k) => [k, null])) } : r));
-    for (let i = 0; i < rows.length; i += 500) await db[delegate(name)].createMany({ data: rows.slice(i, i + 500) });
-    if (rows.length) console.log(`  ${name} : ${rows.length}`);
-  }
-  // Références laissées vides pendant la copie (cycles) : remises maintenant.
-  for (const [name, fields] of deferred) {
-    for (const row of tables[name] ?? []) {
-      const data = Object.fromEntries(fields.filter((k) => row[k] != null).map((k) => [k, row[k]]));
-      if (Object.keys(data).length) await db[delegate(name)].update({ where: { id: row.id }, data });
-    }
-  }
+  // Tout ou rien : une erreur en cours de route annule la copie (la base reste vide, on peut recommencer).
+  await db.$transaction(
+    async (tx) => {
+      // Base sans compte : les lignes posées par un serveur déjà démarré dessus (autorisations par défaut, réglages) sont
+      // retirées, la sauvegarde les remplace.
+      for (const name of [...order].reverse()) await tx[delegate(name)].deleteMany({});
+      for (const name of order) {
+        const later = deferred.get(name) ?? [];
+        const rows = (tables[name] ?? []).map((r) => revive(name, later.length ? { ...r, ...Object.fromEntries(later.map((k) => [k, null])) } : r));
+        for (let i = 0; i < rows.length; i += 500) await tx[delegate(name)].createMany({ data: rows.slice(i, i + 500) });
+        if (rows.length) console.log(`  ${name} : ${rows.length}`);
+      }
+      // Références laissées vides pendant la copie (cycles) : remises maintenant.
+      for (const [name, fields] of deferred) {
+        for (const row of tables[name] ?? []) {
+          const data = Object.fromEntries(fields.filter((k) => row[k] != null).map((k) => [k, row[k]]));
+          if (Object.keys(data).length) await tx[delegate(name)].update({ where: { id: row.id }, data });
+        }
+      }
+    },
+    { maxWait: 60_000, timeout: 30 * 60_000 },
+  );
   await db.$disconnect();
   console.log('✔ Restauration terminée.');
 }
