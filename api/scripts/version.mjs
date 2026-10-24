@@ -4,8 +4,9 @@
 // Deuxième argument : la commande npm à lancer sur cette base (start:dev par défaut), ex.
 //   node scripts/version.mjs demo db:demo   (npm run demo:reset : recharge les données de démo)
 //   node scripts/version.mjs club db:status (npm run club:status)
+//   node scripts/version.mjs demo prisma:deploy (npm run demo:migrate : nouvelles tables sur la base de démo)
 // Les variables posées ici passent avant celles de api/.env (process.loadEnvFile ne les remplace pas).
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -62,5 +63,11 @@ const base = (() => {
   }
 })();
 console.log(`▶ Version ${version === 'club' ? 'du CLUB (vraies données)' : 'DÉMO'} · base « ${base} » · npm run ${command}`);
+// Démo : nouvelles tables appliquées d'office avant de lancer l'API (jamais sur la base du club : npm run club:migrate,
+// avec sauvegarde et confirmation).
+if (version === 'demo' && command === 'start:dev') {
+  const r = spawnSync('npx', ['prisma', 'migrate', 'deploy'], { env, stdio: 'inherit', shell: true });
+  if (r.status !== 0) process.exit(r.status ?? 1);
+}
 const child = spawn('npm', ['run', command], { env, stdio: 'inherit', shell: true });
 child.on('exit', (code) => process.exit(code ?? 0));

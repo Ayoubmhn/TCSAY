@@ -13,6 +13,8 @@
     "dev:demo": "node scripts/version.mjs demo",
     "dev:club": "node scripts/version.mjs club",
     "demo:reset": "node scripts/version.mjs demo db:demo",
+    "demo:migrate": "node scripts/version.mjs demo prisma:deploy",
+    "prisma:deploy": "prisma migrate deploy",
     "demo:status": "node scripts/version.mjs demo db:status",
     "club:status": "node scripts/version.mjs club db:status",
     "club:migrate": "node scripts/version.mjs club db:migrate",
