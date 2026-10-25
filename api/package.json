@@ -16,6 +16,7 @@
     "demo:migrate": "node scripts/version.mjs demo prisma:deploy",
     "prisma:deploy": "prisma migrate deploy",
     "demo:status": "node scripts/version.mjs demo db:status",
+    "demo:copy-timetable": "node prisma/copy-timetable.mjs",
     "club:status": "node scripts/version.mjs club db:status",
     "club:migrate": "node scripts/version.mjs club db:migrate",
     "club:backup": "node scripts/version.mjs club db:backup",
