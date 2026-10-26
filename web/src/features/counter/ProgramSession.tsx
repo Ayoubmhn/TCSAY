@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import { SelectField, TextField } from '../../components/ui/Field';
 import { Modal } from '../../components/ui/Modal';
@@ -8,7 +8,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { fD, todayIso } from '../../lib/format';
 import { hm, toMin, toTime } from '../../lib/timetable';
-import type { CounterSummary, OneOffOptions, OneOffType, SlotKind, Timetable } from '../../lib/types';
+import type { MissedSession, OneOffOptions, OneOffType, SlotKind, Timetable } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
 const TYPES: { v: OneOffType; label: string }[] = [
@@ -17,7 +17,7 @@ const TYPES: { v: OneOffType; label: string }[] = [
   { v: 'SPECIAL', label: 'Séance spéciale' },
 ];
 const DURATIONS = [60, 90, 120];
-const KEYS = [['session-counter'], ['planning'], ['sessions'], ['timetable']];
+const KEYS = [['session-counter'], ['planning'], ['sessions'], ['timetable'], ['extra-missed']];
 
 const tomorrow = () => {
   const d = new Date(`${todayIso()}T12:00:00Z`);
@@ -37,7 +37,6 @@ export type ProgramInit = { groupId?: string; makeup?: { slotId: string; date: s
 export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit; onClose: () => void }) {
   const toast = useToast();
   const t = useQuery({ queryKey: ['timetable', null], queryFn: () => api.get<Timetable>('/timetable') });
-  const counter = useQuery({ queryKey: ['session-counter', 'admin', 'season', ''], queryFn: () => api.get<CounterSummary>('/session-counter') });
   const [type, setType] = useState<OneOffType>(init.type ?? (init.makeup ? 'MAKEUP' : 'EXTRA'));
   const [groupId, setGroupId] = useState(init.groupId ?? '');
   const [makeupKey, setMakeupKey] = useState(init.makeup ? `${init.makeup.slotId}|${init.makeup.date}` : '');
@@ -57,7 +56,13 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
   }, [group?.id, group?.sessionMinutes]);
 
   const end = toMin(start) + duration < 24 * 60 ? toTime(toMin(start) + duration) : '23:59';
-  const missed = useMemo(() => counter.data?.groups.find((g) => g.group.id === groupId)?.missed.filter((m) => !m.madeUp || `${m.slotId}|${m.date}` === makeupKey) ?? [], [counter.data, groupId, makeupKey]);
+  // Rattrapage : seulement une séance annulée ou reportée du groupe (passée ou à venir), pas encore rattrapée.
+  const missedQ = useQuery({
+    queryKey: ['extra-missed', groupId],
+    queryFn: () => api.get<MissedSession[]>('/extra-sessions/missed', { groupId }),
+    enabled: Boolean(groupId) && type === 'MAKEUP',
+  });
+  const missed = missedQ.data ?? [];
   const ready = Boolean(groupId && date && /^\d\d:\d\d$/.test(start));
   const opts = useQuery({
     queryKey: ['extra-options', groupId, date, start, end],
@@ -105,7 +110,7 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
   );
   const submit = () => {
     if (!groupId) return toast('Choisissez le groupe.');
-    if (type === 'MAKEUP' && !makeupKey) return toast('Choisissez la séance à rattraper.');
+    if (type === 'MAKEUP' && !makeupKey) return toast('Rattrapage : choisissez la séance annulée ou reportée.');
     if (type === 'SPECIAL' && !title.trim()) return toast('Donnez un titre à la séance spéciale.');
     if (kind === 'TENNIS' && !courtId) return toast('Choisissez un terrain libre.');
     if (opts.data?.groupBusy) return toast(`Le groupe a déjà une séance ${opts.data.groupBusy}.`);
@@ -145,8 +150,8 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
             ))}
           </SelectField>
           {type === 'MAKEUP' && (
-            <SelectField label="Séance rattrapée *" value={makeupKey} onChange={(e) => setMakeupKey(e.target.value)}>
-              <option value="">{groupId ? (missed.length ? 'Choisir…' : 'Aucune séance à rattraper') : 'Choisissez d’abord le groupe'}</option>
+            <SelectField label="Séance annulée ou reportée *" value={makeupKey} onChange={(e) => setMakeupKey(e.target.value)}>
+              <option value="">{groupId ? (missedQ.isPending ? 'Chargement…' : missed.length ? 'Choisir…' : 'Aucune séance annulée ou reportée') : 'Choisissez d’abord le groupe'}</option>
               {missed.map((m) => (
                 <option key={`${m.slotId}|${m.date}`} value={`${m.slotId}|${m.date}`}>
                   {`${fD(m.date, { day: 'numeric', month: 'short' })} · ${m.startTime} · ${m.reason}`}

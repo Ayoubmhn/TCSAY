@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, test } from 'node:test';
 import { as, ok, refused, uid } from './helpers.mjs';
+import { openAccess } from './helpers-paiements.mjs';
 
 const addDays = (iso, n) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -44,7 +45,15 @@ describe('Compteur des séances', () => {
   });
 
   test('parent : compteur de l’enfant (absences à part, aucun montant) ; pas la route de la direction', async () => {
-    const r = ok(await parent('GET', '/session-counter/player'));
+    // Accès indépendant de la date (« Accès après paiement » activé dans la démo).
+    const kids = ok(await admin('GET', '/players')).filter((p) => p.lastName === 'Ben Ali');
+    const restore = await openAccess(admin, parent, kids);
+    let r;
+    try {
+      r = ok(await parent('GET', '/session-counter/player'));
+    } finally {
+      await restore();
+    }
     assert.ok(Array.isArray(r.groups));
     for (const g of r.groups) {
       assert.ok(Array.isArray(g.absences));
@@ -239,17 +248,30 @@ describe('Séances ponctuelles (rattrapage, en plus, spéciale)', () => {
     assert.equal(ok(await admin('GET', `/extra-sessions/options?groupId=${group.id}&date=${date}&startTime=08:00&endTime=09:00`)).groupBusy, null);
   });
 
-  test('rattrapage lié à une séance du groupe ; une seule fois ; séance spéciale avec titre', async () => {
-    const slot = group.published[0];
-    if (!slot?.id) return;
-    const missedDate = addDays(today(), -3);
-    const mk = { ...base(), type: 'MAKEUP', makeupSlotId: slot.id, makeupDate: missedDate, notify: false };
-    if (other?.published[0]?.id) refused(await admin('POST', '/extra-sessions', { ...mk, makeupSlotId: other.published[0].id }), 400);
-    const r = ok(await admin('POST', '/extra-sessions', mk));
-    created.push(r.id);
-    assert.match(r.name, /^Rattrapage du /);
-    refused(await admin('POST', '/extra-sessions', { ...mk, startTime: '10:00', endTime: '11:00' }), 409, /R5/);
-    ok(await admin('DELETE', `/extra-sessions/${r.id}?reason=Essai&notify=false`));
+  test('rattrapage : seulement une séance annulée ou reportée du groupe, une seule fois ; séance spéciale avec titre', async () => {
+    // Une séance à venir du groupe, annulée pour l'occasion (pluie), puis rétablie à la fin.
+    let s, d;
+    for (let i = 2; i < 20 && !s; i++) {
+      d = addDays(today(), i);
+      s = ok(await admin('GET', `/planning?date=${d}`)).sessions.find((x) => x.group.id === group.id && !x.resolution && !x.change && !x.oneOff);
+    }
+    if (!s) return;
+    const notCancelled = { ...base(), type: 'MAKEUP', makeupSlotId: s.id, makeupDate: d, notify: false };
+    refused(await admin('POST', '/extra-sessions', notCancelled), 400);
+    ok(await admin('POST', '/session-changes/cancel', { slotId: s.id, date: d, reason: 'Pluie', notify: false }));
+    try {
+      const list = ok(await admin('GET', `/extra-sessions/missed?groupId=${group.id}`));
+      assert.ok(list.some((m) => m.slotId === s.id && m.date === d && m.reason === 'Pluie'));
+      if (other?.published[0]?.id) refused(await admin('POST', '/extra-sessions', { ...notCancelled, makeupSlotId: other.published[0].id }), 400);
+      const r = ok(await admin('POST', '/extra-sessions', notCancelled));
+      created.push(r.id);
+      assert.match(r.name, /^Rattrapage du /);
+      assert.ok(!ok(await admin('GET', `/extra-sessions/missed?groupId=${group.id}`)).some((m) => m.slotId === s.id && m.date === d), 'déjà rattrapée');
+      refused(await admin('POST', '/extra-sessions', { ...notCancelled, startTime: '10:00', endTime: '11:00' }), 409, /R5/);
+      ok(await admin('DELETE', `/extra-sessions/${r.id}?reason=Essai&notify=false`));
+    } finally {
+      await admin('DELETE', `/session-changes/cancel/${s.id}/${d}`);
+    }
     const sp = ok(await admin('POST', '/extra-sessions', { ...base(), type: 'SPECIAL', title: `Préparation ${uid()}`, notify: false }));
     created.push(sp.id);
     assert.match(sp.name, /^Préparation /);

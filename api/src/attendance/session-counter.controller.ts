@@ -56,7 +56,8 @@ class CancelDto {
 /** Séance du compteur. */
 type Item = { slotId: string; date: string; startTime: string; endTime: string; minutes: number; reason: string; holiday: string | null };
 /** Séance manquée par le club, avec sa séance de rattrapage éventuelle (passée ou prévue). */
-type Missed = Item & { madeUp: { date: string; startTime: string; done: boolean } | null };
+/** `cancelled` : annulée ou reportée (pluie, tournoi, entraîneur absent) → rattrapage programmable ; sinon vacances dues. */
+type Missed = Item & { cancelled: boolean; madeUp: { date: string; startTime: string; done: boolean } | null };
 
 export type GroupCounter = {
   group: { id: string; name: string; kind: string };
@@ -343,11 +344,11 @@ export async function countGroups(prisma: PrismaService, groupIds: string[], fro
     for (const b of baseline) {
       const k = key(b.slot.id, b.date);
       const cancelled = cancelReason.get(k);
-      if (cancelled) missed.push({ ...item(b, cancelled), madeUp: null });
+      if (cancelled) missed.push({ ...item(b, cancelled), cancelled: true, madeUp: null });
       else if (!actualKeys.has(k)) {
         // Horaire remplacé par des vacances dues : séance habituelle retirée.
         const t = owedNames.find((o) => b.date >= isoDay(o.schedule.startDate) && b.date <= isoDay(o.schedule.endDate));
-        missed.push({ ...item(b, t ? `Vacances « ${t.schedule.name} »` : 'Séance retirée'), madeUp: null });
+        missed.push({ ...item(b, t ? `Vacances « ${t.schedule.name} »` : 'Séance retirée'), cancelled: false, madeUp: null });
       }
     }
     const extra: GroupCounter['extra'] = [];

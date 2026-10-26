@@ -1051,7 +1051,8 @@ export type GroupCounter = {
   to: string;
   planned: { sessions: number; minutes: number };
   given: { sessions: number; minutes: number };
-  missed: (CounterItem & { madeUp: { date: string; startTime: string; done: boolean } | null })[];
+  /** `cancelled` : annulée ou reportée (rattrapage programmable) ; sinon séance retirée par des vacances dues. */
+  missed: (CounterItem & { cancelled: boolean; madeUp: { date: string; startTime: string; done: boolean } | null })[];
   extra: (CounterItem & { done: boolean; covers: string | null; oneOff: { id: string; type: OneOffType } | null })[];
   /** Séances données − prévues (négatif = en retard, positif = en avance). */
   balance: { sessions: number; minutes: number };
@@ -1076,3 +1077,5 @@ export type OneOffOptions = {
   courts: { id: string; name: string; lit: boolean; busy: string | null }[];
   coaches: { id: string; name: string; color: string; busy: string | null }[];
 };
+/** Séance annulée ou reportée d'un groupe (choix d'un rattrapage). */
+export type MissedSession = { slotId: string; date: string; startTime: string; endTime: string; reason: string };

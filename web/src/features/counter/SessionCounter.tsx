@@ -65,7 +65,7 @@ export function CounterLines({ c, limit = 6, onProgram }: { c: GroupCounter; lim
         <Pill tone="g">{`Rattrapée le ${short(m.madeUp.date)}`}</Pill>
       ) : m.madeUp ? (
         <Pill tone="b">{`Rattrapage prévu le ${short(m.madeUp.date)}`}</Pill>
-      ) : onProgram ? (
+      ) : onProgram && m.cancelled ? (
         <span className="inline-flex items-center gap-1.5">
           <Pill tone="s">À rattraper</Pill>
           <button

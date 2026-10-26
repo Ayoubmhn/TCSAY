@@ -31,6 +31,11 @@ class SlotQuery {
   endTime: string;
 }
 
+class GroupQuery {
+  @IsUUID()
+  groupId: string;
+}
+
 class CreateDto extends SlotQuery {
   @IsIn(TYPES, { message: 'Type : rattrapage, séance en plus ou séance spéciale.' })
   type: OneOffType;
@@ -126,6 +131,14 @@ export class OneOffSessionsController {
     };
   }
 
+  /** Séances du groupe annulées ou reportées (passées ou à venir) et pas encore rattrapées : choix d'un rattrapage. */
+  @Get('missed')
+  @Perm('groups.manage')
+  async missed(@Query() q: GroupQuery) {
+    await this.findGroup(q.groupId);
+    return this.cancelledSessions(q.groupId, true);
+  }
+
   @Post()
   @Perm('groups.manage')
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateDto) {
@@ -142,16 +155,21 @@ export class OneOffSessionsController {
     if (kind === SlotKind.TENNIS && !dto.courtId) throw new BadRequestException('Choisissez un terrain pour une séance de tennis.');
     if (dto.type === 'SPECIAL' && !dto.title?.trim()) throw new BadRequestException('Séance spéciale : donnez-lui un titre (ex. « Préparation du tournoi »).');
 
-    // Rattrapage : la séance manquée doit appartenir au groupe, être passée ou annulée, et pas déjà rattrapée.
+    // Rattrapage : seulement une séance du groupe annulée ou reportée (pluie, fermeture, tournoi, entraîneur absent),
+    // passée ou à venir, pas encore rattrapée.
     let makeup: { slotId: string; date: string } | null = null;
     if (dto.type === 'MAKEUP') {
-      if (!dto.makeupSlotId || !dto.makeupDate) throw new BadRequestException('Rattrapage : choisissez la séance manquée.');
+      if (!dto.makeupSlotId || !dto.makeupDate) throw new BadRequestException('Rattrapage : choisissez la séance annulée ou reportée.');
       const missed = await this.prisma.groupSlot.findUnique({ where: { id: dto.makeupSlotId }, select: { groupId: true } });
       if (!missed || missed.groupId !== group.id) throw new BadRequestException('La séance rattrapée n’est pas une séance de ce groupe.');
       const already = await this.prisma.tempSchedule.findFirst({
         where: { kind: 'ONE_OFF', archivedAt: null, makeupSlotId: dto.makeupSlotId, makeupDate: dayFromIso(dto.makeupDate) },
       });
       if (already) throw rule.conflict('R5', `Cette séance a déjà un rattrapage le ${frDate(isoDay(already.startDate))}.`);
+      const cancelled = await this.cancelledSessions(group.id);
+      if (!cancelled.some((c) => c.slotId === dto.makeupSlotId && c.date === dto.makeupDate)) {
+        throw new BadRequestException('Rattrapage : choisissez une séance annulée ou reportée de ce groupe.');
+      }
       makeup = { slotId: dto.makeupSlotId, date: dto.makeupDate };
     }
 
@@ -264,6 +282,46 @@ export class OneOffSessionsController {
   }
 
   // ————————————————————————————————————————————————————————————————————————————————
+
+  /**
+   * Séances d'un groupe annulées par le club (pluie, fermeture…), reportées par un tournoi ou annulées faute
+   * d'entraîneur (absence validée, décision « annulée »), dans la saison. `onlyOpen` : sans rattrapage programmé.
+   */
+  private async cancelledSessions(groupId: string, onlyOpen = false) {
+    const group = await this.prisma.trainingGroup.findUnique({
+      where: { id: groupId },
+      select: { id: true, ...periodSelect, slots: { include: { coaches: true } } },
+    });
+    if (!group) return [];
+    const slots = group.slots.map((s) => withPeriod({ ...s, group }));
+    const [changes, absences, madeUp] = await Promise.all([
+      this.prisma.sessionChange.findMany({ where: { slotId: { in: slots.map((s) => s.id) }, kind: { in: ['CANCELLED', 'POSTPONED'] } } }),
+      this.prisma.coachAbsence.findMany({
+        where: { status: 'APPROVED', resolution: 'CANCELLED', date: { gte: group.season.startDate, lte: group.season.endDate } },
+      }),
+      onlyOpen
+        ? this.prisma.tempSchedule.findMany({ where: { kind: 'ONE_OFF', archivedAt: null, makeupSlotId: { not: null } }, select: { makeupSlotId: true, makeupDate: true } })
+        : Promise.resolve([]),
+    ]);
+    const out = new Map<string, { slotId: string; date: string; startTime: string; endTime: string; reason: string }>();
+    const add = (s: (typeof slots)[number], date: string, reason: string) => {
+      const k = `${s.id}|${date}`;
+      if (!out.has(k)) out.set(k, { slotId: s.id, date, startTime: s.startTime, endTime: s.endTime, reason });
+    };
+    for (const c of changes) {
+      const s = slots.find((x) => x.id === c.slotId);
+      if (s) add(s, isoDay(c.date), c.kind === 'CANCELLED' ? c.reason : `Reportée (${c.reason})`);
+    }
+    for (const a of absences) {
+      const d = isoDay(a.date);
+      for (const s of slots) {
+        if (!slotRunsOn(s, d)) continue;
+        if (a.slotId === s.id || (!a.slotId && s.coaches.some((c) => c.coachId === a.coachId))) add(s, d, 'Entraîneur absent');
+      }
+    }
+    const taken = new Set(madeUp.map((m) => `${m.makeupSlotId}|${m.makeupDate ? isoDay(m.makeupDate) : ''}`));
+    return [...out.values()].filter((m) => !taken.has(`${m.slotId}|${m.date}`)).sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+  }
 
   private async findGroup(id: string) {
     const g = await this.prisma.trainingGroup.findUnique({ where: { id }, include: { season: true } });
