@@ -23,7 +23,7 @@ export function PlayerCounterCard({ playerId }: { playerId?: string | null }) {
   });
   if (!q.data?.groups.length) return null;
   return (
-    <div className="mb-4 flex flex-col gap-3">
+    <div className="flex flex-col gap-3">
       {q.data.groups.map((c) => (
         <Card key={c.group.id}>
           <CardRow>

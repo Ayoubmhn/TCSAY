@@ -93,7 +93,6 @@ export function SessionsPage() {
           </span>
         ))}
       </Filters>
-      <PlayerCounterCard playerId={playerId} />
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {q.data && q.data.groups.length === 0 ? (
           <EmptyState>Aucun groupe d’entraînement pour ce joueur.</EmptyState>
@@ -119,6 +118,9 @@ export function SessionsPage() {
                   <span className="text-mut">Pas de séance ce jour.</span>
                 )}
               </Card>
+            </div>
+            <div className="mt-4">
+              <PlayerCounterCard playerId={playerId} />
             </div>
             <Section title="À venir">
               {up.length ? (
