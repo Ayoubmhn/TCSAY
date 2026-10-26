@@ -30,6 +30,7 @@ const FeesPage = page(() => import('./pages/admin/FeesPage'), 'FeesPage');
 const GroupDetailPage = page(() => import('./pages/admin/GroupDetailPage'), 'GroupDetailPage');
 const ClubHoursPage = page(() => import('./pages/admin/ClubHoursPage'), 'ClubHoursPage');
 const TimetablePage = page(() => import('./features/timetable/TimetablePage'), 'TimetablePage');
+const SessionCounterPage = page(() => import('./features/counter/SessionCounter'), 'SessionCounterPage');
 const TempSchedulesPage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulesPage');
 const TempSchedulePage = page(() => import('./features/schedules/TempSchedulesPage'), 'TempSchedulePage');
 const GroupsPage = page(() => import('./pages/admin/GroupsPage'), 'GroupsPage');
@@ -212,6 +213,7 @@ export function App() {
 
         {/* Entraîneur */}
         <Route path="coach/seances" element={<Protected roles={['COACH']}><CoachSessionsPage /></Protected>} />
+        <Route path="coach/compteur" element={<Protected roles={['COACH']}><SessionCounterPage scope="coach" /></Protected>} />
         <Route path="coach/presences" element={<Protected roles={['COACH']}><CoachAttendancePage /></Protected>} />
         <Route path="coach/salaires" element={<Protected roles={['COACH']}><CoachSalariesPage /></Protected>} />
         <Route path="coach/absences" element={<Protected roles={['COACH']}><CoachAbsencesPage /></Protected>} />
@@ -243,6 +245,7 @@ export function App() {
         <Route path="admin/groupes/:id" element={admin(['groups.manage', 'planning.view', 'players.manage'], <GroupDetailPage />)} />
         <Route path="admin/emploi-du-temps" element={admin(['groups.manage', 'planning.view'], <TimetablePage />)} />
         <Route path="admin/vacances" element={admin(['groups.manage', 'planning.view'], <TempSchedulesPage />)} />
+        <Route path="admin/compteur" element={admin(['groups.manage', 'planning.view'], <SessionCounterPage scope="admin" />)} />
         <Route path="admin/vacances/:id" element={admin(['groups.manage', 'planning.view'], <TempSchedulePage />)} />
         <Route path="admin/absences" element={admin(['absences.manage'], <CoachAbsencesPage admin />)} />
         <Route path="admin/bilans" element={on('bilans', admin(['evaluations.manage'], <EvaluationsPage admin />))} />

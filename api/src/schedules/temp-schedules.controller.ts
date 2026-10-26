@@ -2,7 +2,7 @@ import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Pa
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { EmailKind, Prisma, SlotKind, TempScheduleMode, TempScheduleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AccessService } from '../access/access.service';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Perm } from '../auth/auth-user';
@@ -38,12 +38,30 @@ class ScheduleFields {
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  /** Séances habituelles retirées pendant ces dates dues par le club (compteur : « à rattraper ») ; non par défaut. */
+  @IsOptional()
+  @IsBoolean()
+  sessionsOwed?: boolean;
 }
+
+/** Point de départ d'un nouvel emploi temporaire. */
+const FROM = ['EMPTY', 'PUBLISHED', 'DRAFT', 'TEMP'] as const;
+type From = (typeof FROM)[number];
 
 class CreateDto extends ScheduleFields {
   @IsOptional()
   @IsUUID()
   seasonId?: string;
+
+  /** EMPTY (défaut), PUBLISHED (horaire habituel), DRAFT (brouillon `fromId`), TEMP (autres vacances `fromId`). */
+  @IsOptional()
+  @IsIn(FROM, { message: 'Point de départ inconnu.' })
+  from?: From;
+
+  @IsOptional()
+  @IsUUID()
+  fromId?: string;
 }
 
 class UpdateDto extends ScheduleFields {
@@ -148,6 +166,7 @@ export class TempSchedulesController {
         startDate: isoDay(s.startDate),
         endDate: isoDay(s.endDate),
         note: s.note,
+        sessionsOwed: s.sessionsOwed,
         status: s.status,
         phase: phase(isoDay(s.startDate), isoDay(s.endDate), today),
         version: s.version,
@@ -179,24 +198,47 @@ export class TempSchedulesController {
     const season = await this.access.seasonOrActive(dto.seasonId);
     assertSeasonOpen(season);
     checkDates(dto, season);
-    const s = await this.prisma.tempSchedule.create({
-      data: {
-        seasonId: season.id,
-        name: dto.name.trim(),
-        startDate: dayFromIso(dto.startDate),
-        endDate: dayFromIso(dto.endDate),
-        note: dto.note?.trim() || null,
-        createdById: user.id,
-      },
+    const from = dto.from ?? 'EMPTY';
+    const copy = await this.startingPoint(season.id, from, dto.fromId, weekdaysIn(dto.startDate, dto.endDate));
+    const s = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.tempSchedule.create({
+        data: {
+          seasonId: season.id,
+          name: dto.name.trim(),
+          startDate: dayFromIso(dto.startDate),
+          endDate: dayFromIso(dto.endDate),
+          note: dto.note?.trim() || null,
+          sessionsOwed: dto.sessionsOwed ?? false,
+          createdById: user.id,
+        },
+      });
+      for (const g of copy.groups) {
+        await tx.tempScheduleGroup.create({ data: { scheduleId: created.id, groupId: g.groupId, mode: g.mode } });
+        for (const sl of g.slots) {
+          await tx.groupSlot.create({
+            data: {
+              groupId: g.groupId,
+              scheduleId: created.id,
+              day: sl.day,
+              startTime: sl.startTime,
+              endTime: sl.endTime,
+              courtId: sl.courtId,
+              kind: sl.kind,
+              coaches: { create: [...new Set(sl.coachIds)].map((coachId) => ({ coachId })) },
+            },
+          });
+        }
+      }
+      return created;
     });
     await this.audit.log(user.id, {
       action: 'Emploi temporaire créé',
       entity: 'TempSchedule',
       entityId: s.id,
       target: s.name,
-      after: `${frDate(dto.startDate)} → ${frDate(dto.endDate)} · brouillon`,
+      after: `${frDate(dto.startDate)} → ${frDate(dto.endDate)} · brouillon · ${copy.label}${dto.sessionsOwed ? ' · séances dues' : ''}`,
     });
-    return { id: s.id };
+    return { id: s.id, groups: copy.groups.length };
   }
 
   /** Nom, dates, remarque. Publié et commencé : la date de début ne change plus et la fin ne recule pas avant aujourd'hui (R10). */
@@ -222,7 +264,14 @@ export class TempSchedulesController {
     if (s.status === TempScheduleStatus.PUBLISHED) await this.assertPublishable(s, next);
     await this.prisma.tempSchedule.update({
       where: { id },
-      data: { name: dto.name.trim(), startDate: dayFromIso(dto.startDate), endDate: dayFromIso(dto.endDate), note: dto.note?.trim() || null, version: { increment: 1 } },
+      data: {
+        name: dto.name.trim(),
+        startDate: dayFromIso(dto.startDate),
+        endDate: dayFromIso(dto.endDate),
+        note: dto.note?.trim() || null,
+        ...(dto.sessionsOwed !== undefined ? { sessionsOwed: dto.sessionsOwed } : {}),
+        version: { increment: 1 },
+      },
     });
     await this.audit.log(user.id, {
       action: 'Emploi temporaire modifié',
@@ -230,7 +279,7 @@ export class TempSchedulesController {
       entityId: id,
       target: dto.name.trim(),
       before: `${s.name} · ${frDate(was.from)} → ${frDate(was.to)}`,
-      after: `${dto.name.trim()} · ${frDate(dto.startDate)} → ${frDate(dto.endDate)}`,
+      after: `${dto.name.trim()} · ${frDate(dto.startDate)} → ${frDate(dto.endDate)}${(dto.sessionsOwed ?? s.sessionsOwed) ? ' · séances dues' : ''}`,
     });
     // Emploi publié : nouvelles dates annoncées aux familles et aux entraîneurs des groupes concernés.
     if (s.status === TempScheduleStatus.PUBLISHED && (was.from !== dto.startDate || was.to !== dto.endDate)) {
@@ -554,6 +603,59 @@ export class TempSchedulesController {
     return rows.length;
   }
 
+  /**
+   * Groupes et créneaux recopiés dans un nouvel emploi temporaire : rien, l'horaire habituel publié, un brouillon de la
+   * grille (groupes modifiés + horaire publié des autres) ou d'autres vacances. Seuls les jours compris dans les dates
+   * sont gardés ; horaire habituel / brouillon : seulement les groupes qui s'entraînent ces jours-là.
+   */
+  private async startingPoint(seasonId: string, from: From, fromId: string | undefined, days: Set<number>) {
+    type Copy = { groupId: string; mode: TempScheduleMode; slots: { day: number; startTime: string; endTime: string; courtId: string | null; coachIds: string[]; kind: SlotKind }[] };
+    if (from === 'EMPTY') return { groups: [] as Copy[], label: 'emploi vide' };
+    if ((from === 'DRAFT' || from === 'TEMP') && !fromId) throw new BadRequestException('Choisissez le brouillon ou les vacances à reprendre.');
+    if (from === 'TEMP') {
+      const src = await this.prisma.tempSchedule.findUnique({ where: { id: fromId }, include: { groups: true, slots: { include: { coaches: true } } } });
+      if (!src || src.archivedAt || src.seasonId !== seasonId) throw notFound('Vacances à reprendre');
+      const groups = await this.prisma.trainingGroup.findMany({ where: { id: { in: src.groups.map((g) => g.groupId) }, archivedAt: null }, select: { id: true } });
+      const alive = new Set(groups.map((g) => g.id));
+      return {
+        label: `repris de « ${src.name} »`,
+        groups: src.groups
+          .filter((g) => alive.has(g.groupId))
+          .map((g) => ({
+            groupId: g.groupId,
+            mode: g.mode,
+            slots: src.slots
+              .filter((x) => x.groupId === g.groupId && days.has(x.day))
+              .map((x) => ({ day: x.day, startTime: x.startTime, endTime: x.endTime, courtId: x.courtId, coachIds: x.coaches.map((c) => c.coachId), kind: x.kind })),
+          }))
+          .filter((g) => g.mode === TempScheduleMode.REPLACE || g.slots.length),
+      };
+    }
+    let draft: Record<string, Copy['slots']> = {};
+    let label = 'horaire habituel publié';
+    if (from === 'DRAFT') {
+      const d = await this.prisma.timetableDraft.findUnique({ where: { id: fromId } });
+      if (!d || d.seasonId !== seasonId) throw notFound('Brouillon');
+      draft = (d.groups ?? {}) as Record<string, Copy['slots']>;
+      label = `brouillon « ${d.name} »`;
+    }
+    const groups = await this.prisma.trainingGroup.findMany({
+      where: { seasonId, archivedAt: null },
+      include: { slots: { where: { scheduleId: null }, include: { coaches: true } } },
+      orderBy: { name: 'asc' },
+    });
+    const out: Copy[] = [];
+    for (const g of groups) {
+      const source = draft[g.id] ?? g.slots.map((x) => ({ day: x.day, startTime: x.startTime, endTime: x.endTime, courtId: x.courtId, coachIds: x.coaches.map((c) => c.coachId), kind: x.kind }));
+      const slots = source
+        .filter((x) => days.has(x.day))
+        .map((x) => ({ day: x.day, startTime: x.startTime, endTime: x.endTime, courtId: x.courtId ?? null, coachIds: x.coachIds ?? [], kind: x.kind ?? SlotKind.TENNIS }));
+      // Horaire habituel recopié : seulement les groupes qui ont une séance ces jours-là.
+      if (slots.length || (draft[g.id] && g.slots.some((x) => days.has(x.day)))) out.push({ groupId: g.id, mode: TempScheduleMode.REPLACE, slots });
+    }
+    return { groups: out, label };
+  }
+
   private view(
     s: ScheduleRow,
     groups: Prisma.TrainingGroupGetPayload<{
@@ -569,6 +671,7 @@ export class TempSchedulesController {
       startDate: from,
       endDate: to,
       note: s.note,
+      sessionsOwed: s.sessionsOwed,
       status: s.status,
       phase: phase(from, to, todayIso()),
       version: s.version,

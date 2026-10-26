@@ -5,7 +5,7 @@ import { addDays, fD, todayIso, weekdayOf } from '../lib/format';
 import type { Planning } from '../lib/types';
 import { PlanningBoard, PlanningLegend } from './PlanningBoard';
 import { PlanningDetail } from './PlanningDetail';
-import { busyMinutes, coachLine, courtItems, freeRanges, itemColor, nowTunis, rangesText, reservationLabel, toMin, type PItem } from './planningUtils';
+import { busyMinutes, cancelText, coachLine, courtItems, freeRanges, itemColor, nowTunis, rangesText, reservationLabel, toMin, type PItem } from './planningUtils';
 import { Card, EmptyState } from './ui/Card';
 import { FilterSelect } from './ui/Field';
 import { QueryState } from './ui/Loading';
@@ -100,7 +100,7 @@ export function PlanningSection() {
   const alerts = p
     ? [
         ...p.sessions.filter((s) => !s.coaches.length && s.resolution !== 'CANCELLED').map((s) => ({ tone: 'r' as const, text: `${s.group.name} ${s.startTime} : entraîneur à affecter`, item: { kind: 'session' as const, s } })),
-        ...p.sessions.filter((s) => s.resolution === 'CANCELLED').map((s) => ({ tone: 'r' as const, text: `${s.group.name} ${s.startTime} : séance annulée (entraîneur absent)`, item: { kind: 'session' as const, s } })),
+        ...p.sessions.filter((s) => s.resolution === 'CANCELLED').map((s) => ({ tone: 'r' as const, text: `${s.group.name} ${s.startTime} : ${cancelText(s).toLowerCase()}`, item: { kind: 'session' as const, s } })),
         ...p.sessions.filter((s) => s.resolution === 'REPLACED').map((s) => ({ tone: 's' as const, text: `${s.group.name} ${s.startTime} : ${coachLine(s)}`, item: { kind: 'session' as const, s } })),
       ]
     : [];

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Put, Query } from '@nestjs/common';
+import { BadRequestException, Body, ConflictException, Controller, ForbiddenException, Get, Put, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AttendanceStatus, Role } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -116,11 +116,11 @@ function absenceView(a: AbsenceRow | null) {
 
 type ChangeRow = { slotId: string; date: Date; kind: string; reason: string; court: { id: string; name: string } | null };
 
-/** Changement ponctuel d'une séance (terrain pris par un tournoi) : déplacée sur un autre terrain ou reportée. */
+/** Changement ponctuel d'une séance : déplacée ou reportée (terrain pris par un tournoi), annulée par le club (pluie…). */
 function changeView(changes: ChangeRow[], slotId: string, date: string) {
   const c = changes.find((x) => x.slotId === slotId && isoDay(x.date) === date);
   if (!c) return null;
-  return { kind: c.kind as 'MOVED' | 'POSTPONED', reason: c.reason, court: c.kind === 'MOVED' ? c.court : null };
+  return { kind: c.kind as 'MOVED' | 'POSTPONED' | 'CANCELLED', reason: c.reason, court: c.kind === 'MOVED' ? c.court : null };
 }
 
 /** Fenêtre de pointage de l'entraîneur pour une séance. */
@@ -379,6 +379,10 @@ export class AttendanceController {
     if (!slot) throw notFound('Séance');
     if (!slotRunsOn(withPeriod({ ...slot, group: { kind: slot.group.kind, season: slot.group.season, tempSchedules: slot.group.tempSchedules } }), dto.date)) {
       throw new BadRequestException('Pas de séance de ce créneau ce jour-là.');
+    }
+    const change = await this.prisma.sessionChange.findUnique({ where: { slotId_date: { slotId: slot.id, date: dayFromIso(dto.date) } } });
+    if (change && change.kind !== 'MOVED') {
+      throw new ConflictException(`Séance ${change.kind === 'CANCELLED' ? 'annulée' : 'reportée'} (${change.reason}) : pas de pointage.`);
     }
     const window = attendanceWindow(dto.date, slot.startTime, slot.endTime);
     // Pointage fait hors connexion : la règle « séance en cours » porte sur l'heure du pointage, horloge du téléphone corrigée.

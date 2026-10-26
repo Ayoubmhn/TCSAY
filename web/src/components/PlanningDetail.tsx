@@ -4,9 +4,70 @@ import { useMe } from '../auth/AuthContext';
 import { fD } from '../lib/format';
 import type { Planning } from '../lib/types';
 import { AttendanceSheetForm } from './AttendanceSheetForm';
-import { coachLine, nowTunis, reservationLabel, toMin, type PItem } from './planningUtils';
+import { api } from '../lib/api';
+import { useAction } from '../lib/useAction';
+import { cancelText, coachLine, nowTunis, reservationLabel, toMin, type PItem } from './planningUtils';
+import { Button } from './ui/Button';
+import { TextField } from './ui/Field';
 import { Modal } from './ui/Modal';
 import { Pill, Pills } from './ui/Pill';
+import { useToast } from './ui/Toast';
+
+const REASONS = ['Pluie', 'Terrain impraticable', 'Fermeture du club', 'Jour férié'];
+const CANCEL_KEYS = [['planning'], ['sessions'], ['session-counter'], ['dashboard']];
+
+/** Annuler une séance (pluie, fermeture…) : motif, familles et entraîneurs prévenus ; elle compte « à rattraper ». */
+function CancelSessionModal({ slotId, date, label, onClose }: { slotId: string; date: string; label: string; onClose: () => void }) {
+  const toast = useToast();
+  const [reason, setReason] = useState('Pluie');
+  const [other, setOther] = useState('');
+  const [notify, setNotify] = useState(true);
+  const text = reason === 'Autre' ? other.trim() : reason;
+  const cancel = useAction(() => api.post<{ notified: number }>('/session-changes/cancel', { slotId, date, reason: text, notify }), {
+    invalidate: CANCEL_KEYS,
+    success: (r) => `Séance annulée${r.notified ? ` : ${r.notified} personne${r.notified > 1 ? 's' : ''} prévenue${r.notified > 1 ? 's' : ''}` : ''}. Elle compte « à rattraper ».`,
+    onSuccess: onClose,
+  });
+  return (
+    <Modal
+      open
+      size="md"
+      title="Annuler la séance"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Retour</Button>
+          <Button variant="danger" disabled={cancel.isPending} onClick={() => (text ? cancel.mutate() : toast('Motif obligatoire.'))}>
+            Annuler la séance
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="m-0 text-[14px] text-mut">{label}</p>
+        <div role="radiogroup" aria-label="Motif" className="flex flex-wrap gap-1.5">
+          {[...REASONS, 'Autre'].map((r) => (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={reason === r}
+              onClick={() => setReason(r)}
+              className={`rounded-full px-3.5 py-2 text-[13.5px] font-medium ${reason === r ? 'bg-toggle text-bg' : 'bg-btn text-fg'}`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+        {reason === 'Autre' && <TextField label="Motif *" full maxLength={200} value={other} onChange={(e) => setOther(e.target.value)} />}
+        <label className="flex items-center gap-2.5 text-[14px]">
+          <input type="checkbox" className="h-4 w-4 accent-pri" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+          Prévenir les familles et les entraîneurs du groupe
+        </label>
+        <p className="m-0 text-[12.5px] text-mut">La séance reste affichée « Annulée » avec son motif et compte « à rattraper » dans le compteur des séances.</p>
+      </div>
+    </Modal>
+  );
+}
 
 const btn = 'inline-flex items-center justify-center rounded-full px-4 py-[11px] text-[14px] font-semibold';
 
@@ -15,6 +76,11 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
   const me = useMe();
   const can = (...perms: string[]) => me.role === 'ADMIN' && perms.some((p) => me.permissions.includes(p));
   const [sheet, setSheet] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const restore = useAction(
+    () => (item.kind === 'session' ? api.delete(`/session-changes/cancel/${item.s.id}/${planning.date}`) : Promise.resolve(null)),
+    { invalidate: CANCEL_KEYS, success: 'Séance rétablie.', onSuccess: onClose },
+  );
   const court = planning.courts.find((c) => c.id === (item.kind === 'session' ? item.s.court?.id : item.r.courtId));
   const start = item.kind === 'session' ? item.s.startTime : item.r.startTime;
   const end = item.kind === 'session' ? item.s.endTime : item.r.endTime;
@@ -35,7 +101,7 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
               <span className="text-[13px] text-mut">
                 Séance d’entraînement{s.group.kind ? ` · ${s.group.kind === 'LEISURE' ? 'loisirs' : 'compétition'}` : ''}
               </span>
-              {s.resolution === 'CANCELLED' ? <Pill tone="r">Annulée</Pill> : live ? <Pill tone="r">En cours</Pill> : past ? <Pill tone="s">Terminée</Pill> : <Pill tone="b">À venir</Pill>}
+              {s.resolution === 'CANCELLED' ? <Pill tone="r">{s.change && s.change.kind !== 'MOVED' ? cancelText(s).replace('Séance ', '').replace(/^./, (c) => c.toUpperCase()) : 'Annulée'}</Pill> : live ? <Pill tone="r">En cours</Pill> : past ? <Pill tone="s">Terminée</Pill> : <Pill tone="b">À venir</Pill>}
             </div>
             <Pills>
               <Pill tone="b">{date}</Pill>
@@ -73,12 +139,23 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
                   </Link>
                 )}
               </div>
+              {can('groups.manage') && s.change?.kind === 'CANCELLED' && (
+                <button type="button" className={`${btn} bg-btn text-fg`} disabled={restore.isPending} onClick={() => restore.mutate()}>
+                  Rétablir la séance
+                </button>
+              )}
+              {can('groups.manage') && s.resolution !== 'CANCELLED' && !marked && (
+                <button type="button" className={`${btn} bg-[#fdb3b0] text-[#111]`} onClick={() => setCancelling(true)}>
+                  Annuler la séance (pluie, fermeture…)
+                </button>
+              )}
             </div>
           </div>
         </Modal>
         <Modal open={sheet} size="lg" title={`Présences · ${s.group.name} · ${date}`} onClose={() => setSheet(false)}>
           {sheet && <AttendanceSheetForm slotId={s.id} date={planning.date} onSaved={() => setSheet(false)} />}
         </Modal>
+        {cancelling && <CancelSessionModal slotId={s.id} date={planning.date} label={`${s.group.name} · ${date} · ${start} – ${end}`} onClose={() => { setCancelling(false); onClose(); }} />}
       </>
     );
   }

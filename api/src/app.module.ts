@@ -16,6 +16,7 @@ import { AlertsService } from './alerts/alerts.service';
 import { APP_GUARD } from '@nestjs/core';
 import { CoachAbsencesController } from './absences/coach-absences.controller';
 import { AttendanceController } from './attendance/attendance.controller';
+import { SessionChangesController, SessionCounterController } from './attendance/session-counter.controller';
 import { SessionReviewController } from './attendance/session-review.controller';
 import { ProgressController } from './attendance/progress.controller';
 import { EvaluationsController } from './evaluations/evaluations.controller';
@@ -133,6 +134,8 @@ import { StaffController } from './staff/staff.controller';
     PushController,
     PlayersImportController,
     AttendanceController,
+    SessionCounterController,
+    SessionChangesController,
     SessionReviewController,
     ProgressController,
     EvaluationsController,

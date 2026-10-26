@@ -580,19 +580,21 @@ enum TempScheduleMode {
 
 /// Emploi du temps temporaire (vacances, stage) : pendant ses dates, les groupes concernés suivent ses créneaux.
 model TempSchedule {
-  id          String             @id @default(uuid()) @db.Uuid
-  seasonId    String             @db.Uuid
-  name        String
-  startDate   DateTime           @db.Date
-  endDate     DateTime           @db.Date
-  note        String?
-  status      TempScheduleStatus @default(DRAFT)
-  publishedAt DateTime?
-  archivedAt  DateTime? // R8
-  version     Int                @default(1) // R13
-  createdById String             @db.Uuid
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  id           String             @id @default(uuid()) @db.Uuid
+  seasonId     String             @db.Uuid
+  name         String
+  startDate    DateTime           @db.Date
+  endDate      DateTime           @db.Date
+  note         String?
+  /// Séances habituelles retirées pendant ces dates dues par le club (à rattraper) ? Non par défaut (vacances).
+  sessionsOwed Boolean            @default(false)
+  status       TempScheduleStatus @default(DRAFT)
+  publishedAt  DateTime?
+  archivedAt   DateTime? // R8
+  version      Int                @default(1) // R13
+  createdById  String             @db.Uuid
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   season Season              @relation(fields: [seasonId], references: [id])
   groups TempScheduleGroup[]
@@ -1502,7 +1504,7 @@ model SessionChange {
   id           String   @id @default(uuid()) @db.Uuid
   slotId       String   @db.Uuid
   date         DateTime @db.Date
-  kind         String // MOVED, POSTPONED
+  kind         String // MOVED, POSTPONED (tournoi), CANCELLED (annulée par le club : pluie, fermeture…)
   courtId      String?  @db.Uuid // nouveau terrain (MOVED)
   reason       String
   tournamentId String?  @db.Uuid

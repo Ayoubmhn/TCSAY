@@ -19,6 +19,7 @@ import { DAY_NAMES } from '../../lib/format';
 import { durationOf, hm, ink, placementProblem, toMin, toTime, type Placed } from '../../lib/timetable';
 import type { RawSlot, SlotKind, TempScheduleDetail, Timetable, TimetableGroup } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { START_DEFAULT, StartFromField, startFromBody, startFromProblem, type StartFrom } from '../schedules/StartFrom';
 
 /** Hauteur d'une demi-heure sur la grille (px). */
 const ROW = 28;
@@ -844,17 +845,27 @@ function GroupCard({
         const left = temp ? null : l.weekly ? l.weekly - used : null;
         const chips = left === null ? 1 : Math.max(0, Math.floor(left / l.dur));
         const done = left !== null && left <= 0;
+        // Vacances / stage : le volume habituel peut être dépassé ; l'écart s'affiche (séances en plus = « en avance »).
+        const over = temp && l.weekly ? used - l.weekly : 0;
         return (
           <div key={l.kind} className="mt-1.5">
             <div className="flex items-center justify-between gap-2 text-[12px] text-mut">
               <span>
-                {l.label} : {temp ? `${hm(used)} placées` : l.weekly ? `${hm(used)} / ${hm(l.weekly)}` : `volume libre (${hm(used)})`} · séances de {hm(l.dur)}
+                {l.label} : {temp ? (l.weekly ? `${hm(used)} / ${hm(l.weekly)} par semaine` : `${hm(used)} placées`) : l.weekly ? `${hm(used)} / ${hm(l.weekly)}` : `volume libre (${hm(used)})`} · séances de{' '}
+                {hm(l.dur)}
               </span>
               {done && <span className="text-[#2f9e44]">✓</span>}
             </div>
-            {l.weekly && !temp && (
-              <div className="mt-1 h-[7px] overflow-hidden rounded-full bg-fld">
-                <i className="block h-full rounded-full bg-[#2f9e44]" style={{ width: `${Math.min(100, (used / l.weekly) * 100)}%` }} />
+            {temp && over > 0 && (
+              <div className="mt-1">
+                <Pill tone="g">{`+${Math.round(over / l.dur) || 1} séance${Math.round(over / l.dur) > 1 ? 's' : ''} · +${hm(over)} en avance`}</Pill>
+              </div>
+            )}
+            {temp && l.weekly && over < 0 && used > 0 && <div className="mt-1 text-[12px] text-mut">{`${hm(-over)} de moins que d’habitude`}</div>}
+            {l.weekly && (
+              <div className="mt-1 flex h-[7px] overflow-hidden rounded-full bg-fld">
+                <i className="block h-full bg-[#2f9e44]" style={{ width: `${Math.min(100, (Math.min(used, l.weekly) / Math.max(used, l.weekly)) * 100)}%` }} />
+                {over > 0 && <i className="block h-full bg-pri" style={{ width: `${(over / used) * 100}%` }} />}
               </div>
             )}
             {canManage && chips > 0 && (
@@ -1074,9 +1085,10 @@ function PublishVacModal({ temp, onClose }: { temp: TempScheduleDetail; onClose:
 function NewVacModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const toast = useToast();
   const [f, setF] = useState({ name: '', startDate: '', endDate: '' });
-  const create = useAction(() => api.post<{ id: string }>('/temp-schedules', f), {
+  const [start, setStart] = useState<StartFrom>(START_DEFAULT);
+  const create = useAction(() => api.post<{ id: string; groups: number }>('/temp-schedules', { ...f, ...startFromBody(start) }), {
     invalidate: KEYS,
-    success: 'Vacances créées : ajoutez les groupes, puis placez leurs séances.',
+    success: (r) => (r.groups ? `Vacances créées avec ${r.groups} groupe${r.groups > 1 ? 's' : ''} : modifiez leurs séances sur la grille.` : 'Vacances créées : ajoutez les groupes, puis placez leurs séances.'),
     onSuccess: (r) => {
       onClose();
       onCreated(r.id);
@@ -1085,6 +1097,8 @@ function NewVacModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
   const submit = () => {
     if (!f.name.trim()) return toast('Nom obligatoire (ex. « Vacances de printemps »).');
     if (!f.startDate || !f.endDate || f.endDate < f.startDate) return toast('Dates de début et de fin à vérifier.');
+    const problem = startFromProblem(start);
+    if (problem) return toast(problem);
     create.mutate();
   };
   return (
@@ -1105,6 +1119,9 @@ function NewVacModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
         <TextField label="Nom *" full maxLength={80} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Ex. Vacances de printemps" />
         <TextField label="Du *" type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} />
         <TextField label="Au (inclus) *" type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} />
+      </div>
+      <div className="mt-3">
+        <StartFromField value={start} onChange={setStart} />
       </div>
     </Modal>
   );

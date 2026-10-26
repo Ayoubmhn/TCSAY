@@ -41,6 +41,8 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
         <h3>{s.groupName}</h3>
         {s.change?.kind === 'POSTPONED' ? (
           <Pill tone="r">Reportée</Pill>
+        ) : s.change?.kind === 'CANCELLED' ? (
+          <Pill tone="r">Annulée</Pill>
         ) : s.resolution === 'CANCELLED' ? (
           <Pill tone="r">Annulée</Pill>
         ) : s.open ? (
@@ -60,6 +62,7 @@ function SessionCard({ s, onAttendance }: { s: CoachSession; onAttendance: () =>
         {s.kind === 'PHYSICAL' && <Pill tone="s">Séance physique</Pill>}
         {s.holiday && <Pill tone="s">{s.holiday}</Pill>}
         {s.change?.kind === 'MOVED' && <Pill tone="s">Déplacée (tournoi)</Pill>}
+        {s.change?.kind === 'CANCELLED' && <Pill tone="s">{s.change.reason}</Pill>}
         {s.replacing ? <Pill tone="s">Vous remplacez</Pill> : <ResolutionPill resolution={s.resolution} replacement={s.replacement} />}
       </Pills>
       <CardText>

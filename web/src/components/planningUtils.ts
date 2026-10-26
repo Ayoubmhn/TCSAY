@@ -26,7 +26,7 @@ export const coachNames = (s: PSession) => s.coaches.map((c) => fullName(c).trim
 
 /** Texte de l'entraîneur sur une séance (à affecter, remplacé, physique, annulée). */
 export function coachLine(s: PSession) {
-  if (s.resolution === 'CANCELLED') return 'Séance annulée (entraîneur absent)';
+  if (s.resolution === 'CANCELLED') return cancelText(s);
   if (s.resolution === 'REPLACED' && s.replacement) return `${coachNames(s)} ⇄ remplacé par ${fullName(s.replacement).trim()}`;
   if (s.resolution === 'PHYSICAL') return `${coachNames(s)} · séance physique`;
   return coachNames(s) || 'Entraîneur à affecter';
@@ -78,4 +78,11 @@ export function itemColor(i: PItem) {
   if (i.kind === 'reservation') return i.r.match ? 'var(--pb)' : 'var(--pr)';
   if (i.s.resolution === 'PHYSICAL') return 'var(--ps)';
   return leadCoach(i.s)?.color ?? 'var(--ps)';
+}
+
+/** Motif d'une séance annulée : par le club (pluie, fermeture), reportée par un tournoi ou entraîneur absent. */
+export function cancelText(s: Planning['sessions'][number]): string {
+  if (s.change?.kind === 'CANCELLED') return `Séance annulée (${s.change.reason})`;
+  if (s.change?.kind === 'POSTPONED') return 'Séance reportée (terrain pris par un tournoi)';
+  return 'Séance annulée (entraîneur absent)';
 }

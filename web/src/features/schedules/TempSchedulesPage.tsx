@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { TextArea, TextField } from '../../components/ui/Field';
+import { START_DEFAULT, StartFromField, startFromBody, startFromProblem, type StartFrom } from './StartFrom';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
 import { Note } from '../../components/ui/Note';
@@ -34,13 +35,14 @@ const PHASE: Record<TempSchedulePhase, { label: string; tone: PillTone }> = {
 const MODE_LABEL: Record<TempScheduleMode, string> = { REPLACE: 'Horaire remplacé', ADD: 'Séances en plus' };
 const long = (iso: string) => fD(iso, { weekday: 'short', day: 'numeric', month: 'long' });
 
-function StatusPills({ s }: { s: Pick<TempScheduleSummary, 'status' | 'phase' | 'startDate' | 'endDate'> }) {
+function StatusPills({ s }: { s: Pick<TempScheduleSummary, 'status' | 'phase' | 'startDate' | 'endDate' | 'sessionsOwed'> }) {
   return (
     <Pills>
       <Pill tone="b">
         {long(s.startDate)} → {long(s.endDate)}
       </Pill>
       {s.status === 'DRAFT' ? <Pill tone="s">Brouillon</Pill> : <Pill tone={PHASE[s.phase].tone}>{`Publié · ${PHASE[s.phase].label}`}</Pill>}
+      {s.sessionsOwed && <Pill tone="r">Séances dues (à rattraper)</Pill>}
     </Pills>
   );
 }
@@ -49,15 +51,22 @@ function StatusPills({ s }: { s: Pick<TempScheduleSummary, 'status' | 'phase' | 
 function ScheduleFormModal({ open, schedule, onClose }: { open: boolean; schedule?: TempScheduleDetail; onClose: () => void }) {
   const toast = useToast();
   const navigate = useNavigate();
-  const [f, setF] = useState({ name: '', startDate: '', endDate: '', note: '' });
+  const [f, setF] = useState({ name: '', startDate: '', endDate: '', note: '', sessionsOwed: false });
+  const [start, setStart] = useState<StartFrom>(START_DEFAULT);
   useEffect(() => {
-    if (open) setF(schedule ? { name: schedule.name, startDate: schedule.startDate, endDate: schedule.endDate, note: schedule.note ?? '' } : { name: '', startDate: '', endDate: '', note: '' });
+    if (!open) return;
+    setF(
+      schedule
+        ? { name: schedule.name, startDate: schedule.startDate, endDate: schedule.endDate, note: schedule.note ?? '', sessionsOwed: schedule.sessionsOwed }
+        : { name: '', startDate: '', endDate: '', note: '', sessionsOwed: false },
+    );
+    setStart(START_DEFAULT);
   }, [open, schedule]);
   const save = useAction(
     () =>
       schedule
         ? api.patch(`/temp-schedules/${schedule.id}`, { ...f, version: schedule.version })
-        : api.post<{ id: string }>('/temp-schedules', f),
+        : api.post<{ id: string }>('/temp-schedules', { name: f.name, startDate: f.startDate, endDate: f.endDate, note: f.note, ...startFromBody(start) }),
     {
       invalidate: KEYS,
       success: schedule ? 'Emploi temporaire enregistré.' : 'Emploi temporaire créé : choisissez les groupes.',
@@ -72,6 +81,8 @@ function ScheduleFormModal({ open, schedule, onClose }: { open: boolean; schedul
     if (!f.name.trim()) return toast('Nom obligatoire (ex. « Vacances d’hiver »).');
     if (!f.startDate || !f.endDate) return toast('Dates de début et de fin obligatoires.');
     if (f.endDate < f.startDate) return toast('La date de fin doit suivre la date de début.');
+    const problem = schedule ? null : startFromProblem(start);
+    if (problem) return toast(problem);
     save.mutate();
   };
   return (
@@ -93,6 +104,19 @@ function ScheduleFormModal({ open, schedule, onClose }: { open: boolean; schedul
         <TextField label="Du *" type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} />
         <TextField label="Au (inclus) *" type="date" value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} />
         <TextArea label="Remarque (facultative)" full rows={2} maxLength={500} value={f.note} onChange={(e) => setF({ ...f, note: e.target.value })} />
+        <div className="min-[521px]:col-span-2">
+          {schedule ? (
+            <label className="flex items-start gap-2.5 text-[14px]">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-pri" checked={f.sessionsOwed} onChange={(e) => setF({ ...f, sessionsOwed: e.target.checked })} />
+              <span>
+                Séances dues pendant ces dates
+                <span className="block text-[12.5px] text-mut">Cochée : les séances habituelles retirées comptent « à rattraper » dans le compteur des séances.</span>
+              </span>
+            </label>
+          ) : (
+            <StartFromField value={start} onChange={setStart} />
+          )}
+        </div>
       </form>
     </Modal>
   );

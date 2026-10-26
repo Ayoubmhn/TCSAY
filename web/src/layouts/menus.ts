@@ -64,6 +64,7 @@ const PLAYER_MENU: MenuItem[] = [
 const COACH_MENU: MenuItem[] = [
   { label: 'Mes séances', path: '/coach/seances', icon: IconCalendar },
   { label: 'Présences', path: '/coach/presences', icon: IconClipboard },
+  { label: 'Compteur des séances', path: '/coach/compteur', icon: IconChart },
   { label: 'Bilans des joueurs', path: '/coach/bilans', icon: IconChart, module: 'bilans' },
   { label: 'Exercices', path: '/coach/exercices', icon: IconRacket, module: 'exercices' },
   { label: 'Matchs', path: '/matchs', icon: IconTrophy },
@@ -117,6 +118,7 @@ const ADMIN_MENU: MenuItem[] = [
       { label: 'Emploi du temps', path: '/admin/emploi-du-temps', perm: ['groups.manage', 'planning.view'] },
       { label: 'Groupes', path: '/admin/groupes', perm: ['groups.manage'] },
       { label: 'Emplois temporaires (vacances)', path: '/admin/vacances', perm: ['groups.manage', 'planning.view'] },
+      { label: 'Compteur des séances', path: '/admin/compteur', perm: ['groups.manage', 'planning.view'] },
       { label: 'Absences des entraîneurs', path: '/admin/absences', perm: ['absences.manage'] },
       { label: 'Disponibilités', path: '/admin/disponibilites', perm: ['groups.manage'], module: 'disponibilites' },
       { label: 'Suivi technique', path: '/admin/suivi-technique', perm: ['evaluations.manage'], module: 'bilans' },

@@ -507,6 +507,63 @@ async function main() {
     ],
   });
 
+  // Compteur des séances (démo) : deux séances de « Benjamins G » annulées par le club (pluie, terrain impraticable) et un
+  // stage de Toussaint publié avec une séance en plus, qui rattrape la première ; la seconde reste « à rattraper ».
+  const benj = await prisma.trainingGroup.findFirst({
+    where: { name: 'Benjamins G', season: { status: 'ACTIVE' } },
+    include: { slots: { where: { scheduleId: null }, include: { coaches: true }, orderBy: [{ day: 'asc' }, { startTime: 'asc' }] } },
+  });
+  if (benj?.slots.length) {
+    const s0 = benj.slots[0];
+    const datesOf = (from, to, day) => {
+      const out = [];
+      for (let d = new Date(`${from}T12:00:00Z`); d <= new Date(`${to}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+        if (d.getUTCDay() === day) out.push(d.toISOString().slice(0, 10));
+      }
+      return out;
+    };
+    const s1 = benj.slots[1] ?? s0;
+    const free = async (slot, dates) => {
+      for (const d of dates) {
+        if (!(await prisma.attendance.count({ where: { slotId: slot.id, date: new Date(`${d}T00:00:00Z`) } }))) return d;
+      }
+      return null;
+    };
+    const rain = await free(s0, datesOf('2026-10-05', '2026-10-17', s0.day));
+    const wet = await free(s1, datesOf('2026-10-05', '2026-10-17', s1.day).reverse());
+    for (const [slot, d, reason] of [
+      [s0, rain, 'Pluie'],
+      [s1, s1 === s0 && wet === rain ? null : wet, 'Terrain impraticable'],
+    ]) {
+      if (d) await prisma.sessionChange.create({ data: { slotId: slot.id, date: new Date(`${d}T00:00:00Z`), kind: 'CANCELLED', reason, createdById: admin.id } });
+    }
+    const stage = await prisma.tempSchedule.create({
+      data: {
+        seasonId: benj.seasonId,
+        name: 'Stage de Toussaint',
+        startDate: new Date('2026-10-19T00:00:00Z'),
+        endDate: new Date('2026-10-21T00:00:00Z'),
+        note: 'Séances en plus le matin (démo du compteur des séances).',
+        status: 'PUBLISHED',
+        publishedAt: new Date('2026-10-15T10:00:00'),
+        createdById: admin.id,
+      },
+    });
+    await prisma.tempScheduleGroup.create({ data: { scheduleId: stage.id, groupId: benj.id, mode: 'ADD' } });
+    await prisma.groupSlot.create({
+      data: {
+        groupId: benj.id,
+        scheduleId: stage.id,
+        day: 3,
+        startTime: '10:00',
+        endTime: '11:30',
+        courtId: s0.courtId,
+        kind: 'TENNIS',
+        coaches: { create: s0.coaches.map((c) => ({ coachId: c.coachId })) },
+      },
+    });
+  }
+
   // Démo en ligne partagée : pas de changement de mot de passe obligatoire (tous les testeurs utilisent les mêmes comptes).
   if (process.env.DEMO_MODE === 'true') {
     await prisma.user.updateMany({ data: { mustChangePassword: false } });

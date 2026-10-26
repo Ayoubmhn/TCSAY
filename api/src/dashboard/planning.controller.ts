@@ -62,9 +62,10 @@ export class PlanningController {
 
     // Fiche d'une séance : nombre de joueurs du groupe et présences pointées ce jour-là.
     const groupIds = [...new Set(slots.map((x) => x.group.id))];
-    const [members, marks] = await Promise.all([
+    const [members, marks, changes] = await Promise.all([
       this.prisma.groupMember.groupBy({ by: ['groupId'], where: { groupId: { in: groupIds } }, _count: true }),
       this.prisma.attendance.groupBy({ by: ['slotId', 'status'], where: { slotId: { in: slots.map((x) => x.id) }, date: dayFromIso(date) }, _count: true }),
+      this.prisma.sessionChange.findMany({ where: { slotId: { in: slots.map((x) => x.id) }, date: dayFromIso(date) }, select: { slotId: true, kind: true, reason: true } }),
     ]);
 
     return {
@@ -95,7 +96,13 @@ export class PlanningController {
               absent: marks.find((m) => m.slotId === slot.id && m.status === 'ABSENT')?._count ?? 0,
             },
             absentCoachIds: own.map((a) => a.coachId),
-            resolution: decided ? (decided.resolution ?? 'CANCELLED') : null,
+            // Séance annulée par le club (pluie, fermeture), reportée ou déplacée par un tournoi.
+            change: (() => {
+              const c = changes.find((x) => x.slotId === slot.id);
+              return c ? { kind: c.kind as 'MOVED' | 'POSTPONED' | 'CANCELLED', reason: c.reason } : null;
+            })(),
+            // Séance annulée par le club ou reportée par un tournoi : affichée comme annulée (motif dans `change`).
+            resolution: changes.some((x) => x.slotId === slot.id && x.kind !== 'MOVED') ? 'CANCELLED' : decided ? (decided.resolution ?? 'CANCELLED') : null,
             replacement: replacement
               ? { id: replacement.id, firstName: replacement.user.firstName, lastName: replacement.user.lastName, color: replacement.color }
               : null,

@@ -462,6 +462,8 @@ export type Planning = {
     holiday?: string | null;
     absentCoachIds: string[];
     resolution: AbsenceResolution | null;
+    /** Séance annulée par le club (pluie, fermeture), reportée ou déplacée par un tournoi. */
+    change?: { kind: 'MOVED' | 'POSTPONED' | 'CANCELLED'; reason: string } | null;
     replacement: CoachRef | null;
     /** Joueurs du groupe et présences pointées ce jour-là. */
     members?: number;
@@ -483,7 +485,7 @@ export type Planning = {
 
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'LATE';
 /** Changement ponctuel (terrain pris par un tournoi) : séance déplacée sur un autre terrain ou reportée. */
-export type SessionChange = { kind: 'MOVED' | 'POSTPONED'; reason: string; court: { id: string; name: string } | null };
+export type SessionChange = { kind: 'MOVED' | 'POSTPONED' | 'CANCELLED'; reason: string; court: { id: string; name: string } | null };
 export type AbsenceResolution = 'REPLACED' | 'PHYSICAL' | 'CANCELLED';
 
 export type CoachSession = {
@@ -981,6 +983,8 @@ export type TempScheduleSummary = {
   startDate: string;
   endDate: string;
   note: string | null;
+  /** Séances habituelles retirées dues par le club (compteur : « à rattraper »). */
+  sessionsOwed: boolean;
   status: 'DRAFT' | 'PUBLISHED';
   phase: TempSchedulePhase;
   version: number;
@@ -1035,4 +1039,29 @@ export type Timetable = {
   /** Brouillon affiché (null : emploi du temps publié). */
   draft: { id: string; name: string; version: number; updatedAt: string; changes: { groupId: string; groupName: string; before: string; after: string }[] } | null;
   schedules: { id: string; name: string; startDate: string; endDate: string; published: boolean }[];
+};
+
+/** Compteur des séances : séance prévue manquée par le club, séance en plus (stage, rattrapage). */
+export type CounterItem = { slotId: string; date: string; startTime: string; endTime: string; minutes: number; reason: string; holiday: string | null };
+export type GroupCounter = {
+  group: { id: string; name: string; kind: GroupKind };
+  from: string;
+  to: string;
+  planned: { sessions: number; minutes: number };
+  given: { sessions: number; minutes: number };
+  missed: (CounterItem & { madeUp: { date: string; startTime: string; done: boolean } | null })[];
+  extra: (CounterItem & { done: boolean; covers: string | null })[];
+  /** Séances données − prévues (négatif = en retard, positif = en avance). */
+  balance: { sessions: number; minutes: number };
+  /** Séances encore dues par le club. */
+  owed: number;
+};
+export type CounterSummary = {
+  season: { id: string; label: string };
+  totals: { planned: number; given: number; owed: number; ahead: number; late: number };
+  groups: GroupCounter[];
+};
+export type PlayerCounter = {
+  season: { id: string; label: string };
+  groups: (GroupCounter & { absences: { date: string; startTime: string }[]; late: number; present: number })[];
 };

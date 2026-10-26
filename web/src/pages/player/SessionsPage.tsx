@@ -14,6 +14,7 @@ import { api } from '../../lib/api';
 import { DAY_NAMES, fD, todayIso } from '../../lib/format';
 import type { PlayerSession, Slot } from '../../lib/types';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { PlayerCounterCard } from '../../features/counter/PlayerCounterCard';
 
 type Data = {
   groups: { id: string; name: string; slots: Slot[] }[];
@@ -23,6 +24,8 @@ type Data = {
 function SessionCard({ s }: { s: PlayerSession }) {
   const status = s.change?.kind === 'POSTPONED' ? (
     <Pill tone="r">Reportée</Pill>
+  ) : s.change?.kind === 'CANCELLED' ? (
+    <Pill tone="r">Annulée</Pill>
   ) : s.resolution === 'CANCELLED' ? (
     <Pill tone="r">Annulée</Pill>
   ) : !s.past ? (
@@ -52,6 +55,7 @@ function SessionCard({ s }: { s: PlayerSession }) {
         {s.kind === 'PHYSICAL' && <Pill tone="s">Séance physique</Pill>}
         {s.holiday && <Pill tone="s">{s.holiday}</Pill>}
         {s.change?.kind === 'MOVED' && <Pill tone="s">Déplacée : terrain pris par un tournoi</Pill>}
+        {s.change?.kind === 'CANCELLED' && <Pill tone="s">{`${s.change.reason} · à rattraper`}</Pill>}
       </Pills>
       {s.coaches.length > 0 && (
         <CardText>
@@ -89,6 +93,7 @@ export function SessionsPage() {
           </span>
         ))}
       </Filters>
+      <PlayerCounterCard playerId={playerId} />
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {q.data && q.data.groups.length === 0 ? (
           <EmptyState>Aucun groupe d’entraînement pour ce joueur.</EmptyState>
