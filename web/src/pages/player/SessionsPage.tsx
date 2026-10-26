@@ -119,9 +119,6 @@ export function SessionsPage() {
                 )}
               </Card>
             </div>
-            <div className="mt-4">
-              <PlayerCounterCard playerId={playerId} />
-            </div>
             <Section title="À venir">
               {up.length ? (
                 <CardGrid list={view === 'list'}>
@@ -133,6 +130,9 @@ export function SessionsPage() {
                 <EmptyState>Aucune séance à venir.</EmptyState>
               )}
             </Section>
+            <div className="mt-5">
+              <PlayerCounterCard playerId={playerId} />
+            </div>
             <Section title="Passées">
               {past.length ? (
                 <CardGrid list={view === 'list'}>
