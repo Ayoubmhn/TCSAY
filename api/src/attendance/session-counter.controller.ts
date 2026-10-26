@@ -66,8 +66,8 @@ export type GroupCounter = {
   given: { sessions: number; minutes: number };
   /** Séances annulées ou retirées par le club (motif, rattrapage). */
   missed: Missed[];
-  /** Séances en plus (stage, rattrapage), passées ou prévues. */
-  extra: (Item & { done: boolean; covers: string | null })[];
+  /** Séances en plus (stage, rattrapage, séance ponctuelle), passées ou prévues. */
+  extra: (Item & { done: boolean; covers: string | null; oneOff: { id: string; type: string } | null })[];
   /** Solde : séances données − prévues (négatif = en retard, positif = en avance). */
   balance: { sessions: number; minutes: number };
   /** Séances encore dues (manquées sans rattrapage déjà fait ; un rattrapage prévu reste dû jusqu'à sa date). */
@@ -351,6 +351,8 @@ export async function countGroups(prisma: PrismaService, groupIds: string[], fro
       }
     }
     const extra: GroupCounter['extra'] = [];
+    /** Rattrapage programmé → séance manquée qu'il remplace (créneau|date). */
+    const linked = new Map<string, string>();
     for (const a of actual) {
       const k = key(a.slot.id, a.date);
       const past = a.start <= now && a.date <= lastPast;
@@ -367,16 +369,30 @@ export async function countGroups(prisma: PrismaService, groupIds: string[], fro
         given++;
         givenMin += a.minutes;
       }
-      extra.push({ ...item(a, a.slot.holiday ? `Séance en plus (${a.slot.holiday})` : 'Séance en plus'), done: past, covers: null });
+      // Séance ponctuelle (rattrapage, en plus, spéciale) : son nom ; rattrapage lié à une séance manquée précise.
+      const t = a.slot.scheduleId ? g.tempSchedules.find((x) => x.scheduleId === a.slot.scheduleId) : undefined;
+      const oneOff = t?.schedule.kind === 'ONE_OFF' ? t : undefined;
+      const reason = oneOff ? oneOff.schedule.name : a.slot.holiday ? `Séance en plus (${a.slot.holiday})` : 'Séance en plus';
+      extra.push({ ...item(a, reason), done: past, covers: null, oneOff: oneOff ? { id: oneOff.scheduleId, type: oneOff.schedule.oneOffType ?? 'EXTRA' } : null });
+      if (oneOff?.schedule.makeupSlotId && oneOff.schedule.makeupDate) linked.set(`${a.slot.id}|${a.date}`, key(oneOff.schedule.makeupSlotId, isoDay(oneOff.schedule.makeupDate)));
     }
     // Rattrapages : chaque séance en plus (passée ou prévue) couvre la plus ancienne séance manquée avant elle.
     missed.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
     extra.sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
-    for (const e of extra) {
-      const m = missed.find((x) => !x.madeUp && x.date <= e.date);
-      if (!m) continue;
+    const cover = (e: GroupCounter['extra'][number], m: Missed) => {
       m.madeUp = { date: e.date, startTime: e.startTime, done: e.done };
       e.covers = m.date;
+    };
+    // D'abord les rattrapages programmés pour une séance précise, puis les autres séances en plus dans l'ordre.
+    for (const e of extra) {
+      const target = linked.get(`${e.slotId}|${e.date}`);
+      const m = target ? missed.find((x) => !x.madeUp && key(x.slotId, x.date) === target) : undefined;
+      if (m) cover(e, m);
+    }
+    for (const e of extra) {
+      if (e.covers || linked.has(`${e.slotId}|${e.date}`)) continue;
+      const m = missed.find((x) => !x.madeUp && x.date <= e.date);
+      if (m) cover(e, m);
     }
     const plannedMin = baseline.reduce((t, x) => t + x.minutes, 0);
     out.push({

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
+import { useMe } from '../../auth/AuthContext';
 import { Card, CardGrid, CardRow, CardSubtitle, EmptyState, Kpi } from '../../components/ui/Card';
 import { FilterSelect, Filters } from '../../components/ui/Field';
 import { QueryState } from '../../components/ui/Loading';
@@ -11,6 +12,8 @@ import { api } from '../../lib/api';
 import { fD, fullName, todayIso } from '../../lib/format';
 import { hm } from '../../lib/timetable';
 import type { Coach, CounterSummary, GroupCounter } from '../../lib/types';
+import { Button } from '../../components/ui/Button';
+import { ProgramSessionModal, type ProgramInit } from './ProgramSession';
 
 const short = (iso: string) => fD(iso, { day: 'numeric', month: 'short' });
 const plural = (n: number, word: string) => `${n} ${word}${Math.abs(n) > 1 ? 's' : ''}`;
@@ -52,7 +55,7 @@ export function BalancePill({ c }: { c: GroupCounter }) {
 }
 
 /** Lignes du détail : séances manquées (à rattraper, rattrapage prévu ou fait) et séances en plus non utilisées. */
-export function CounterLines({ c, limit = 6 }: { c: GroupCounter; limit?: number }) {
+export function CounterLines({ c, limit = 6, onProgram }: { c: GroupCounter; limit?: number; onProgram?: (init: ProgramInit) => void }) {
   const lines = [
     ...c.missed.map((m) => ({
       key: `m${m.slotId}${m.date}`,
@@ -62,6 +65,18 @@ export function CounterLines({ c, limit = 6 }: { c: GroupCounter; limit?: number
         <Pill tone="g">{`Rattrapée le ${short(m.madeUp.date)}`}</Pill>
       ) : m.madeUp ? (
         <Pill tone="b">{`Rattrapage prévu le ${short(m.madeUp.date)}`}</Pill>
+      ) : onProgram ? (
+        <span className="inline-flex items-center gap-1.5">
+          <Pill tone="s">À rattraper</Pill>
+          <button
+            type="button"
+            onClick={() => onProgram({ groupId: c.group.id, makeup: { slotId: m.slotId, date: m.date } })}
+            className="rounded-full bg-pri px-3 py-1.5 text-[12.5px] font-semibold text-white"
+            aria-label={`Programmer le rattrapage du ${short(m.date)}`}
+          >
+            Programmer
+          </button>
+        </span>
       ) : (
         <Pill tone="s">À rattraper</Pill>
       ),
@@ -72,15 +87,15 @@ export function CounterLines({ c, limit = 6 }: { c: GroupCounter; limit?: number
         key: `e${e.slotId}${e.date}`,
         date: e.date,
         text: `${short(e.date)} · ${e.reason}`,
-        pill: <Pill tone="b">{e.done ? 'En avance' : 'Prévue'}</Pill>,
+        pill: <Pill tone="b">{e.done ? (e.oneOff?.type === 'SPECIAL' ? 'Donnée' : 'En avance') : 'Prévue'}</Pill>,
       })),
   ].sort((a, b) => b.date.localeCompare(a.date));
   if (!lines.length) return <p className="m-0 text-[13px] text-mut">Aucune séance annulée ni en plus sur la période.</p>;
   return (
     <div className="flex flex-col">
       {lines.slice(0, limit).map((l) => (
-        <div key={l.key} className="flex items-center justify-between gap-2 border-t border-line py-2 text-[13.5px] first:border-t-0">
-          <span className="min-w-0">{l.text}</span>
+        <div key={l.key} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line py-2 text-[13.5px] first:border-t-0">
+          <span className="min-w-[140px] flex-1">{l.text}</span>
           <span className="shrink-0">{l.pill}</span>
         </div>
       ))}
@@ -103,7 +118,7 @@ export function CounterBar({ c }: { c: GroupCounter }) {
   );
 }
 
-function GroupCounterCard({ c, admin }: { c: GroupCounter; admin: boolean }) {
+function GroupCounterCard({ c, admin, onProgram }: { c: GroupCounter; admin: boolean; onProgram?: (init: ProgramInit) => void }) {
   const cancelled = c.missed.length;
   return (
     <Card>
@@ -115,7 +130,7 @@ function GroupCounterCard({ c, admin }: { c: GroupCounter; admin: boolean }) {
       <CardSubtitle>
         {`Prévues ${c.planned.sessions} · données ${c.given.sessions}${cancelled ? ` · annulées ${cancelled}` : ''}${c.extra.length ? ` · en plus ${c.extra.length}` : ''}`}
       </CardSubtitle>
-      <CounterLines c={c} />
+      <CounterLines c={c} onProgram={onProgram} />
     </Card>
   );
 }
@@ -133,13 +148,24 @@ export function SessionCounterPage({ scope }: { scope: 'admin' | 'coach' }) {
   const q = useQuery({ queryKey: ['session-counter', scope, period, coachId], queryFn: () => api.get<CounterSummary>(path) });
   const coaches = useQuery({ queryKey: ['coaches'], queryFn: () => api.get<Coach[]>('/coaches'), enabled: scope === 'admin' });
   const d = q.data;
+  const me = useMe();
+  const canProgram = scope === 'admin' && me.role === 'ADMIN' && me.permissions.includes('groups.manage');
+  const [program, setProgram] = useState<ProgramInit | null>(null);
 
   return (
     <>
       <PageHeader
         title="Compteur des séances"
         subtitle={scope === 'admin' ? 'Découvrez, pour chaque groupe, les séances prévues, données, annulées et à rattraper.' : 'Découvrez les séances prévues, données et à rattraper de vos groupes.'}
+        action={
+          canProgram ? (
+            <Button variant="primary" onClick={() => setProgram({})}>
+              + Programmer une séance
+            </Button>
+          ) : undefined
+        }
       />
+      {program && <ProgramSessionModal init={program} onClose={() => setProgram(null)} />}
       <Filters>
         <FilterSelect label="Période" value={period} onChange={(e) => setPeriod(e.target.value)}>
           {PERIODS.map((p) => (
@@ -182,7 +208,7 @@ export function SessionCounterPage({ scope }: { scope: 'admin' | 'coach' }) {
             {d.groups.length ? (
               <CardGrid>
                 {d.groups.map((c) => (
-                  <GroupCounterCard key={c.group.id} c={c} admin={scope === 'admin'} />
+                  <GroupCounterCard key={c.group.id} c={c} admin={scope === 'admin'} onProgram={canProgram ? setProgram : undefined} />
                 ))}
               </CardGrid>
             ) : (

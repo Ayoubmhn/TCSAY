@@ -153,7 +153,7 @@ export class TempSchedulesController {
   async list(@Query() q: ListQuery) {
     const season = await this.access.seasonOrActive(q.seasonId);
     const rows = await this.prisma.tempSchedule.findMany({
-      where: { seasonId: season.id, archivedAt: null },
+      where: { seasonId: season.id, archivedAt: null, kind: 'HOLIDAY' },
       include: { groups: { select: { mode: true, group: { select: { name: true } } } }, _count: { select: { slots: true } } },
       orderBy: { startDate: 'asc' },
     });
@@ -490,7 +490,8 @@ export class TempSchedulesController {
   /** Avant publication (ou changement de dates d'un emploi publié) : un seul emploi publié par groupe à la fois, et R5 pour chaque groupe. */
   private async assertPublishable(s: ScheduleRow, range: { from: string; to: string }) {
     const others = await this.prisma.tempSchedule.findMany({
-      where: { id: { not: s.id }, seasonId: s.seasonId, status: TempScheduleStatus.PUBLISHED, archivedAt: null, groups: { some: { groupId: { in: s.groups.map((g) => g.groupId) } } } },
+      // Séances ponctuelles (un seul jour, séances en plus) : jamais un « emploi » qui empêcherait les vacances.
+      where: { id: { not: s.id }, seasonId: s.seasonId, kind: 'HOLIDAY', status: TempScheduleStatus.PUBLISHED, archivedAt: null, groups: { some: { groupId: { in: s.groups.map((g) => g.groupId) } } } },
       include: { groups: { include: { group: { select: { name: true } } } } },
     });
     for (const o of others) {

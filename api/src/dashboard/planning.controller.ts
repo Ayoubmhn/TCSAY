@@ -89,6 +89,11 @@ export class PlanningController {
             ...v,
             group: { id: slot.group.id, name: slot.group.name, kind: slot.group.kind },
             holiday: slot.holiday,
+            // Séance ponctuelle (rattrapage, en plus, spéciale) : supprimable avant son début.
+            oneOff: (() => {
+              const t = slot.scheduleId ? slot.group.tempSchedules.find((x) => x.scheduleId === slot.scheduleId) : undefined;
+              return t?.schedule.kind === 'ONE_OFF' ? { id: t.scheduleId, type: t.schedule.oneOffType ?? 'EXTRA' } : null;
+            })(),
             members: members.find((m) => m.groupId === slot.group.id)?._count ?? 0,
             attendance: {
               present: marks.find((m) => m.slotId === slot.id && m.status === 'PRESENT')?._count ?? 0,

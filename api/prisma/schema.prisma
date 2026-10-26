@@ -573,6 +573,11 @@ enum TempScheduleStatus {
 }
 
 /// Place d'un groupe dans un emploi temporaire : son horaire habituel est remplacé, ou des séances s'ajoutent (stage).
+enum TempScheduleKind {
+  HOLIDAY
+  ONE_OFF
+}
+
 enum TempScheduleMode {
   REPLACE
   ADD
@@ -588,6 +593,13 @@ model TempSchedule {
   note         String?
   /// Séances habituelles retirées pendant ces dates dues par le club (à rattraper) ? Non par défaut (vacances).
   sessionsOwed Boolean            @default(false)
+  /// HOLIDAY : vacances / stage ; ONE_OFF : séance ponctuelle d'un seul jour (rattrapage, en plus, spéciale), publiée d'office.
+  kind         TempScheduleKind   @default(HOLIDAY)
+  /// Séance ponctuelle : MAKEUP (rattrapage), EXTRA (séance en plus), SPECIAL (séance spéciale).
+  oneOffType   String?
+  /// Rattrapage : séance manquée qu'elle remplace (créneau et date).
+  makeupSlotId String?            @db.Uuid
+  makeupDate   DateTime?          @db.Date
   status       TempScheduleStatus @default(DRAFT)
   publishedAt  DateTime?
   archivedAt   DateTime? // R8

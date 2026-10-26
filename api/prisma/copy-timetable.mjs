@@ -232,6 +232,11 @@ for (const ss of sSeasons) {
       status: t.status,
       publishedAt: t.publishedAt,
       archivedAt: t.archivedAt,
+      sessionsOwed: t.sessionsOwed,
+      // Séance ponctuelle : type gardé ; le lien vers la séance rattrapée (créneau de la démo locale) n'est pas recopié.
+      kind: t.kind,
+      oneOffType: t.oneOffType,
+      makeupDate: t.makeupDate,
     };
     const day = (x) => x?.toISOString().slice(0, 10);
     const unchanged =

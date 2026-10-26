@@ -462,6 +462,8 @@ export type Planning = {
     holiday?: string | null;
     absentCoachIds: string[];
     resolution: AbsenceResolution | null;
+    /** Séance ponctuelle (rattrapage, en plus, spéciale) : supprimable avant son début. */
+    oneOff?: { id: string; type: OneOffType } | null;
     /** Séance annulée par le club (pluie, fermeture), reportée ou déplacée par un tournoi. */
     change?: { kind: 'MOVED' | 'POSTPONED' | 'CANCELLED'; reason: string } | null;
     replacement: CoachRef | null;
@@ -1050,7 +1052,7 @@ export type GroupCounter = {
   planned: { sessions: number; minutes: number };
   given: { sessions: number; minutes: number };
   missed: (CounterItem & { madeUp: { date: string; startTime: string; done: boolean } | null })[];
-  extra: (CounterItem & { done: boolean; covers: string | null })[];
+  extra: (CounterItem & { done: boolean; covers: string | null; oneOff: { id: string; type: OneOffType } | null })[];
   /** Séances données − prévues (négatif = en retard, positif = en avance). */
   balance: { sessions: number; minutes: number };
   /** Séances encore dues par le club. */
@@ -1064,4 +1066,13 @@ export type CounterSummary = {
 export type PlayerCounter = {
   season: { id: string; label: string };
   groups: (GroupCounter & { absences: { date: string; startTime: string }[]; late: number; present: number })[];
+};
+
+/** Séance ponctuelle : rattrapage, séance en plus (avance), séance spéciale. */
+export type OneOffType = 'MAKEUP' | 'EXTRA' | 'SPECIAL';
+export type OneOffOptions = {
+  groupBusy: string | null;
+  hours: { opening: number; closing: number; nightStart: number };
+  courts: { id: string; name: string; lit: boolean; busy: string | null }[];
+  coaches: { id: string; name: string; color: string; busy: string | null }[];
 };

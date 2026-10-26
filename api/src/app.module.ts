@@ -43,6 +43,7 @@ import { FeesController } from './fees/fees.controller';
 import { GroupsController } from './groups/groups.controller';
 import { TempSchedulesController } from './schedules/temp-schedules.controller';
 import { TimetableController } from './schedules/timetable.controller';
+import { OneOffSessionsController } from './schedules/one-off-sessions.controller';
 import { HealthController } from './health.controller';
 import { EmailsController } from './mail/emails.controller';
 import { MeController } from './me/me.controller';
@@ -114,6 +115,7 @@ import { StaffController } from './staff/staff.controller';
     GroupsController,
     TempSchedulesController,
     TimetableController,
+    OneOffSessionsController,
     CourtsController,
     CategoriesController,
     FeesController,

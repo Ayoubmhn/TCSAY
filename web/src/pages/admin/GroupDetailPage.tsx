@@ -16,6 +16,7 @@ import { fD, fullName, isPlaceholderEmail } from '../../lib/format';
 import type { GroupDetail, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { PlayerFormModal } from './PlayerFormModal';
+import { ProgramSessionModal } from '../../features/counter/ProgramSession';
 import { ActionIcon } from '../../components/ui/ActionIcon';
 
 type Member = GroupDetail['members'][number];
@@ -28,6 +29,7 @@ export function GroupDetailPage() {
   const { id } = useParams();
   const { me } = useAuth();
   const canManage = Boolean(me?.permissions.includes('groups.manage'));
+  const [program, setProgram] = useState(false);
   const q = useQuery({ queryKey: ['group-detail', id], queryFn: () => api.get<GroupDetail>(`/groups/${id}/detail`) });
   const [remove, setRemove] = useState<Member>();
   const [derogation, setDerogation] = useState<Candidate>();
@@ -153,6 +155,15 @@ export function GroupDetailPage() {
             )}
           </Section>
 
+          {canManage && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <Button variant="primary" onClick={() => setProgram(true)}>
+                + Programmer une séance
+              </Button>
+              <span className="text-[13px] text-mut">Rattrapage, séance en plus ou séance spéciale, un seul jour.</span>
+            </div>
+          )}
+          {program && <ProgramSessionModal init={{ groupId: g.id }} onClose={() => setProgram(false)} />}
           <Section title="Dernières séances">
             {g.recentSessions.length ? (
               <CardGrid list>

@@ -71,12 +71,50 @@ function CancelSessionModal({ slotId, date, label, onClose }: { slotId: string; 
 
 const btn = 'inline-flex items-center justify-center rounded-full px-4 py-[11px] text-[14px] font-semibold';
 
+/** Supprimer une séance ponctuelle (rattrapage, en plus, spéciale) avant son début : motif, familles prévenues. */
+function RemoveOneOffModal({ id, label, onClose }: { id: string; label: string; onClose: () => void }) {
+  const toast = useToast();
+  const [reason, setReason] = useState('');
+  const [notify, setNotify] = useState(true);
+  const remove = useAction(() => api.delete(`/extra-sessions/${id}`, { reason: reason.trim(), notify }), {
+    invalidate: CANCEL_KEYS,
+    success: 'Séance ponctuelle supprimée.',
+    onSuccess: onClose,
+  });
+  return (
+    <Modal
+      open
+      size="md"
+      title="Supprimer la séance ponctuelle"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Retour</Button>
+          <Button variant="danger" disabled={remove.isPending} onClick={() => (reason.trim() ? remove.mutate() : toast('Motif obligatoire.'))}>
+            Supprimer
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <p className="m-0 text-[14px] text-mut">{label}</p>
+        <TextField label="Motif *" full maxLength={200} value={reason} onChange={(e) => setReason(e.target.value)} />
+        <label className="flex items-center gap-2.5 text-[14px]">
+          <input type="checkbox" className="h-4 w-4 accent-pri" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+          Prévenir les familles et les entraîneurs du groupe
+        </label>
+      </div>
+    </Modal>
+  );
+}
+
 /** Fiche d'une séance ou d'une réservation du planning : infos et actions selon les droits. */
 export function PlanningDetail({ planning, item, onClose }: { planning: Planning; item: PItem; onClose: () => void }) {
   const me = useMe();
   const can = (...perms: string[]) => me.role === 'ADMIN' && perms.some((p) => me.permissions.includes(p));
   const [sheet, setSheet] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const restore = useAction(
     () => (item.kind === 'session' ? api.delete(`/session-changes/cancel/${item.s.id}/${planning.date}`) : Promise.resolve(null)),
     { invalidate: CANCEL_KEYS, success: 'Séance rétablie.', onSuccess: onClose },
@@ -112,6 +150,7 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
                 {court?.name ?? 'Terrain à définir'}
                 {court?.lit ? ' ☀' : ''}
               </Pill>
+              {s.holiday && <Pill tone="s">{s.holiday}</Pill>}
             </Pills>
             <div className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-2 text-[14px]">
               <span className="text-mut">Entraîneur</span>
@@ -144,7 +183,12 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
                   Rétablir la séance
                 </button>
               )}
-              {can('groups.manage') && s.resolution !== 'CANCELLED' && !marked && (
+              {can('groups.manage') && s.oneOff && !marked && !past && !live && (
+                <button type="button" className={`${btn} bg-[#fdb3b0] text-[#111]`} onClick={() => setRemoving(true)}>
+                  Supprimer la séance ponctuelle
+                </button>
+              )}
+              {can('groups.manage') && !s.oneOff && s.resolution !== 'CANCELLED' && !marked && (
                 <button type="button" className={`${btn} bg-[#fdb3b0] text-[#111]`} onClick={() => setCancelling(true)}>
                   Annuler la séance (pluie, fermeture…)
                 </button>
@@ -155,6 +199,9 @@ export function PlanningDetail({ planning, item, onClose }: { planning: Planning
         <Modal open={sheet} size="lg" title={`Présences · ${s.group.name} · ${date}`} onClose={() => setSheet(false)}>
           {sheet && <AttendanceSheetForm slotId={s.id} date={planning.date} onSaved={() => setSheet(false)} />}
         </Modal>
+        {removing && s.oneOff && (
+          <RemoveOneOffModal id={s.oneOff.id} label={`${s.group.name} · ${s.holiday ?? 'Séance ponctuelle'} · ${date} · ${start} – ${end}`} onClose={() => { setRemoving(false); onClose(); }} />
+        )}
         {cancelling && <CancelSessionModal slotId={s.id} date={planning.date} label={`${s.group.name} · ${date} · ${start} – ${end}`} onClose={() => { setCancelling(false); onClose(); }} />}
       </>
     );

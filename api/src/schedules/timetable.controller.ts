@@ -430,7 +430,7 @@ export class TimetableController {
     const s = await this.settings.all();
     const [schedules, drafts] = await Promise.all([
       this.prisma.tempSchedule.findMany({
-        where: { seasonId, archivedAt: null },
+        where: { seasonId, archivedAt: null, kind: 'HOLIDAY' },
         orderBy: { startDate: 'asc' },
         select: { id: true, name: true, startDate: true, endDate: true, status: true },
       }),

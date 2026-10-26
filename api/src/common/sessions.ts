@@ -13,13 +13,31 @@ export function groupPeriod(kind: GroupKindLike, season: PeriodSeason): { from: 
 }
 
 /** Emplois temporaires publiés d'un groupe (vacances, stage) : dates et mode (horaire remplacé ou séances en plus). */
-export type TempPeriod = { mode: 'REPLACE' | 'ADD'; scheduleId: string; schedule: { name: string; startDate: Date; endDate: Date; sessionsOwed?: boolean } };
+export type TempPeriod = {
+  mode: 'REPLACE' | 'ADD';
+  scheduleId: string;
+  schedule: {
+    name: string;
+    startDate: Date;
+    endDate: Date;
+    sessionsOwed?: boolean;
+    /** ONE_OFF : séance ponctuelle (rattrapage MAKEUP, en plus EXTRA, spéciale SPECIAL). */
+    kind?: 'HOLIDAY' | 'ONE_OFF';
+    oneOffType?: string | null;
+    makeupSlotId?: string | null;
+    makeupDate?: Date | null;
+  };
+};
 export type PeriodGroup = { kind: GroupKindLike; season: PeriodSeason; tempSchedules: TempPeriod[] };
 
 /** Emplois temporaires à joindre au groupe : seulement publiés et non archivés (un brouillon ne change rien). */
 export const tempSchedulesSelect = {
   where: { schedule: { status: 'PUBLISHED', archivedAt: null } },
-  select: { mode: true, scheduleId: true, schedule: { select: { name: true, startDate: true, endDate: true, sessionsOwed: true } } },
+  select: {
+    mode: true,
+    scheduleId: true,
+    schedule: { select: { name: true, startDate: true, endDate: true, sessionsOwed: true, kind: true, oneOffType: true, makeupSlotId: true, makeupDate: true } },
+  },
 } as const;
 
 /** Sélection Prisma à inclure dans `group` pour connaître la période d'un créneau. */
