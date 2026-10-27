@@ -120,8 +120,8 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
           ))}
         </SelectField>
         <SelectField label="Éclairage" full value={lit} onChange={(e) => setLit(e.target.value)}>
-          <option value="1">☀ Éclairé : réservable la nuit</option>
-          <option value="0">Sans éclairage : jour seulement</option>
+          <option value="1">{physical ? '☀ Éclairé : séances physiques aussi le soir' : '☀ Éclairé : réservable la nuit'}</option>
+          <option value="0">{physical ? 'Sans éclairage : séances physiques le jour seulement' : 'Sans éclairage : jour seulement'}</option>
         </SelectField>
         <div className="flex flex-col gap-1 rounded-[20px] border-[1.5px] border-line p-3.5 min-[561px]:col-span-2">
           <b className="text-[15px] font-medium">Utilisation</b>
