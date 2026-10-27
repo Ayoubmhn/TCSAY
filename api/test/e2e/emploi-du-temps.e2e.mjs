@@ -194,3 +194,30 @@ describe('Emploi du temps (grille, brouillon, volumes)', () => {
     refused(await coach('GET', '/timetable'), 403);
   });
 });
+
+describe('Historique des actions d’un emploi', () => {
+  test('brouillon et vacances : qui, quand, quoi ; refusé à l’entraîneur', async () => {
+    const admin = await as('admin');
+    const coach = await as('coach');
+    const d = ok(await admin('POST', '/timetable/drafts', { name: `Historique ${uid()}` })).draft;
+    try {
+      const renamed = `Renommé ${uid()}`;
+      ok(await admin('PATCH', `/timetable/drafts/${d.id}`, { name: renamed, version: d.version }));
+      const h = ok(await admin('GET', `/timetable/history?draft=${d.id}`));
+      assert.ok(h.some((r) => r.action === 'Brouillon d’emploi du temps créé'));
+      const r = h.find((x) => x.action === 'Brouillon renommé');
+      assert.ok(r && r.after === renamed && r.who.length > 0 && r.at);
+      ok(await admin('GET', '/timetable/history'));
+      refused(await coach('GET', `/timetable/history?draft=${d.id}`), 403);
+    } finally {
+      const now = ok(await admin('GET', `/timetable?draft=${d.id}`)).draft;
+      await admin('DELETE', `/timetable/drafts/${d.id}?version=${now.version}`);
+    }
+    const start = new Date(Date.now() + 50 * 864e5).toISOString().slice(0, 10);
+    const v = ok(await admin('POST', '/temp-schedules', { name: `Hist ${uid()}`, startDate: start, endDate: start }));
+    const hv = ok(await admin('GET', `/timetable/history?vacances=${v.id}`));
+    assert.ok(hv.some((x) => x.action === 'Emploi temporaire créé'));
+    const det = ok(await admin('GET', `/temp-schedules/${v.id}`));
+    await admin('POST', `/temp-schedules/${v.id}/archive`, { version: det.version, reason: 'Nettoyage des tests' });
+  });
+});

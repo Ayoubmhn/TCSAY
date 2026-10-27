@@ -104,6 +104,20 @@ const sameSlots = (a: RawSlot[], b: RawSlot[]) => a.length === b.length && a.map
  * séance (glisser-déposer), contrôles en direct (volume, terrain, entraîneur, groupe, éclairage dès la nuit), placement
  * automatique, puis publication en une fois (présences jamais perdues, R8 ; audit ; familles et entraîneurs prévenus).
  */
+class HistoryQuery {
+  @IsOptional()
+  @IsUUID()
+  draft?: string;
+
+  @IsOptional()
+  @IsUUID()
+  vacances?: string;
+
+  @IsOptional()
+  @IsUUID()
+  seasonId?: string;
+}
+
 @ApiTags('Emploi du temps')
 @ApiBearerAuth()
 @Controller('timetable')
@@ -120,6 +134,45 @@ export class TimetableController {
   async get(@Query() q: LoadQuery) {
     const season = await this.access.seasonOrActive(q.seasonId);
     return this.load(season.id, q.draft);
+  }
+
+  /**
+   * Historique des actions d'un emploi (qui, quand, quoi, avant, après) : un brouillon, des vacances, ou l'emploi publié
+   * (publications et changements de volume des groupes de la saison).
+   */
+  @Get('history')
+  @Perm('groups.manage', 'planning.view')
+  async history(@Query() q: HistoryQuery) {
+    let where: Prisma.AuditLogWhereInput;
+    if (q.draft) where = { entity: 'TimetableDraft', entityId: q.draft };
+    else if (q.vacances) where = { entity: 'TempSchedule', entityId: q.vacances };
+    else {
+      const season = await this.access.seasonOrActive(q.seasonId);
+      const groups = await this.prisma.trainingGroup.findMany({ where: { seasonId: season.id }, select: { id: true } });
+      where = {
+        OR: [
+          { entity: 'TrainingGroup', entityId: { in: groups.map((g) => g.id) }, action: { startsWith: 'Emploi du temps publié' } },
+          { entity: 'TrainingGroup', entityId: { in: groups.map((g) => g.id) }, action: { contains: 'volume' } },
+          { entity: 'TimetableDraft', action: { in: ['Brouillon d’emploi du temps créé', 'Brouillon d’emploi du temps supprimé'] }, createdAt: { gte: season.startDate } },
+        ],
+      };
+    }
+    const rows = await this.prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { user: { select: { firstName: true, lastName: true } } },
+    });
+    return rows.map((r) => ({
+      id: r.id,
+      at: r.createdAt,
+      who: r.user ? `${r.user.firstName} ${r.user.lastName}`.trim() : 'Système',
+      action: r.action,
+      target: r.target,
+      before: r.before,
+      after: r.after,
+      reason: r.reason,
+    }));
   }
 
   /** Nouveau brouillon (vide : il part de l'emploi du temps publié). */
@@ -142,6 +195,7 @@ export class TimetableController {
     const d = await this.findDraft(id);
     this.assertDraftVersion(d.version, dto.version);
     await this.prisma.timetableDraft.update({ where: { id }, data: { name: dto.name.trim(), updatedById: user.id, version: { increment: 1 } } });
+    await this.audit.log(user.id, { action: 'Brouillon renommé', entity: 'TimetableDraft', entityId: id, target: dto.name.trim(), before: d.name, after: dto.name.trim() });
     return this.load(d.seasonId, id);
   }
 
@@ -194,6 +248,7 @@ export class TimetableController {
       const next = { ...ctx.draft };
       delete next[groupId];
       await this.write(user, id, next);
+      await this.audit.log(user.id, { action: 'Brouillon : retour à l’horaire publié', entity: 'TimetableDraft', entityId: id, target: ctx.group.name });
     }
     return this.load(ctx.season.id, id);
   }
@@ -260,7 +315,7 @@ export class TimetableController {
     }
     if (!added) throw rule.conflict('R5', `Aucune place libre pour « ${g.name} » (terrain, entraîneur ou éclairage).`);
     await this.validate(ctx, g, placed);
-    await this.saveGroup(user, ctx, g, placed);
+    await this.saveGroup(user, ctx, g, placed, 'Brouillon : placement automatique');
     return { ...(await this.load(ctx.season.id, id)), placed: added };
   }
 
@@ -387,11 +442,21 @@ export class TimetableController {
     if (conflict) throw rule.conflict('R5', conflict);
   }
 
-  private async saveGroup(user: AuthUser, ctx: Awaited<ReturnType<TimetableController['seasonContext']>>, g: GroupRow, slots: RawSlot[]) {
+  private async saveGroup(
+    user: AuthUser,
+    ctx: Awaited<ReturnType<TimetableController['seasonContext']>>,
+    g: GroupRow,
+    slots: RawSlot[],
+    action = 'Brouillon : séances modifiées',
+  ) {
+    const before = ctx.effective(g.id);
     const next = { ...ctx.draft };
     if (sameSlots(slots, ctx.published(g))) delete next[g.id];
     else next[g.id] = slots;
     await this.write(user, ctx.row!.id, next);
+    // Historique du brouillon (qui, quand, avant, après) : affiché sous la grille.
+    const view = (list: RawSlot[]) => describe(list.map((x) => ({ ...x, court: x.courtId ? (ctx.courts.find((c) => c.id === x.courtId) ?? null) : null })));
+    await this.audit.log(user.id, { action, entity: 'TimetableDraft', entityId: ctx.row!.id, target: g.name, before: view(before), after: view(slots) });
   }
 
   private async write(user: AuthUser, id: string, groups: DraftMap) {

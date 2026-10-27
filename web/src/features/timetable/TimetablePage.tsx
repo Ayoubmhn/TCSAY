@@ -19,6 +19,7 @@ import { DAY_NAMES } from '../../lib/format';
 import { durationOf, hm, ink, placementProblem, toMin, toTime, type Placed } from '../../lib/timetable';
 import type { RawSlot, SlotKind, TempScheduleDetail, Timetable, TimetableGroup } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { ScheduleHistory } from './ScheduleHistory';
 import { START_DEFAULT, StartFromField, startFromBody, startFromProblem, type StartFrom } from '../schedules/StartFrom';
 
 /** Hauteur d'une demi-heure sur la grille (px). */
@@ -31,7 +32,25 @@ type Picked = { groupId: string; kind: SlotKind; dur: number; coachIds: string[]
 type Target = { day: number; courtId: string | null; start: number };
 type Drag = Picked & { x: number; y: number; grab: number; active: boolean; sx: number; sy: number; target?: Target; problem?: string | null; remove?: boolean; kindOfSource: 'chip' | 'block' };
 /** Créneau affiché : modifiable (habituel ou de l'emploi des vacances) ou seulement montré (horaire habituel gardé). */
-type Row = Placed & { key: string; editable: boolean; changed: boolean; idx: number };
+type Row = Placed & { key: string; editable: boolean; changed: boolean; pending?: boolean; idx: number };
+
+const slotSig = (x: RawSlot) => `${x.day}|${x.startTime}|${x.endTime}|${x.courtId ?? ''}|${[...x.coachIds].sort().join(',')}|${x.kind}`;
+/** Mêmes séances (ordre indifférent). */
+const sameList = (a: RawSlot[], b: RawSlot[]) => a.length === b.length && a.map(slotSig).sort().join('#') === b.map(slotSig).sort().join('#');
+/** Résumé d'une modification en attente : « 1 séance déplacée », « 1 ajoutée, 1 retirée ». */
+function changeSummary(before: RawSlot[], after: RawSlot[]): string {
+  const b = before.map(slotSig);
+  const a = after.map(slotSig);
+  const removed = b.filter((x) => !a.includes(x)).length;
+  const added = a.filter((x) => !b.includes(x)).length;
+  const moved = Math.min(removed, added);
+  const parts = [
+    moved && `${moved} séance${moved > 1 ? 's' : ''} modifiée${moved > 1 ? 's' : ''}`,
+    added - moved && `${added - moved} ajoutée${added - moved > 1 ? 's' : ''}`,
+    removed - moved && `${removed - moved} retirée${removed - moved > 1 ? 's' : ''}`,
+  ].filter(Boolean);
+  return parts.join(', ') || 'modifiée';
+}
 
 /** « Court 2 » → « C2 » (colonnes étroites de la vue « Toute la semaine »). */
 const shortCourt = (name: string) => (/^court\s*\d+/i.test(name) ? name.replace(/^court\s*/i, 'C') : name.length > 4 ? `${name.slice(0, 3)}.` : name);
@@ -75,11 +94,15 @@ export function TimetablePage() {
   const [renaming, setRenaming] = useState(false);
   // Vacances : groupe ajouté en « séances en plus » (enregistré à sa première séance placée).
   const [addMode, setAddMode] = useState<Record<string, 'ADD'>>({});
+  // Modifications en attente (par groupe) : rien n'est enregistré avant « Confirmer ».
+  const [pending, setPending] = useState<Record<string, RawSlot[]>>({});
+  const pendingCount = Object.keys(pending).length;
   // Brouillon publié ou supprimé (lien ancien) : retour à l'emploi publié.
   useEffect(() => {
     if (q.isError && draftId) setParams({});
   }, [q.isError, draftId, setParams]);
   const switchTo = (next: { brouillon?: string; vacances?: string }) => {
+    if (Object.keys(pending).length) return toast('Confirmez ou annulez d’abord les modifications en attente.');
     setParams(Object.fromEntries(Object.entries(next).filter(([, v]) => v)) as Record<string, string>);
     setPicked(undefined);
     undo.current = [];
@@ -101,7 +124,7 @@ export function TimetablePage() {
   }, [t, focusGroup]);
 
   // Créneaux modifiables par groupe (brouillon de l'horaire habituel, ou créneaux de l'emploi des vacances).
-  const editableOf = (groupId: string): RawSlot[] => {
+  const baseOf = (groupId: string): RawSlot[] => {
     if (!t) return [];
     if (temp) {
       const g = temp.groups.find((x) => x.id === groupId);
@@ -110,6 +133,7 @@ export function TimetablePage() {
     const g = t.groups.find((x) => x.id === groupId);
     return g ? (g.draft ?? g.published) : [];
   };
+  const editableOf = (groupId: string): RawSlot[] => pending[groupId] ?? baseOf(groupId);
 
   const rows: Row[] = useMemo(() => {
     if (!t) return [];
@@ -117,16 +141,11 @@ export function TimetablePage() {
     for (const g of t.groups) {
       const tg = temp?.groups.find((x) => x.id === g.id);
       if (temp && tg) {
-        tg.slots.forEach((s, idx) =>
-          out.push({
-            key: `t${s.id}`,
-            groupId: g.id,
-            groupName: g.name,
-            slot: { id: s.id, day: s.day, startTime: s.startTime, endTime: s.endTime, courtId: s.court?.id ?? null, coachIds: s.coaches.map((c) => c.id), kind: s.kind ?? 'TENNIS' },
-            editable: canManage,
-            changed: false,
-            idx,
-          }),
+        const own: RawSlot[] =
+          pending[g.id] ??
+          tg.slots.map((s) => ({ id: s.id, day: s.day, startTime: s.startTime, endTime: s.endTime, courtId: s.court?.id ?? null, coachIds: s.coaches.map((c) => c.id), kind: s.kind ?? 'TENNIS' }));
+        own.forEach((slot, idx) =>
+          out.push({ key: `t${g.id}:${slot.id ?? 'n'}:${idx}`, groupId: g.id, groupName: g.name, slot, editable: canManage, changed: Boolean(pending[g.id]), pending: Boolean(pending[g.id]), idx }),
         );
         // Horaire habituel gardé pendant les vacances : séances en plus, ou groupe absent de l'emploi.
         if (tg.mode === 'ADD' || (!tg.mode && tg.usualRuns)) {
@@ -144,41 +163,88 @@ export function TimetablePage() {
         }
         continue;
       }
-      (g.draft ?? g.published).forEach((s, idx) =>
-        out.push({ key: `${g.id}:${s.id ?? idx}:${idx}`, groupId: g.id, groupName: g.name, slot: s, editable: canManage, changed: Boolean(g.draft), idx }),
+      (pending[g.id] ?? g.draft ?? g.published).forEach((s, idx) =>
+        out.push({
+          key: `${g.id}:${s.id ?? idx}:${idx}`,
+          groupId: g.id,
+          groupName: g.name,
+          slot: s,
+          editable: canManage,
+          changed: Boolean(g.draft) || Boolean(pending[g.id]),
+          pending: Boolean(pending[g.id]),
+          idx,
+        }),
       );
     }
     return out;
-  }, [t, temp, canManage]);
+  }, [t, temp, canManage, pending]);
 
-  const saveAction = useAction(
-    async ({ groupId, slots, push = true }: { groupId: string; slots: RawSlot[]; push?: boolean }) => {
-      const prev = editableOf(groupId);
-      if (temp) {
-        const g = temp.groups.find((x) => x.id === groupId);
-        await api.put(`/temp-schedules/${temp.id}/groups/${groupId}`, {
-          mode: g?.mode ?? addMode[groupId] ?? 'REPLACE',
-          version: temp.version,
-          slots: slots.map((s) => ({ ...s, courtId: s.courtId ?? undefined })),
-        });
-      } else {
-        const d = await ensureDraft();
-        await api.put(`/timetable/drafts/${d.id}/groups/${groupId}`, { version: d.version, slots: slots.map((s) => ({ ...s, courtId: s.courtId ?? undefined })) });
-      }
-      if (push) {
-        undo.current.push({ groupId, slots: prev });
-        bump((n) => n + 1);
-      }
-    },
-    { invalidate: KEYS },
-  );
-  const save = (groupId: string, slots: RawSlot[], push = true) => saveAction.mutate({ groupId, slots, push });
-
+  // Modification préparée sur la grille (glisser, fiche, retrait) : en attente jusqu'à « Confirmer ».
+  const save = (groupId: string, slots: RawSlot[], push = true) => {
+    if (push) {
+      undo.current.push({ groupId, slots: editableOf(groupId) });
+      bump((n) => n + 1);
+    }
+    setPending((p) => {
+      const next = { ...p };
+      if (sameList(slots, baseOf(groupId))) delete next[groupId];
+      else next[groupId] = slots;
+      return next;
+    });
+  };
   const undoLast = () => {
     const last = undo.current.pop();
     bump((n) => n + 1);
     if (last) save(last.groupId, last.slots, false);
   };
+  const cancelPending = () => {
+    setPending({});
+    undo.current = [];
+    bump((n) => n + 1);
+  };
+  // Confirmer : chaque groupe modifié est enregistré (brouillon de l'horaire habituel ou emploi des vacances) ;
+  // l'API refait tous les contrôles (R5, volumes). En cas de refus, les groupes non enregistrés restent en attente.
+  const saveAction = useAction(
+    async () => {
+      const left = { ...pending };
+      try {
+        if (temp) {
+          let v = temp.version;
+          for (const [groupId, slots] of Object.entries(pending)) {
+            const g = temp.groups.find((x) => x.id === groupId);
+            await api.put(`/temp-schedules/${temp.id}/groups/${groupId}`, {
+              mode: g?.mode ?? addMode[groupId] ?? 'REPLACE',
+              version: v,
+              slots: slots.map((x) => ({ ...x, courtId: x.courtId ?? undefined })),
+            });
+            v += 1;
+            delete left[groupId];
+          }
+        } else {
+          const d = await ensureDraft();
+          let v = d.version;
+          for (const [groupId, slots] of Object.entries(pending)) {
+            const r = await api.put<Timetable>(`/timetable/drafts/${d.id}/groups/${groupId}`, { version: v, slots: slots.map((x) => ({ ...x, courtId: x.courtId ?? undefined })) });
+            v = r.draft?.version ?? v + 1;
+            delete left[groupId];
+          }
+        }
+      } finally {
+        setPending(left);
+        if (!Object.keys(left).length) undo.current = [];
+        bump((n) => n + 1);
+      }
+      return Object.keys(pending).length;
+    },
+    { invalidate: KEYS, success: (n) => (temp ? `${n} groupe${n > 1 ? 's' : ''} enregistré${n > 1 ? 's' : ''} dans les vacances.` : `${n} groupe${n > 1 ? 's' : ''} enregistré${n > 1 ? 's' : ''} dans le brouillon : publiez quand vous voulez.`) },
+  );
+  // Quitter la page avec des modifications en attente : le navigateur demande confirmation.
+  useEffect(() => {
+    if (!pendingCount) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [pendingCount]);
 
   // Emploi publié affiché : la première modification ouvre un nouveau brouillon (l'emploi publié ne change qu'à la publication).
   const ensureDraft = async () => {
@@ -306,7 +372,7 @@ export function TimetablePage() {
       if (!d) return;
       if (d.active && d.remove && d.fromIdx !== undefined) {
         save(d.groupId, editableOf(d.groupId).filter((_, i) => i !== d.fromIdx));
-        toast('Séance retirée (↶ Annuler pour la remettre).');
+        toast('Séance retirée : confirmez en bas de l’écran (↶ Annuler pour la remettre).');
       } else if (d.active && d.target) {
         if (d.problem) toast(d.problem);
         else place(d, d.target);
@@ -388,19 +454,19 @@ export function TimetablePage() {
                 <Pill tone="s">{`${t.draft.name} · ${changes.length} groupe${changes.length > 1 ? 's' : ''} modifié${changes.length > 1 ? 's' : ''}`}</Pill>
               )}
               {temp && <Pill tone={temp.status === 'PUBLISHED' ? 'g' : 's'}>{temp.status === 'PUBLISHED' ? 'Vacances publiées' : 'Vacances en brouillon'}</Pill>}
-              <Button onClick={undoLast} disabled={!undo.current.length || saveAction.isPending}>
+              <Button onClick={undoLast} disabled={!undo.current.length || saveAction.isPending || !pendingCount}>
                 ↶ Annuler
               </Button>
               <Button onClick={() => window.print()}>Imprimer</Button>
               {!temp && t.draft && <Button onClick={() => setRenaming(true)}>Renommer</Button>}
               {!temp && t.draft && <Button onClick={() => setDiscarding(true)}>Supprimer le brouillon</Button>}
               {!temp && t.draft && (
-                <Button variant="primary" onClick={() => setPublishing(true)} disabled={!changes.length}>
+                <Button variant="primary" onClick={() => setPublishing(true)} disabled={!changes.length || pendingCount > 0}>
                   Publier…
                 </Button>
               )}
               {temp && temp.status === 'DRAFT' && (
-                <Button variant="primary" onClick={() => setPublishingVac(true)} disabled={!temp.groups.some((g) => g.mode)}>
+                <Button variant="primary" onClick={() => setPublishingVac(true)} disabled={!temp.groups.some((g) => g.mode) || pendingCount > 0}>
                   Publier les vacances…
                 </Button>
               )}
@@ -537,8 +603,8 @@ export function TimetablePage() {
                 coachColor={coachColor}
                 onPointerDown={startDrag}
                 onPick={(p) => setPicked(picked && picked.groupId === p.groupId && picked.kind === p.kind && picked.fromIdx === undefined ? undefined : p)}
-                onAuto={(kind) => auto.mutate({ groupId: g.id, kind })}
-                onRevert={() => revert.mutate(g.id)}
+                onAuto={(kind) => (pendingCount ? toast('Confirmez ou annulez d’abord les modifications en attente.') : auto.mutate({ groupId: g.id, kind }))}
+                onRevert={() => (pendingCount ? toast('Confirmez ou annulez d’abord les modifications en attente.') : revert.mutate(g.id))}
               />
             ))}
             </div>
@@ -677,7 +743,7 @@ export function TimetablePage() {
                             height,
                             background: color,
                             color: ink(color),
-                            outline: r.slot.kind === 'PHYSICAL' ? `2px dashed ${ink(color)}` : r.changed ? '2px solid var(--pri)' : undefined,
+                            outline: r.pending ? '3px dashed var(--sel)' : r.slot.kind === 'PHYSICAL' ? `2px dashed ${ink(color)}` : r.changed ? '2px solid var(--pri)' : undefined,
                             outlineOffset: r.slot.kind === 'PHYSICAL' ? -4 : 0,
                           }}
                         >
@@ -779,6 +845,28 @@ export function TimetablePage() {
           }`}
         >
           Déposer ici pour retirer la séance
+        </div>
+      )}
+      {canManage && <ScheduleHistory draftId={t.draft?.id} vacId={temp?.id} />}
+      {/* Modifications en attente : rien n'est enregistré avant « Confirmer ». */}
+      {pendingCount > 0 && !drag?.active && (
+        <div className="no-print fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] z-[64] flex justify-center px-4 min-[861px]:bottom-6">
+          <div role="status" className="flex w-full max-w-[760px] flex-wrap items-center gap-3 rounded-[24px] border-[1.5px] border-sel bg-card px-4 py-3">
+            <div className="min-w-[200px] flex-1">
+              <b className="text-[14.5px] font-semibold">{`${pendingCount} groupe${pendingCount > 1 ? 's' : ''} modifié${pendingCount > 1 ? 's' : ''} : à confirmer`}</b>
+              <div className="text-[12.5px] text-mut">
+                {Object.entries(pending)
+                  .map(([gid, slots]) => `${t.groups.find((g) => g.id === gid)?.name ?? 'Groupe'} : ${changeSummary(baseOf(gid), slots)}`)
+                  .join(' · ')}
+              </div>
+            </div>
+            <Button onClick={cancelPending} disabled={saveAction.isPending}>
+              Annuler
+            </Button>
+            <Button variant="primary" onClick={() => saveAction.mutate()} disabled={saveAction.isPending}>
+              {saveAction.isPending ? 'Enregistrement…' : 'Confirmer'}
+            </Button>
+          </div>
         </div>
       )}
       <ConfirmModal
@@ -1147,3 +1235,4 @@ function RenameModal({ name, pending, onSave, onClose }: { name: string; pending
     </Modal>
   );
 }
+

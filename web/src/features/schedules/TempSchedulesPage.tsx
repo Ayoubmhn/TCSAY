@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardActions, CardGrid, CardRow, CardSubtitle, CardText, EmptyState } from '../../components/ui/Card';
 import { ConfirmModal } from '../../components/ui/ConfirmModal';
 import { TextArea, TextField } from '../../components/ui/Field';
+import { ScheduleHistory } from '../timetable/ScheduleHistory';
 import { START_DEFAULT, StartFromField, startFromBody, startFromProblem, type StartFrom } from './StartFrom';
 import { QueryState } from '../../components/ui/Loading';
 import { Modal } from '../../components/ui/Modal';
@@ -25,7 +26,7 @@ import type { TempScheduleDetail, TempScheduleList, TempScheduleMode, TempSchedu
 import { useAction } from '../../lib/useAction';
 
 /** Tout ce qui découle d'un emploi temporaire : planning, séances, présences, réservations, groupes. */
-const KEYS = [['temp-schedules'], ['temp-schedule'], ['planning'], ['sessions'], ['groups'], ['dashboard']];
+const KEYS = [['timetable'], ['temp-schedules'], ['temp-schedule'], ['planning'], ['sessions'], ['groups'], ['dashboard']];
 
 const PHASE: Record<TempSchedulePhase, { label: string; tone: PillTone }> = {
   UPCOMING: { label: 'À venir', tone: 'b' },
@@ -422,6 +423,9 @@ export function TempSchedulePage() {
                 : 'Publié : le planning, les séances, les présences et la grille de réservation suivent cet emploi pendant ses dates.'}{' '}
               Un groupe ne suit qu’un emploi publié à la fois. Une fois commencé, l’emploi ne se retire plus : raccourcissez la date de fin si besoin.
             </Note>
+            <div className="mt-4">
+              <ScheduleHistory vacId={s.id} />
+            </div>
 
             <ScheduleFormModal open={editing} schedule={s} onClose={() => setEditing(false)} />
             <GroupModal schedule={s} group={group} onClose={() => setGroup(undefined)} />
