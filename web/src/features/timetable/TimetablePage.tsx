@@ -294,19 +294,29 @@ export function TimetablePage() {
     { invalidate: KEYS, success: 'Groupe ajouté aux vacances (horaire habituel recopié, à modifier).' },
   );
 
+  // Terrains de tennis d'abord, puis ceux réservés aux séances physiques (réglage dans Terrains, ex. Annexe).
+  const courts = useMemo(() => (t ? [...t.courts.filter((c) => !c.physicalOnly), ...t.courts.filter((c) => c.physicalOnly)] : []), [t]);
+  // Colonne « hors terrain » : sans terrain réservé au physique, ou tant qu'une séance physique n'a pas de terrain.
+  const offCourt = !courts.some((c) => c.physicalOnly) || rows.some((r) => r.slot.kind === 'PHYSICAL' && !r.slot.courtId);
   // Colonnes : jours de la semaine pour un terrain, ou terrains (et hors terrain) pour un jour.
   const columns: { day: number; courtId: string | null; label: string; first?: boolean }[] = useMemo(() => {
     if (!t) return [];
     // Toute la semaine : chaque jour découpé en terrains (et hors terrain).
     if (view === 'all') {
       return WEEK.flatMap((d) => [
-        ...t.courts.map((c, i) => ({ day: d, courtId: c.id as string | null, label: shortCourt(c.name), first: i === 0 })),
-        { day: d, courtId: null, label: 'Ph.' },
+        ...courts.map((c, i) => ({ day: d, courtId: c.id as string | null, label: shortCourt(c.name), first: i === 0 })),
+        ...(offCourt ? [{ day: d, courtId: null, label: 'Ph.' }] : []),
       ]);
     }
     if (view === 'week') return WEEK.map((d) => ({ day: d, courtId: courtTab === PHYSICAL ? null : courtTab, label: DAY_NAMES[d] }));
-    return [...t.courts.map((c) => ({ day, courtId: c.id as string | null, label: `${c.name}${c.lit ? ' ☀' : ''}` })), { day, courtId: null, label: 'Physique' }];
-  }, [t, view, courtTab, day]);
+    return [
+      ...courts.map((c) => ({ day, courtId: c.id as string | null, label: `${c.name}${c.lit ? ' ☀' : ''}${c.physicalOnly ? ' · physique' : ''}` })),
+      ...(offCourt ? [{ day, courtId: null, label: 'Physique' }] : []),
+    ];
+  }, [t, courts, offCourt, view, courtTab, day]);
+  useEffect(() => {
+    if (courtTab === PHYSICAL && !offCourt) setCourtTab(courts.find((c) => c.physicalOnly)?.id ?? '');
+  }, [courtTab, offCourt, courts]);
 
   const coachColor = (ids: string[]) => t?.coaches.find((c) => c.id === ids[0])?.color ?? '#8a8a8f';
   const othersFor = (p: Picked): Placed[] => rows.filter((r) => !(r.groupId === p.groupId && r.editable && r.idx === p.fromIdx));
@@ -537,7 +547,10 @@ export function TimetablePage() {
             label="Terrain"
             value={courtTab}
             onChange={setCourtTab}
-            options={[...t.courts.map((c) => ({ value: c.id, label: `${c.name}${c.lit ? ' ☀' : ''}` })), { value: PHYSICAL, label: 'Physique (hors terrain)' }]}
+            options={[
+              ...courts.map((c) => ({ value: c.id, label: `${c.name}${c.lit ? ' ☀' : ''}${c.physicalOnly ? ' (physique)' : ''}` })),
+              ...(offCourt ? [{ value: PHYSICAL, label: 'Physique (hors terrain)' }] : []),
+            ]}
           />
         ) : (
           <Segmented<string> label="Jour" value={String(day)} onChange={(v) => setDay(Number(v))} options={WEEK.map((d) => ({ value: String(d), label: DAY_NAMES[d] }))} />
@@ -657,7 +670,7 @@ export function TimetablePage() {
                     <div
                       key={d}
                       className="border-s-2 border-line bg-dr pt-2 text-center text-[13px] font-semibold"
-                      style={{ gridColumn: `span ${t.courts.length + 1}` }}
+                      style={{ gridColumn: `span ${courts.length + (offCourt ? 1 : 0)}` }}
                     >
                       {DAY_FULL[d]}
                     </div>
@@ -1060,12 +1073,15 @@ function SlotModal({
         <SelectField label="Terrain" value={f.courtId ?? ''} disabled={!row.editable} onChange={(e) => setF({ ...f, courtId: e.target.value || null })}>
           {row.slot.kind === 'PHYSICAL' && <option value="">Hors terrain</option>}
           {row.slot.kind === 'TENNIS' && !f.courtId && <option value="">—</option>}
-          {t.courts.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-              {c.lit ? ' ☀' : ''}
-            </option>
-          ))}
+          {t.courts
+            .filter((c) => row.slot.kind === 'PHYSICAL' || !c.physicalOnly)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.lit ? ' ☀' : ''}
+                {c.physicalOnly ? ' (physique)' : ''}
+              </option>
+            ))}
         </SelectField>
       </div>
       <div role="group" aria-label="Entraîneurs de la séance" className="mt-3 flex flex-wrap gap-1.5">

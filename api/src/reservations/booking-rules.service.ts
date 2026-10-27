@@ -110,6 +110,7 @@ export class BookingRulesService implements OnApplicationBootstrap, OnModuleDest
   /** Le terrain apparaît-il dans la grille de ce compte ? */
   visibleTo(court: Court, user: AuthUser) {
     if (user.role === Role.ADMIN) return true;
+    if (court.physicalOnly) return false;
     return user.role === Role.COACH ? court.bookCoaches : court.bookFamilies;
   }
 

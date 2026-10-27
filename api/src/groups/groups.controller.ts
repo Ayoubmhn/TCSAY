@@ -23,7 +23,7 @@ import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { minutesOf } from '../common/dates';
 import { assertSeasonOpen, assertVersion, fullName, NIL_UUID, notFound, rule } from '../common/rules';
 import { DAY_LONG, DAY_NAMES, slotsOverlap } from '../common/sessions';
-import { assertVolumes, hm } from '../schedules/timetable-rules';
+import { assertVolumes, hm, physicalCourtConflict } from '../schedules/timetable-rules';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -519,6 +519,8 @@ export class GroupsController {
         throw new BadRequestException(`${DAY_LONG[s.day]} : l’heure de fin doit suivre l’heure de début.`);
       }
     }
+    const physical = physicalCourtConflict(slots, await this.prisma.court.findMany({ where: { physicalOnly: true }, select: { id: true, name: true, physicalOnly: true } }));
+    if (physical) throw rule.conflict('R5', physical);
     // Conflits internes au groupe : ses joueurs ne peuvent pas être à deux séances à la fois (tennis et physique compris).
     for (let i = 0; i < slots.length; i++) {
       for (let j = i + 1; j < slots.length; j++) {

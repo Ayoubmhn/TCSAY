@@ -11,7 +11,7 @@ import { assertSeasonOpen, notFound, rule } from '../common/rules';
 import { describe, SlotDto } from '../groups/groups.controller';
 import { PrismaService } from '../prisma/prisma.service';
 import { SettingsService } from '../settings/settings.service';
-import { assertVolumes, durationOf, findConflict, type Placed } from './timetable-rules';
+import { assertVolumes, durationOf, findConflict, physicalCourtConflict, type Placed } from './timetable-rules';
 
 /** Créneau du brouillon (et vue brute d'un créneau publié) : identifiant gardé pour un créneau existant. */
 type RawSlot = { id?: string; day: number; startTime: string; endTime: string; courtId: string | null; coachIds: string[]; kind: SlotKind };
@@ -280,9 +280,11 @@ export class TimetableController {
     if (missing <= 0) throw new ConflictException(`« ${g.name} » : le volume de ${tennis ? 'tennis' : 'physique'} est déjà placé.`);
 
     const s = await this.settings.all();
+    // Tennis : terrain de préférence puis les autres (jamais un terrain réservé au physique) ; physique : terrains réservés au physique, sinon hors terrain.
+    const usable = ctx.courts.filter((c) => c.active && !c.maintenance);
     const courts = tennis
-      ? [...ctx.courts.filter((c) => c.id === g.preferredCourtId), ...ctx.courts.filter((c) => c.id !== g.preferredCourtId)].filter((c) => c.active && !c.maintenance)
-      : [null];
+      ? [...usable.filter((c) => c.id === g.preferredCourtId), ...usable.filter((c) => c.id !== g.preferredCourtId)].filter((c) => !c.physicalOnly)
+      : [...usable.filter((c) => c.physicalOnly), null];
     const coachId = tennis ? g.mainCoachId : (g.physicalCoachId ?? g.mainCoachId);
     const coachIds = coachId ? [coachId] : [];
     const others = ctx.othersThan(groupId);
@@ -400,7 +402,7 @@ export class TimetableController {
       this.prisma.season.findUniqueOrThrow({ where: { id: seasonId } }),
       this.prisma.trainingGroup.findMany({ where: { seasonId, archivedAt: null }, include: groupInclude, orderBy: { name: 'asc' } }),
       draftId ? this.prisma.timetableDraft.findFirst({ where: { id: draftId, seasonId } }) : Promise.resolve(null),
-      this.prisma.court.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true, active: true, maintenance: true } }),
+      this.prisma.court.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true, active: true, maintenance: true, physicalOnly: true } }),
       this.prisma.coach.findMany({ where: { user: { isActive: true } }, select: { id: true, color: true, user: { select: { firstName: true, lastName: true } } } }),
     ]);
     if (draftId && !row) throw notFound('Brouillon');
@@ -432,6 +434,8 @@ export class TimetableController {
       } else if (x.kind === SlotKind.TENNIS) {
         throw new BadRequestException(`« ${g.name} » : choisissez le terrain de la séance de tennis.`);
       }
+      const physical = physicalCourtConflict([x], ctx.courts);
+      if (physical) throw rule.conflict('R5', `« ${g.name} » : ${physical}`);
       const unknown = x.coachIds.find((id) => !ctx.coaches.some((c) => c.id === id));
       if (unknown) throw new BadRequestException('Entraîneur introuvable ou désactivé.');
     }

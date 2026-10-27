@@ -430,6 +430,8 @@ model Court {
   active       Boolean      @default(true) // R11
   maintenance  Boolean      @default(false)
   sortOrder    Int          @default(0)
+  /// Réservé aux séances physiques (ex. Annexe) : pas de tennis dessus, colonne « physique » de l'emploi du temps, pas de réservation en ligne.
+  physicalOnly Boolean      @default(false)
   /// Réservation en ligne : qui peut réserver, quels jours (0 = dimanche), quelles heures, le soir ou non.
   bookFamilies Boolean      @default(true)
   bookCoaches  Boolean      @default(true)

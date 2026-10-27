@@ -1,14 +1,18 @@
 import { BadRequestException, Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { CourtSurface, Role } from '@prisma/client';
+import { CourtSurface, Role, SeasonStatus, SlotKind } from '@prisma/client';
 import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, Min, ValidateIf } from 'class-validator';
 import { dayFromIso, isoDay, todayIso } from '../common/dates';
 import { AuditService } from '../audit/audit.service';
 import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { assertVersion, notFound, rule } from '../common/rules';
+import { DAY_LONG } from '../common/sessions';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const SURFACE_LABEL: Record<CourtSurface, string> = { CLAY: 'Terre battue', HARD: 'Dur', GRASS: 'Gazon' };
+
+const describe = (c: { name: string; surface: CourtSurface; lit: boolean; physicalOnly: boolean }) =>
+  `${c.name} · ${SURFACE_LABEL[c.surface]} · ${c.lit ? 'éclairé' : 'sans éclairage'}${c.physicalOnly ? ' · réservé aux séances physiques' : ''}`;
 
 class CreateCourtDto {
   @IsString()
@@ -21,6 +25,11 @@ class CreateCourtDto {
 
   @IsBoolean()
   lit: boolean;
+
+  /** Réservé aux séances physiques (ex. Annexe). */
+  @IsOptional()
+  @IsBoolean()
+  physicalOnly?: boolean;
 }
 
 class UpdateCourtDto {
@@ -41,6 +50,11 @@ class UpdateCourtDto {
   @IsOptional()
   @IsBoolean()
   lit?: boolean;
+
+  /** Réservé aux séances physiques : pas de tennis, pas de réservation en ligne, colonne « physique » de l'emploi du temps. */
+  @IsOptional()
+  @IsBoolean()
+  physicalOnly?: boolean;
 
   /** Réservation en ligne : familles, entraîneurs, soir, jours (0 = dimanche), heures. */
   @IsOptional() @IsBoolean() bookFamilies?: boolean;
@@ -93,7 +107,7 @@ export class CourtsController {
   async create(@CurrentUser() user: AuthUser, @Body() dto: CreateCourtDto) {
     const max = await this.prisma.court.aggregate({ _max: { sortOrder: true } });
     const court = await this.prisma.court.create({
-      data: { name: dto.name.trim(), surface: dto.surface, lit: dto.lit, sortOrder: (max._max.sortOrder ?? 0) + 1 },
+      data: { name: dto.name.trim(), surface: dto.surface, lit: dto.lit, physicalOnly: dto.physicalOnly ?? false, sortOrder: (max._max.sortOrder ?? 0) + 1 },
     });
     await this.audit.log(user.id, { action: 'Terrain créé', entity: 'Court', entityId: court.id, target: court.name });
     return court;
@@ -105,12 +119,14 @@ export class CourtsController {
     const court = await this.find(id);
     assertVersion(court, dto.version, 'Ce terrain');
     if (dto.bookFrom && dto.bookTo && dto.bookTo <= dto.bookFrom) throw new BadRequestException('L’heure de fin de réservation suit l’heure de début.');
+    if (dto.physicalOnly && !court.physicalOnly) await this.assertFreeForPhysical(court);
     const updated = await this.prisma.court.update({
       where: { id },
       data: {
         name: dto.name?.trim(),
         surface: dto.surface,
         lit: dto.lit,
+        physicalOnly: dto.physicalOnly,
         bookFamilies: dto.bookFamilies,
         bookCoaches: dto.bookCoaches,
         bookNight: dto.bookNight,
@@ -125,8 +141,8 @@ export class CourtsController {
       entity: 'Court',
       entityId: id,
       target: updated.name,
-      before: `${court.name} · ${SURFACE_LABEL[court.surface]} · ${court.lit ? 'éclairé' : 'sans éclairage'}`,
-      after: `${updated.name} · ${SURFACE_LABEL[updated.surface]} · ${updated.lit ? 'éclairé' : 'sans éclairage'}`,
+      before: describe(court),
+      after: describe(updated),
     });
     return updated;
   }
@@ -205,6 +221,30 @@ export class CourtsController {
       after: active ? 'Actif' : 'Désactivé',
     });
     return updated;
+  }
+
+  /**
+   * Avant de réserver un terrain au physique : aucune séance de tennis dessus (horaire habituel, vacances, brouillons de la grille
+   * des saisons ouvertes) ni réservation à venir. On les déplace d'abord.
+   */
+  private async assertFreeForPhysical(court: { id: string; name: string }) {
+    const open = { archivedAt: null, season: { status: { in: ['DRAFT', 'ACTIVE'] as SeasonStatus[] } } };
+    const tennis = await this.prisma.groupSlot.findFirst({
+      where: { courtId: court.id, kind: SlotKind.TENNIS, group: open, OR: [{ scheduleId: null }, { schedule: { archivedAt: null, endDate: { gte: dayFromIso(todayIso()) } } }] },
+      include: { group: { select: { name: true } } },
+    });
+    if (tennis) {
+      throw rule.conflict('R5', `${court.name} a encore des séances de tennis (« ${tennis.group.name} », ${DAY_LONG[tennis.day]} ${tennis.startTime}) : déplacez-les d’abord.`);
+    }
+    const drafts = await this.prisma.timetableDraft.findMany({ where: { season: { status: { in: ['DRAFT', 'ACTIVE'] } } }, select: { name: true, groups: true } });
+    for (const d of drafts) {
+      const slots = Object.values((d.groups ?? {}) as Record<string, { courtId?: string | null; kind?: SlotKind }[]>).flat();
+      if (slots.some((x) => x.courtId === court.id && (x.kind ?? SlotKind.TENNIS) === SlotKind.TENNIS)) {
+        throw rule.conflict('R5', `${court.name} a des séances de tennis dans le brouillon « ${d.name} » : déplacez-les d’abord.`);
+      }
+    }
+    const reservations = await this.prisma.reservation.count({ where: { courtId: court.id, activeKey: { not: null }, startTime: { gte: new Date() } } });
+    if (reservations) throw rule.conflict('R11', `${court.name} a ${reservations} réservation${reservations > 1 ? 's' : ''} à venir : annulez-les ou attendez avant de le réserver au physique.`);
   }
 
   private async find(id: string) {

@@ -27,7 +27,7 @@ describe('Groupes (R4, R5)', () => {
     coach = await as('coach');
     year = new Date(ok(await admin('GET', '/seasons/active')).startDate).getUTCFullYear();
     cats = ok(await admin('GET', '/categories'));
-    court = ok(await admin('GET', '/courts')).find((c) => c.active && c.name === 'Annexe') ?? ok(await admin('GET', '/courts')).find((c) => c.active);
+    court = ok(await admin('GET', '/courts')).find((c) => c.active && !c.physicalOnly && c.name === 'Court 3') ?? ok(await admin('GET', '/courts')).find((c) => c.active && !c.physicalOnly);
     const mkCoach = async () => ok(await admin('POST', '/coaches', { firstName: 'Coach', lastName: `E2E${uid()}`, cin: fakeCin(), payMode: 'HOURLY', payRate: 10 })).id;
     coachA = await mkCoach();
     coachB = await mkCoach();

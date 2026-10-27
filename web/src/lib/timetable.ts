@@ -41,6 +41,7 @@ export function placementProblem(t: Timetable, cand: Placed, others: Placed[]): 
   if (s.kind === 'TENNIS' && !s.courtId) return 'Choisissez un terrain pour une séance de tennis';
   const court = s.courtId ? t.courts.find((c) => c.id === s.courtId) : null;
   if (court && !court.lit && end > t.hours.nightStart * 60) return `${court.name} n’est pas éclairé après ${t.hours.nightStart} h`;
+  if (court?.physicalOnly && s.kind === 'TENNIS') return `${court.name} est réservé aux séances physiques`;
   for (const o of others) {
     if (!overlap(s, o.slot)) continue;
     if (o.groupId === cand.groupId) return `« ${cand.groupName} » a déjà une séance à ${o.slot.startTime}`;

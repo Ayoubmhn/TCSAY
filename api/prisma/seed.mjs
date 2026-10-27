@@ -96,13 +96,13 @@ async function main() {
   const CUR = S_['2026-2027'];
   const PREV = S_['2025-2026'];
 
-  // Terrains du programme (éclairage de l'Annexe : à confirmer)
+  // Terrains du programme (éclairage de l'Annexe : à confirmer ; démo : Annexe réservée aux séances physiques)
   const T = {};
   for (const [i, [key, data]] of [
     ['C1', { name: 'Court 1', lit: true, surface: 'CLAY' }],
     ['C2', { name: 'Court 2', lit: true, surface: 'CLAY' }],
     ['C3', { name: 'Court 3', lit: true, surface: 'HARD' }],
-    ['AN', { name: 'Annexe', lit: false, surface: 'CLAY' }], // surface à confirmer
+    ['AN', { name: 'Annexe', lit: false, surface: 'CLAY', physicalOnly: true }], // surface à confirmer
   ].entries()) {
     T[key] = (await prisma.court.create({ data: { ...data, sortOrder: i + 1 } })).id;
   }
@@ -235,7 +235,7 @@ async function main() {
   // Volume par semaine déduit des créneaux (grille de l'emploi du temps) ; séance physique d'exemple pour les Minimes.
   await fillGroupVolumes(prisma);
   await prisma.trainingGroup.update({ where: { id: G['Minimes'] }, data: { physicalMinutes: 60, physicalSessionMinutes: 60 } });
-  await prisma.groupSlot.create({ data: { groupId: G['Minimes'], day: S, startTime: '12:00', endTime: '13:00', kind: 'PHYSICAL' } });
+  await prisma.groupSlot.create({ data: { groupId: G['Minimes'], day: S, startTime: '12:00', endTime: '13:00', courtId: T.AN, kind: 'PHYSICAL' } });
 
   for (const [pid, , , , , , groupName] of players) {
     if (groupName) await prisma.groupMember.create({ data: { groupId: G[groupName], enrollmentId: E[pid] } });

@@ -10,6 +10,7 @@ import { addDaysIso, dayFromIso, isoDay, minutesOf, todayIso, weekday } from '..
 import { assertSeasonOpen, assertVersion, fullName, notFound, rule } from '../common/rules';
 import { DAY_LONG, DAY_NAMES, groupPeriod, slotsOverlap } from '../common/sessions';
 import { SlotDto, slotInclude, slotView } from '../groups/groups.controller';
+import { physicalCourtConflict } from './timetable-rules';
 import { PrismaService } from '../prisma/prisma.service';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -515,9 +516,11 @@ export class TempSchedulesController {
     range: { from: string; to: string },
     groupId: string,
     mode: TempScheduleMode,
-    slots: { id?: string; day: number; startTime: string; endTime: string; courtId?: string | null; coachIds: string[] }[],
+    slots: { id?: string; day: number; startTime: string; endTime: string; courtId?: string | null; coachIds: string[]; kind?: SlotKind | null }[],
   ) {
     const days = weekdaysIn(range.from, range.to);
+    const physical = physicalCourtConflict(slots, await this.prisma.court.findMany({ where: { physicalOnly: true }, select: { id: true, name: true, physicalOnly: true } }));
+    if (physical) throw rule.conflict('R5', physical);
     for (const sl of slots) {
       if (minutesOf(sl.endTime) <= minutesOf(sl.startTime)) throw new BadRequestException(`${DAY_LONG[sl.day]} : l’heure de fin doit suivre l’heure de début.`);
       if (!days.has(sl.day)) throw new BadRequestException(`Aucun ${DAY_LONG[sl.day]} entre le ${frDate(range.from)} et le ${frDate(range.to)}.`);

@@ -125,7 +125,7 @@ export class OneOffSessionsController {
       courts: courts.map((c) => {
         const closed = closures.find((x) => x.courtId === c.id);
         const why = c.maintenance ? 'en entretien' : closed ? `fermé (${closed.reason})` : night && !c.lit ? 'pas éclairé la nuit' : (busy.courts.get(c.id) ?? null);
-        return { id: c.id, name: c.name, lit: c.lit, busy: why };
+        return { id: c.id, name: c.name, lit: c.lit, physicalOnly: c.physicalOnly, busy: why };
       }),
       coaches: coaches.map((c) => ({ id: c.id, name: fullName(c.user).trim(), color: c.color, busy: busy.coaches.get(c.id) ?? null })),
     };
@@ -185,6 +185,7 @@ export class OneOffSessionsController {
       const court = await this.prisma.court.findUnique({ where: { id: dto.courtId } });
       if (!court || !court.active) throw notFound('Terrain');
       if (court.maintenance) throw rule.conflict('R5', `${court.name} est en entretien.`);
+      if (court.physicalOnly && kind === SlotKind.TENNIS) throw rule.conflict('R5', `${court.name} est réservé aux séances physiques.`);
       if (!court.lit && minutesOf(dto.endTime) > s.nightStartHour * 60) throw rule.conflict('R5', `${court.name} n’est pas éclairé après ${s.nightStartHour} h.`);
       const closed = await this.prisma.courtClosure.findFirst({ where: { courtId: court.id, fromDate: { lte: dayFromIso(dto.date) }, toDate: { gte: dayFromIso(dto.date) } } });
       if (closed) throw rule.conflict('R5', `${court.name} est fermé ce jour-là (${closed.reason}).`);

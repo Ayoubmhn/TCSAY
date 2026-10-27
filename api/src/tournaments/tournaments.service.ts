@@ -419,7 +419,7 @@ export class TournamentsService {
     const start = localInstant(day, startTime);
     const end = localInstant(day, endTime);
     const [courts, slots, reservations, moves] = await Promise.all([
-      this.prisma.court.findMany({ where: { active: true, maintenance: false, id: { not: exceptCourtId } }, orderBy: { sortOrder: 'asc' } }),
+      this.prisma.court.findMany({ where: { active: true, maintenance: false, physicalOnly: false, id: { not: exceptCourtId } }, orderBy: { sortOrder: 'asc' } }),
       this.prisma.groupSlot.findMany({ where: { courtId: { not: null }, group: { seasonId: season.id, archivedAt: null } }, include: { group: { select: periodSelect } } }),
       this.prisma.reservation.findMany({ where: { activeKey: { not: null }, startTime: { lt: end }, endTime: { gt: start } }, select: { courtId: true } }),
       this.prisma.sessionChange.findMany({ where: { date: dayFromIso(day), kind: 'MOVED' }, include: { slot: true } }),

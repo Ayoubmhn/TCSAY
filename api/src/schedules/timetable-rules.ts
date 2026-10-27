@@ -95,3 +95,17 @@ export function findConflict(candidates: Placed[], others: Placed[]): string | n
   }
   return null;
 }
+
+/** Terrain réservé aux séances physiques (ex. Annexe) : aucune séance de tennis dessus. */
+export function physicalCourtConflict(
+  slots: { day: number; startTime: string; courtId?: string | null; kind?: SlotKind | null }[],
+  courts: { id: string; name: string; physicalOnly: boolean }[],
+): string | null {
+  for (const s of slots) {
+    const court = s.courtId ? courts.find((c) => c.id === s.courtId) : undefined;
+    if (court?.physicalOnly && (s.kind ?? SlotKind.TENNIS) === SlotKind.TENNIS) {
+      return `${court.name} est réservé aux séances physiques : pas de séance de tennis (${DAY_LONG[s.day]} ${s.startTime}).`;
+    }
+  }
+  return null;
+}

@@ -184,7 +184,7 @@ export class AvailabilityController {
         where: { scheduleId: null, group: { seasonId: season.id, archivedAt: null } },
         select: { day: true, startTime: true, endTime: true, courtId: true, groupId: true, coaches: { select: { coachId: true } } },
       }),
-      this.prisma.court.findMany({ where: { active: true, maintenance: false }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true } }),
+      this.prisma.court.findMany({ where: { active: true, maintenance: false, physicalOnly: false }, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, lit: true } }),
       dto.groupId
         ? this.prisma.groupMember.findMany({ where: { groupId: dto.groupId }, select: { enrollment: { select: { player: { select: { availability: { select: { grid: true } } } } } } } })
         : Promise.resolve([]),

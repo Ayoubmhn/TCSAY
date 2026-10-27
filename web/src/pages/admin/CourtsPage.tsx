@@ -23,6 +23,7 @@ const HALF_HOURS = Array.from({ length: 31 }, (_, i) => `${String(7 + Math.floor
 
 /** Résumé de la réservation en ligne d'un terrain (carte). */
 export function bookingSummary(c: Court) {
+  if (c.physicalOnly) return 'Réservé aux séances physiques : pas de réservation en ligne';
   if (!c.bookFamilies && !c.bookCoaches) return 'Réservation : club seulement';
   const who = c.bookFamilies && c.bookCoaches ? 'familles et entraîneurs' : c.bookFamilies ? 'familles' : 'entraîneurs';
   const days = c.bookDays.length === 7 ? 'tous les jours' : ORDER.filter((d) => c.bookDays.includes(d)).map((d) => DAYS[d]).join(' ');
@@ -48,6 +49,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
   const [name, setName] = useState('');
   const [surface, setSurface] = useState<CourtSurface>('CLAY');
   const [lit, setLit] = useState('1');
+  const [physical, setPhysical] = useState(false);
   const [families, setFamilies] = useState(true);
   const [coaches, setCoaches] = useState(true);
   const [night, setNight] = useState(true);
@@ -63,6 +65,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
     setName(c?.name ?? '');
     setSurface(c?.surface ?? 'CLAY');
     setLit(c ? (c.lit ? '1' : '0') : '1');
+    setPhysical(c?.physicalOnly ?? false);
     setFamilies(c?.bookFamilies ?? true);
     setCoaches(c?.bookCoaches ?? true);
     setNight(c?.bookNight ?? true);
@@ -80,7 +83,7 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
 
   const save = useAction(
     () => {
-      const body = { name, surface, lit: lit === '1' };
+      const body = { name, surface, lit: lit === '1', physicalOnly: physical };
       return court
         ? api.patch(`/courts/${court.id}`, { ...body, version: court.version, bookFamilies: families, bookCoaches: coaches, bookNight: night, bookDays: days, bookFrom: from || null, bookTo: to || null })
         : api.post('/courts', body);
@@ -120,41 +123,56 @@ function CourtFormModal({ open, court, onClose }: { open: boolean; court?: Court
           <option value="1">☀ Éclairé : réservable la nuit</option>
           <option value="0">Sans éclairage : jour seulement</option>
         </SelectField>
+        <div className="flex flex-col gap-1 rounded-[20px] border-[1.5px] border-line p-3.5 min-[561px]:col-span-2">
+          <b className="text-[15px] font-medium">Utilisation</b>
+          <Toggle
+            label="Réservé aux séances physiques"
+            hint="Colonne « physique » de l’emploi du temps : pas de tennis dessus, pas de réservation en ligne"
+            checked={physical}
+            onChange={setPhysical}
+          />
+        </div>
         {court && (
           <div className="flex flex-col gap-1 rounded-[20px] border-[1.5px] border-line p-3.5 min-[561px]:col-span-2">
             <b className="text-[15px] font-medium">Réservation en ligne</b>
-            <Toggle label="Familles et joueurs" hint="Visible dans « Réserver un terrain »" checked={families} onChange={setFamilies} />
-            <Toggle label="Entraîneurs (séances privées)" checked={coaches} onChange={setCoaches} />
-            <Toggle label="Réservable le soir" hint={lit === '1' ? 'Terrain éclairé' : 'Sans éclairage : jamais le soir'} checked={night} onChange={setNight} />
-            <span className="mt-2 text-[12px] text-mut">Jours ouverts à la réservation</span>
-            <div className="grid grid-cols-7 gap-1">
-              {ORDER.map((d) => {
-                const on = days.includes(d);
-                return (
-                  <button key={d} type="button" aria-pressed={on} onClick={() => setDays((l) => (on ? l.filter((x) => x !== d) : [...l, d]))} className={`rounded-[12px] py-1.5 text-[12.5px] ${on ? 'bg-pg font-semibold text-ink' : 'bg-fld text-mut'}`}>
-                    {DAYS[d]}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <SelectField label="De" value={from} onChange={(e) => setFrom(e.target.value)}>
-                <option value="">Ouverture du club</option>
-                {HALF_HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </SelectField>
-              <SelectField label="À" value={to} onChange={(e) => setTo(e.target.value)}>
-                <option value="">Fermeture du club</option>
-                {HALF_HOURS.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
+            {physical ? (
+              <span className="text-[13px] text-mut">Aucune : terrain réservé aux séances physiques.</span>
+            ) : (
+              <>
+                <Toggle label="Familles et joueurs" hint="Visible dans « Réserver un terrain »" checked={families} onChange={setFamilies} />
+                <Toggle label="Entraîneurs (séances privées)" checked={coaches} onChange={setCoaches} />
+                <Toggle label="Réservable le soir" hint={lit === '1' ? 'Terrain éclairé' : 'Sans éclairage : jamais le soir'} checked={night} onChange={setNight} />
+                <span className="mt-2 text-[12px] text-mut">Jours ouverts à la réservation</span>
+                <div className="grid grid-cols-7 gap-1">
+                  {ORDER.map((d) => {
+                    const on = days.includes(d);
+                    return (
+                      <button key={d} type="button" aria-pressed={on} onClick={() => setDays((l) => (on ? l.filter((x) => x !== d) : [...l, d]))} className={`rounded-[12px] py-1.5 text-[12.5px] ${on ? 'bg-pg font-semibold text-ink' : 'bg-fld text-mut'}`}>
+                        {DAYS[d]}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <SelectField label="De" value={from} onChange={(e) => setFrom(e.target.value)}>
+                    <option value="">Ouverture du club</option>
+                    {HALF_HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <SelectField label="À" value={to} onChange={(e) => setTo(e.target.value)}>
+                    <option value="">Fermeture du club</option>
+                    {HALF_HOURS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </SelectField>
+                </div>
+              </>
+            )}
             <b className="mt-3 text-[15px] font-medium">Fermetures ponctuelles</b>
             {court.closures.length ? (
               <div className="flex flex-col gap-1.5">
@@ -233,6 +251,7 @@ export function CourtsPage() {
                   <Pills>
                     <Pill tone="b">{SURFACE_LABEL[c.surface]}</Pill>
                     <Pill tone={c.lit ? 'g' : 's'}>{c.lit ? '☀ Éclairé' : 'Sans éclairage'}</Pill>
+                    {c.physicalOnly && <Pill tone="s">Séances physiques</Pill>}
                   </Pills>
                   <CardText>
                     {c.futureReservations} réservation{c.futureReservations > 1 ? 's' : ''} à venir

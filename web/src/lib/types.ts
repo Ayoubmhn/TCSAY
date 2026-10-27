@@ -212,6 +212,8 @@ export type Court = {
   lit: boolean;
   active: boolean;
   maintenance: boolean;
+  /** Réservé aux séances physiques (ex. Annexe) : pas de tennis, pas de réservation en ligne. */
+  physicalOnly: boolean;
   version: number;
   futureReservations: number;
   /** Réservation en ligne : familles, entraîneurs, soir, jours (0 = dimanche), heures, fermetures ponctuelles. */
@@ -1033,7 +1035,8 @@ export type TimetableGroup = GroupVolumes & {
 export type Timetable = {
   season: { id: string; label: string; status: string };
   hours: { opening: number; closing: number; nightStart: number };
-  courts: { id: string; name: string; lit: boolean; active: boolean; maintenance: boolean }[];
+  /** physicalOnly : terrain réservé aux séances physiques (ex. Annexe), colonne « physique » de la grille. */
+  courts: { id: string; name: string; lit: boolean; active: boolean; maintenance: boolean; physicalOnly?: boolean }[];
   coaches: { id: string; color: string; firstName: string; lastName: string }[];
   groups: TimetableGroup[];
   /** Brouillons de la saison (nom, groupes modifiés). */
@@ -1074,7 +1077,7 @@ export type OneOffType = 'MAKEUP' | 'EXTRA' | 'SPECIAL';
 export type OneOffOptions = {
   groupBusy: string | null;
   hours: { opening: number; closing: number; nightStart: number };
-  courts: { id: string; name: string; lit: boolean; busy: string | null }[];
+  courts: { id: string; name: string; lit: boolean; physicalOnly?: boolean; busy: string | null }[];
   coaches: { id: string; name: string; color: string; busy: string | null }[];
 };
 /** Séance annulée ou reportée d'un groupe (choix d'un rattrapage). */

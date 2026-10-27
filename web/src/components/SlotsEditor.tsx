@@ -68,10 +68,11 @@ export function SlotsEditor({ slots, onChange, days = WEEK }: { slots: SlotForm[
             <SelectField label="Terrain" value={s.courtId} onChange={(e) => setSlot(s.key, { courtId: e.target.value })}>
               <option value="">{s.kind === 'PHYSICAL' ? 'Hors terrain' : '—'}</option>
               {courts.data
-                ?.filter((c) => c.active)
+                ?.filter((c) => c.active && (s.kind === 'PHYSICAL' || !c.physicalOnly || c.id === s.courtId))
                 .map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
+                    {c.physicalOnly ? ' (physique)' : ''}
                   </option>
                 ))}
             </SelectField>

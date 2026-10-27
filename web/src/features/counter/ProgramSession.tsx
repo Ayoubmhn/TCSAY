@@ -34,6 +34,10 @@ export type ProgramInit = { groupId?: string; makeup?: { slotId: string; date: s
  * « Programmer une séance » : rattrapage d'une séance manquée, séance en plus (avance) ou séance spéciale, un seul jour.
  * Terrains et entraîneurs libres affichés pour la date et les heures choisies ; l'API refait tous les contrôles (R5, R10).
  */
+/** Tennis : jamais un terrain réservé aux séances physiques ; physique : ces terrains d'abord. */
+const courtsFor = <C extends { physicalOnly?: boolean }>(courts: C[], kind: SlotKind) =>
+  kind === 'TENNIS' ? courts.filter((c) => !c.physicalOnly) : [...courts.filter((c) => c.physicalOnly), ...courts.filter((c) => !c.physicalOnly)];
+
 export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit; onClose: () => void }) {
   const toast = useToast();
   const t = useQuery({ queryKey: ['timetable', null], queryFn: () => api.get<Timetable>('/timetable') });
@@ -74,8 +78,15 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
   useEffect(() => {
     const o = opts.data;
     if (!o) return;
-    const free = (id: string) => o.courts.some((c) => c.id === id && !c.busy);
-    if (!courtId || !free(courtId)) setCourtId(group?.preferredCourtId && free(group.preferredCourtId) ? group.preferredCourtId : (o.courts.find((c) => !c.busy)?.id ?? ''));
+    const usable = courtsFor(o.courts, kind);
+    const free = (id: string) => usable.some((c) => c.id === id && !c.busy);
+    if (kind === 'PHYSICAL') {
+      // Physique : terrain réservé aux séances physiques s'il est libre, sinon hors terrain.
+      if (courtId && !free(courtId)) setCourtId('');
+      if (!courtId) setCourtId(usable.find((c) => c.physicalOnly && !c.busy)?.id ?? '');
+    } else if (!courtId || !free(courtId)) {
+      setCourtId(group?.preferredCourtId && free(group.preferredCourtId) ? group.preferredCourtId : (usable.find((c) => !c.busy)?.id ?? ''));
+    }
     setCoachIds((ids) => {
       const kept = ids.filter((id) => o.coaches.some((c) => c.id === id && !c.busy));
       if (kept.length || ids.length) return kept;
@@ -83,7 +94,7 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
       return main && o.coaches.some((c) => c.id === main && !c.busy) ? [main] : [];
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts.data]);
+  }, [opts.data, kind]);
 
   const save = useAction(
     () => {
@@ -191,7 +202,7 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
                     Hors terrain
                   </button>
                 )}
-                {opts.data.courts.map((c) => (
+                {courtsFor(opts.data.courts, kind).map((c) => (
                   <button
                     key={c.id}
                     type="button"
@@ -203,7 +214,7 @@ export function ProgramSessionModal({ init = {}, onClose }: { init?: ProgramInit
                       courtId === c.id ? 'bg-sel text-white' : c.busy ? 'cursor-not-allowed bg-[#fdb3b0] text-[#111] opacity-80' : 'bg-[#dff3a8] text-[#111]'
                     }`}
                   >
-                    {`${c.name}${c.lit ? ' ☀' : ''} · ${c.busy ? 'pris' : 'libre'}`}
+                    {`${c.name}${c.lit ? ' ☀' : ''}${c.physicalOnly ? ' (physique)' : ''} · ${c.busy ? 'pris' : 'libre'}`}
                   </button>
                 ))}
               </div>
