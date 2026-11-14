@@ -115,6 +115,29 @@ describe('Rapports de fin de saison', () => {
     assert.ok(Array.isArray(r.files));
   });
 
+  test('modèle du club : nouvelles catégories de dépenses, en-tête, montants et listes du bureau', async () => {
+    const y = Number(s1.startDate.slice(0, 4));
+    // « أعباء مالية » et « خلاص القباضة » reconnus dans le cahier : frais bancaires et taxes.
+    ok(await admin('POST', `/history/${s1.id}/commit/EXPENSE`, { source: 'MANUAL', table: [{ date: `${y}-12-01`, label: 'أعباء مالية', amount: '9' }, { date: `${y}-12-02`, label: 'تنظيم الدورات', amount: '40' }] }));
+    const f = ok(await admin('GET', `/seasons/${s1.id}/reports`)).financial;
+    assert.equal(f.expenses.categories.find((c) => c.category === 'BANK')?.amount, 9);
+    assert.equal(f.expenses.categories.find((c) => c.category === 'ADMIN')?.amount, 40);
+    // Montants, soldes et dettes saisis par le bureau, gardés tels quels.
+    const texts = { manualIncome: JSON.stringify({ federation: '300' }), bankStart: '1000', debts: JSON.stringify([{ label: 'مزود', amount: '50' }]) };
+    ok(await admin('PUT', `/seasons/${s1.id}/reports/drafts/FINANCIAL`, { texts }));
+    const d = ok(await admin('GET', `/seasons/${s1.id}/reports`)).drafts.FINANCIAL.texts;
+    assert.equal(d.bankStart, '1000');
+    assert.deepEqual(JSON.parse(d.debts), [{ label: 'مزود', amount: '50' }]);
+    // En-tête : lu par la direction, modifié avec « seasons.manage », remis à la fin.
+    const before = ok(await admin('GET', '/reports/letterhead'));
+    assert.equal(before.nameAr, before.nameAr || 'نادي التنس بصيادة');
+    ok(await admin('PUT', '/reports/letterhead', { ...before, phone: '70 000 000' }));
+    assert.equal(ok(await admin('GET', `/seasons/${s1.id}/reports`)).letterhead.phone, '70 000 000');
+    refused(await superviseur('PUT', '/reports/letterhead', { ...before }), 403);
+    refused(await parent('GET', '/reports/letterhead'), 403);
+    ok(await admin('PUT', '/reports/letterhead', before));
+  });
+
   test('droits : superviseur lit sans déposer ; parent et coach refusés', async () => {
     ok(await superviseur('GET', `/seasons/${s1.id}/reports`));
     refused(await superviseur('POST', `/seasons/${s1.id}/reports/files`, fileForm(Buffer.from('%PDF-1.4'), 'x.pdf', 'application/pdf', { kind: 'MORAL' })), 403);

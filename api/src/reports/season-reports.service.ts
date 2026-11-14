@@ -43,6 +43,8 @@ export class SeasonReportsService {
   async moral(s: SeasonRow) {
     const range = this.range(s);
     const prev = await this.previous(s);
+    // Début de l'activité : première séance pointée de la saison, sinon début de la saison.
+    const first = await this.prisma.attendance.findFirst({ where: { group: { seasonId: s.id } }, orderBy: { date: 'asc' }, select: { date: true } });
     const [enrollments, groups, slots, marks, sessions, tournaments, matches, events, prevPlayers] = await Promise.all([
       this.prisma.enrollment.findMany({
         where: { seasonId: s.id, player: { archivedAt: null } },
@@ -85,6 +87,7 @@ export class SeasonReportsService {
     const marked = count('PRESENT') + count('LATE') + count('ABSENT');
 
     return {
+      firstSession: isoDay(first?.date ?? s.startDate),
       members: {
         total: enrollments.length,
         boys: categories.reduce((t, c) => t + c.boys, 0),

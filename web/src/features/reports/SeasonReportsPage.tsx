@@ -19,7 +19,24 @@ import { fD } from '../../lib/format';
 import type { Season } from '../seasons/api';
 import { useAction } from '../../lib/useAction';
 import { useModule } from '../../lib/modules';
-import { ReportDocument, TEXT_FIELDS, textsFor, type ReportKind, type SeasonReports } from './ReportDocument';
+import {
+  MANUAL_INCOME,
+  ReportDocument,
+  TEXT_FIELDS,
+  financialSheet,
+  amt,
+  parseList,
+  parseObj,
+  textsFor,
+  type DebtRow,
+  type Letterhead,
+  type ManualIncome,
+  type ReportKind,
+  type ResultRow,
+  type SeasonReports,
+  type TextField,
+} from './ReportDocument';
+import { TextField as Input } from '../../components/ui/Field';
 
 const KIND_LABEL: Record<ReportKind, string> = { MORAL: 'Rapport moral', FINANCIAL: 'Rapport financier' };
 
@@ -48,10 +65,13 @@ export function SeasonReportsPage() {
   const draft = d?.drafts[kind];
   const dirty = d ? JSON.stringify(texts) !== JSON.stringify(textsFor(kind, d)) || draft?.from !== 'season' : false;
 
-  const save = useAction(() => api.put<{ version: number }>(`/seasons/${seasonId}/reports/drafts/${kind}`, { texts, version: draft?.from === 'season' ? draft.version : undefined }), {
-    invalidate: [['season-reports', seasonId ?? '']],
-    success: `${KIND_LABEL[kind]} enregistré.`,
-  });
+  const save = useAction(
+    () => api.put<{ version: number }>(`/seasons/${seasonId}/reports/drafts/${kind}`, { texts, version: draft?.from === 'season' ? draft.version : undefined }),
+    {
+      invalidate: [['season-reports', seasonId ?? '']],
+      success: `${KIND_LABEL[kind]} enregistré.`,
+    },
+  );
   const upload = useAction((f: File) => api.upload(`/seasons/${seasonId}/reports/files`, f, { kind }), {
     invalidate: [['season-reports', seasonId ?? '']],
     success: 'Rapport ajouté à l’archive de la saison.',
@@ -175,22 +195,10 @@ export function SeasonReportsPage() {
                   </CardRow>
                   <div className="mt-3 grid gap-3 min-[900px]:grid-cols-2">
                     {TEXT_FIELDS[kind].map((f) => (
-                      <label key={f.key} className="flex flex-col gap-1">
-                        <span className="text-[12px] text-mut">
-                          {f.hint} · <span dir="rtl">{f.title}</span>
-                        </span>
-                        <textarea
-                          dir="rtl"
-                          lang="ar"
-                          rows={4}
-                          disabled={!canEdit}
-                          className="fld resize-y text-[15px] leading-relaxed text-fg"
-                          value={texts[f.key] ?? ''}
-                          onChange={(e) => setTexts({ ...texts, [f.key]: e.target.value })}
-                        />
-                      </label>
+                      <FieldEditor key={f.key} field={f} data={d} value={texts[f.key] ?? ''} disabled={!canEdit} onChange={(v) => setTexts((t) => ({ ...t, [f.key]: v }))} />
                     ))}
                   </div>
+                  {kind === 'FINANCIAL' && <FinancialCheck data={d} texts={texts} />}
                   <div className="mt-3 flex flex-wrap justify-end gap-2">
                     <a
                       className="inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg"
@@ -209,6 +217,8 @@ export function SeasonReportsPage() {
                 </Card>
               </Section>
 
+              <LetterheadCard value={d.letterhead} canEdit={canEdit} seasonId={d.season.id} />
+
               <Section title="Aperçu">
                 <div className="overflow-x-auto rounded-[24px] border-[1.5px] border-line bg-[#e9e9ee] p-4">
                   <div className="mx-auto w-max shadow-none">
@@ -216,8 +226,9 @@ export function SeasonReportsPage() {
                   </div>
                 </div>
                 <Note>
-                  Les chiffres sont calculés pour la saison {d.season.label} (inscriptions, paiements, réservations, dépenses payées, salaires versés).
-                  Avant l’impression, enregistrez les textes : la page imprimée reprend les textes enregistrés. {history && ' Les saisons anciennes (joueurs, recettes, dépenses) s’importent dans « Import historique » : leurs chiffres servent de comparaison.'}
+                  Les chiffres sont calculés pour la saison {d.season.label} (inscriptions, paiements, réservations, dépenses payées, salaires versés). Avant l’impression,
+                  enregistrez les textes : la page imprimée reprend les textes enregistrés.{' '}
+                  {history && ' Les saisons anciennes (joueurs, recettes, dépenses) s’importent dans « Import historique » : leurs chiffres servent de comparaison.'}
                 </Note>
               </Section>
             </>
@@ -225,9 +236,23 @@ export function SeasonReportsPage() {
         </QueryState>
       </div>
 
-      <Modal open={Boolean(reading)} title={reading?.fileName ?? ''} size="lg" onClose={() => setReading(undefined)} footer={<Button onClick={() => setReading(undefined)}>Fermer</Button>}>
+      <Modal
+        open={Boolean(reading)}
+        title={reading?.fileName ?? ''}
+        size="lg"
+        onClose={() => setReading(undefined)}
+        footer={<Button onClick={() => setReading(undefined)}>Fermer</Button>}
+      >
         <div dir="auto" className="flex max-h-[60vh] flex-col gap-2 overflow-auto text-[15px] leading-relaxed">
-          {reading?.paragraphs.length ? reading.paragraphs.map((p, i) => <p key={i} dir="auto" className="m-0">{p}</p>) : <EmptyState>Document sans texte.</EmptyState>}
+          {reading?.paragraphs.length ? (
+            reading.paragraphs.map((p, i) => (
+              <p key={i} dir="auto" className="m-0">
+                {p}
+              </p>
+            ))
+          ) : (
+            <EmptyState>Document sans texte.</EmptyState>
+          )}
         </div>
         <Note>Sélectionnez un passage pour le copier dans les textes du bureau.</Note>
       </Modal>
@@ -273,4 +298,211 @@ export function ReportPrintPage({ seasonId, kind }: { seasonId: string; kind: Re
 export function ReportPrintRoute() {
   const { seasonId = '', kind = 'MORAL' } = useParams();
   return <ReportPrintPage seasonId={seasonId} kind={kind === 'FINANCIAL' ? 'FINANCIAL' : 'MORAL'} />;
+}
+
+const FIELD_CLASS = 'fld text-[15px] leading-relaxed text-fg';
+
+/** Champ du bureau selon son type : ligne, paragraphe, nombre, case, liste de résultats, dettes, recettes hors application. */
+function FieldEditor({ field, data, value, disabled, onChange }: { field: TextField; data: SeasonReports; value: string; disabled: boolean; onChange: (v: string) => void }) {
+  const wide = ['text', 'results', 'debts', 'income'].includes(field.type);
+  const label = (
+    <span className="text-[12px] text-mut">
+      {field.hint} · <span dir="rtl">{field.title}</span>
+    </span>
+  );
+  if (field.type === 'toggle') {
+    return (
+      <label className="flex items-center gap-3 rounded-[18px] bg-fld px-3.5 py-3 min-[900px]:col-span-2">
+        <input type="checkbox" className="h-5 w-5 accent-[var(--pri)]" checked={value === '1'} disabled={disabled} onChange={(e) => onChange(e.target.checked ? '1' : '0')} />
+        <span className="text-[14px]">{field.hint}</span>
+      </label>
+    );
+  }
+  return (
+    <div className={`flex flex-col gap-1 ${wide ? 'min-[900px]:col-span-2' : ''}`}>
+      {label}
+      {field.type === 'line' && (
+        <input dir="rtl" lang="ar" className={FIELD_CLASS} disabled={disabled} value={value} onChange={(e) => onChange(e.target.value)} aria-label={field.hint} />
+      )}
+      {field.type === 'number' && (
+        <input
+          dir="ltr"
+          inputMode="decimal"
+          className={`${FIELD_CLASS} max-w-[220px]`}
+          disabled={disabled}
+          value={value}
+          placeholder="—"
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={field.hint}
+        />
+      )}
+      {field.type === 'text' && (
+        <textarea
+          dir="rtl"
+          lang="ar"
+          rows={4}
+          disabled={disabled}
+          className={`${FIELD_CLASS} resize-y`}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={field.hint}
+        />
+      )}
+      {field.type === 'results' && <ResultsEditor data={data} value={value} disabled={disabled} onChange={onChange} />}
+      {field.type === 'debts' && <DebtsEditor value={value} disabled={disabled} onChange={onChange} />}
+      {field.type === 'income' && <IncomeEditor value={value} disabled={disabled} onChange={onChange} />}
+    </div>
+  );
+}
+
+/** Résultats des joueurs (date et phrase), avec les vainqueurs des tournois du club proposés. */
+function ResultsEditor({ data, value, disabled, onChange }: { data: SeasonReports; value: string; disabled: boolean; onChange: (v: string) => void }) {
+  const rows = parseList<ResultRow>(value);
+  const set = (next: ResultRow[]) => onChange(JSON.stringify(next));
+  const winners = data.moral.competition.tournaments.filter((t) => t.winner && !rows.some((r) => r.text.includes(t.name)));
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[150px_1fr_auto] items-end gap-2 max-[560px]:grid-cols-1">
+          <Input label="Date" type="date" value={r.date} disabled={disabled} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, date: e.target.value } : x)))} />
+          <input
+            dir="rtl"
+            lang="ar"
+            className={FIELD_CLASS}
+            disabled={disabled}
+            value={r.text}
+            placeholder="تتويج اللاعب … بدورة … صنف …"
+            aria-label={`Résultat ${i + 1}`}
+            onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))}
+          />
+          {!disabled && <ActionIcon kind="remove" label="Retirer ce résultat" onClick={() => set(rows.filter((_, j) => j !== i))} />}
+        </div>
+      ))}
+      {!disabled && (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => set([...rows, { date: '', text: '' }])}>+ Ajouter un résultat</Button>
+          {winners.length > 0 && (
+            <Button onClick={() => set([...rows, ...winners.map((t) => ({ date: t.endDate, text: `تتويج ${t.winner} بدورة ${t.name}` }))])}>
+              + Vainqueurs des tournois du club ({winners.length})
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Dettes des saisons précédentes : créancier et montant. */
+function DebtsEditor({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (v: string) => void }) {
+  const rows = parseList<DebtRow>(value);
+  const set = (next: DebtRow[]) => onChange(JSON.stringify(next));
+  return (
+    <div className="flex flex-col gap-2">
+      {rows.map((r, i) => (
+        <div key={i} className="grid grid-cols-[1fr_170px_auto] items-center gap-2">
+          <input
+            dir="rtl"
+            lang="ar"
+            className={FIELD_CLASS}
+            disabled={disabled}
+            value={r.label}
+            placeholder="مقاول البناء"
+            aria-label={`Créancier ${i + 1}`}
+            onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))}
+          />
+          <input
+            dir="ltr"
+            inputMode="decimal"
+            className={FIELD_CLASS}
+            disabled={disabled}
+            value={r.amount}
+            placeholder="0,000"
+            aria-label={`Montant ${i + 1}`}
+            onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)))}
+          />
+          {!disabled && <ActionIcon kind="remove" label="Retirer cette dette" onClick={() => set(rows.filter((_, j) => j !== i))} />}
+        </div>
+      ))}
+      {!disabled && (
+        <div>
+          <Button onClick={() => set([...rows, { label: '', amount: '' }])}>+ Ajouter une dette</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Recettes hors application : subventions (fédération, gouvernorat, municipalité), dons des amis du club, adhésions. */
+function IncomeEditor({ value, disabled, onChange }: { value: string; disabled: boolean; onChange: (v: string) => void }) {
+  const v = parseObj<ManualIncome>(value);
+  return (
+    <div className="grid gap-2 min-[700px]:grid-cols-2">
+      {MANUAL_INCOME.map((m) => (
+        <label key={m.key} className="flex flex-col gap-1">
+          <span className="text-[12px] text-mut">
+            {m.fr} · <span dir="rtl">{m.label}</span>
+          </span>
+          <input
+            dir="ltr"
+            inputMode="decimal"
+            className={FIELD_CLASS}
+            disabled={disabled}
+            value={v[m.key] ?? ''}
+            placeholder="0,000"
+            onChange={(e) => onChange(JSON.stringify({ ...v, [m.key]: e.target.value }))}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Contrôle du rapport financier : solde de fin = solde de début + recettes − dépenses. */
+function FinancialCheck({ data, texts }: { data: SeasonReports; texts: Record<string, string> }) {
+  const sh = financialSheet(data, texts);
+  if (sh.bankStart === null || !texts.bankEnd?.trim()) return null;
+  const expected = Math.round((sh.bankStart + sh.diff) * 1000) / 1000;
+  if (Math.abs(expected - (sh.bankEnd ?? 0)) < 0.001) return null;
+  return (
+    <Note>
+      Attention : solde de début {amt(sh.bankStart)} + recettes {amt(sh.incomeTotal)} − dépenses {amt(sh.expenseTotal)} = {amt(expected)}, mais le solde de fin saisi est{' '}
+      {amt(sh.bankEnd ?? 0)}. Vérifiez les montants (ou videz le solde de fin pour le calculer).
+    </Note>
+  );
+}
+
+/** En-tête et pied de page des rapports (papier à en-tête du club), communs à toutes les saisons. */
+function LetterheadCard({ value, canEdit, seasonId }: { value: Letterhead; canEdit: boolean; seasonId: string }) {
+  const [f, setF] = useState(value);
+  useEffect(() => setF(value), [value]);
+  const save = useAction(() => api.put<Letterhead>('/reports/letterhead', f), { invalidate: [['season-reports', seasonId]], success: 'En-tête des rapports enregistré.' });
+  const dirty = JSON.stringify(f) !== JSON.stringify(value);
+  const field = (k: keyof Letterhead, label: string, rtl = false) => (
+    <label className="flex flex-col gap-1">
+      <span className="text-[12px] text-mut">{label}</span>
+      <input dir={rtl ? 'rtl' : 'ltr'} className={FIELD_CLASS} disabled={!canEdit} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+    </label>
+  );
+  return (
+    <Section title="En-tête et pied de page">
+      <Card>
+        <CardSubtitle>Papier à en-tête du club, repris sur chaque page des deux rapports et pour toutes les saisons.</CardSubtitle>
+        <div className="mt-3 grid gap-3 min-[700px]:grid-cols-2">
+          {field('nameFr', 'Nom en français')}
+          {field('nameAr', 'Nom en arabe', true)}
+          {field('addressFr', 'Adresse en français')}
+          {field('addressAr', 'Adresse en arabe', true)}
+          {field('phone', 'Téléphone')}
+          {field('fax', 'Fax')}
+        </div>
+        {canEdit && (
+          <div className="mt-3 flex justify-end">
+            <Button variant="primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+              Enregistrer l’en-tête
+            </Button>
+          </div>
+        )}
+      </Card>
+    </Section>
+  );
 }

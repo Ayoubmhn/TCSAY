@@ -63,6 +63,8 @@ export const EXPENSE_LABEL: Record<string, string> = {
   FEDERATION: 'Fédération',
   TRAVEL: 'Déplacements',
   SERVICES: 'Prestataires',
+  ADMIN: 'Frais administratifs',
+  BANK: 'Frais bancaires',
   OTHER: 'Autre',
 };
 const choices = (m: Record<string, string>): [string, string][] => [['', 'Selon le libellé'], ...Object.entries(m)];

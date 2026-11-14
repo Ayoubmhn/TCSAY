@@ -37,6 +37,8 @@ export const EXPENSE_CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   FEDERATION: 'Fédération (licences, engagements)',
   TRAVEL: 'Déplacements et tournois',
   SERVICES: 'Prestataires (comptable, nettoyage)',
+  ADMIN: 'Frais administratifs et organisation des tournois',
+  BANK: 'Frais bancaires',
   OTHER: 'Autres',
 };
 const METHODS = ['CASH', 'CHEQUE', 'TRANSFER'] as const;

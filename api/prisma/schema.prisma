@@ -1365,6 +1365,8 @@ enum ExpenseCategory {
   FEDERATION // Licences, engagements, affiliations
   TRAVEL // Déplacements, tournois
   SERVICES // Prestataires (comptable, nettoyage…)
+  ADMIN // Frais administratifs, organisation des tournois
+  BANK // Frais bancaires (أعباء مالية)
   OTHER
 }
 

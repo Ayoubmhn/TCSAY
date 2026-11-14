@@ -111,6 +111,8 @@ export const POST_LABEL: Record<string, string> = {
   FEDERATION: 'Fédération',
   TRAVEL: 'Déplacements',
   SERVICES: 'Prestataires',
+  ADMIN: 'Frais administratifs et tournois',
+  BANK: 'Frais bancaires',
 };
 
 const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];

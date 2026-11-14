@@ -27,7 +27,7 @@ export const COLUMNS: Record<Register, readonly string[]> = {
 export type RawRow = Record<string, string>;
 
 export const INCOME_CATEGORIES = ['FEES', 'DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER'] as const;
-export const EXPENSE_CATEGORIES = ['SALARY', 'UTILITIES', 'EQUIPMENT', 'MAINTENANCE', 'TAX', 'SOCIAL', 'INSURANCE', 'FEDERATION', 'TRAVEL', 'SERVICES', 'OTHER'] as const;
+export const EXPENSE_CATEGORIES = ['SALARY', 'UTILITIES', 'EQUIPMENT', 'MAINTENANCE', 'TAX', 'SOCIAL', 'INSURANCE', 'FEDERATION', 'TRAVEL', 'SERVICES', 'ADMIN', 'BANK', 'OTHER'] as const;
 const LABEL: Record<Register, string> = { PLAYERS: 'Joueurs', INCOME: 'Recettes', EXPENSE: 'Dépenses' };
 
 /** Minuscules, sans accents ; l'arabe garde ses lettres (voyelles retirées). */
@@ -87,12 +87,14 @@ function expenseCategory(text: string): string {
   if (/steg|sonede|electri|eau|internet|telephon|كهرباء|ماء|فاتورة|انترنات|هاتف/.test(t)) return 'UTILITIES';
   if (/balle|raquette|materiel|filet|كرات|معدات|مضرب|شباك/.test(t)) return 'EQUIPMENT';
   if (/entretien|reparation|peinture|travaux|صيانة|اصلاح|دهن|اشغال/.test(t)) return 'MAINTENANCE';
-  if (/impot|taxe|fiscal|ضريبة|اداء|الاداءات|جباية/.test(t)) return 'TAX';
+  if (/banc|banque|agios|frais financ|بنك|بنكي|اعباء/.test(t)) return 'BANK';
+  if (/impot|taxe|fiscal|recette des finances|ضريبة|اداء|الاداءات|جباية|قباض/.test(t)) return 'TAX';
   if (/cnss|social|ضمان/.test(t)) return 'SOCIAL';
   if (/assuranc|تامين/.test(t)) return 'INSURANCE';
   if (/federat|licence|affiliat|engagement|جامعة|اجازة|اجازات|انخراط/.test(t)) return 'FEDERATION';
   if (/deplacement|transport|voyage|carburant|essence|تنقل|نقل|سفر|وقود/.test(t)) return 'TRAVEL';
   if (/comptab|nettoyage|prestat|gardien|محاسب|تنظيف|حارس|خدمات/.test(t)) return 'SERVICES';
+  if (/administrat|organisation|papeterie|اداري|ادارية|تنظيم/.test(t)) return 'ADMIN';
   return 'OTHER';
 }
 

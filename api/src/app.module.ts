@@ -3,7 +3,7 @@ import { BudgetController } from './budget/budget.controller';
 import { ProjectsController } from './budget/projects.controller';
 import { HistoryController } from './history/history.controller';
 import { HistoryService } from './history/history.service';
-import { SeasonReportsController } from './reports/season-reports.controller';
+import { ReportLetterheadController, SeasonReportsController } from './reports/season-reports.controller';
 import { SeasonReportsService } from './reports/season-reports.service';
 import { AiImportService } from './ai/ai-import.service';
 import { UpdatesController } from './imports/updates.controller';
@@ -94,6 +94,7 @@ import { StaffController } from './staff/staff.controller';
     AlertsController,
     AiImportController,
     SeasonReportsController,
+    ReportLetterheadController,
     HistoryController,
     ProjectsController,
     BudgetController,

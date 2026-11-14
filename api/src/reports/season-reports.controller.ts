@@ -15,10 +15,70 @@ const KINDS = ['MORAL', 'FINANCIAL'] as const;
 const LABEL: Record<SeasonReportKind, string> = { MORAL: 'Rapport moral', FINANCIAL: 'Rapport financier' };
 const MAX_FILE = 10 * 1024 * 1024;
 /** Clés des textes rédigés par le bureau (le reste du rapport vient de la base). */
+/** Modèle des rapports du club : formules, paragraphes, listes (résultats, dettes en JSON) et montants saisis par le bureau. */
 const TEXT_KEYS: Record<SeasonReportKind, string[]> = {
-  MORAL: ['intro', 'members', 'training', 'competition', 'difficulties', 'goals', 'conclusion'],
-  FINANCIAL: ['intro', 'income', 'expenses', 'notes', 'conclusion'],
+  MORAL: ['basmala', 'greeting', 'intro', 'start', 'licensed', 'committee', 'infrastructure', 'results', 'thanks', 'difficulties', 'goals', 'conclusion', 'closing', 'showStats'],
+  FINANCIAL: ['basmala', 'association', 'greeting', 'salute', 'intro', 'manualIncome', 'bankStart', 'bankEnd', 'debtsPeriod', 'debts', 'notes', 'conclusion', 'closing', 'showStats'],
 };
+/** Papier à en-tête du club (en-tête et pied de chaque page des rapports). */
+const LETTERHEAD_KEY = 'reports.letterhead';
+const LETTERHEAD_DEFAULT = { nameFr: 'TENNIS CLUB SAYADA', nameAr: 'نادي التنس بصيادة', addressFr: '', addressAr: '', phone: '', fax: '' };
+type Letterhead = typeof LETTERHEAD_DEFAULT;
+
+class LetterheadDto {
+  @IsString() @MaxLength(80) nameFr: string;
+  @IsString() @MaxLength(80) nameAr: string;
+  @IsString() @MaxLength(160) addressFr: string;
+  @IsString() @MaxLength(160) addressAr: string;
+  @IsString() @MaxLength(40) phone: string;
+  @IsString() @MaxLength(40) fax: string;
+}
+
+async function readLetterhead(prisma: PrismaService): Promise<Letterhead> {
+  const row = await prisma.setting.findUnique({ where: { key: LETTERHEAD_KEY } });
+  return { ...LETTERHEAD_DEFAULT, ...(row ? (JSON.parse(row.value) as Partial<Letterhead>) : {}) };
+}
+
+/** En-tête et pied de page des rapports (nom du club, adresse, téléphone, fax), réglés une fois pour toutes les saisons. */
+@ApiTags('Saisons')
+@ApiBearerAuth()
+@Controller('reports/letterhead')
+export class ReportLetterheadController {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  @Get()
+  @Perm('stats.view', 'seasons.manage')
+  get() {
+    return readLetterhead(this.prisma);
+  }
+
+  @Put()
+  @Perm('seasons.manage')
+  async save(@CurrentUser() user: AuthUser, @Body() dto: LetterheadDto) {
+    const before = await readLetterhead(this.prisma);
+    const value: Letterhead = {
+      nameFr: dto.nameFr.trim() || LETTERHEAD_DEFAULT.nameFr,
+      nameAr: dto.nameAr.trim() || LETTERHEAD_DEFAULT.nameAr,
+      addressFr: dto.addressFr.trim(),
+      addressAr: dto.addressAr.trim(),
+      phone: dto.phone.trim(),
+      fax: dto.fax.trim(),
+    };
+    await this.prisma.setting.upsert({ where: { key: LETTERHEAD_KEY }, create: { key: LETTERHEAD_KEY, value: JSON.stringify(value) }, update: { value: JSON.stringify(value) } });
+    await this.audit.log(user.id, {
+      action: 'En-tête des rapports modifié',
+      entity: 'Setting',
+      entityId: LETTERHEAD_KEY,
+      target: 'Rapports de fin de saison',
+      before: [before.addressFr, before.phone, before.fax].filter(Boolean).join(' · ') || null,
+      after: [value.addressFr, value.phone, value.fax].filter(Boolean).join(' · ') || null,
+    });
+    return value;
+  }
+}
 
 class DraftDto {
   @IsObject() texts: Record<string, string>;
@@ -63,7 +123,7 @@ export class SeasonReportsController {
   async get(@Param('id', ParseUUIDPipe) id: string) {
     const season = await this.reports.season(id);
     const previous = await this.reports.previous(season);
-    const [moral, financial, drafts, files, previousFiles] = await Promise.all([
+    const [moral, financial, drafts, files, previousFiles, letterhead] = await Promise.all([
       this.reports.moral(season),
       this.reports.financial(season),
       this.reports.drafts(season),
@@ -80,8 +140,10 @@ export class SeasonReportsController {
             select: { id: true, kind: true, fileName: true, mimeType: true, size: true, createdAt: true },
           })
         : Promise.resolve([]),
+      readLetterhead(this.prisma),
     ]);
     return {
+      letterhead,
       season: { id: season.id, label: season.label, status: season.status },
       previous: previous ? { id: previous.id, label: previous.label } : null,
       moral,
@@ -99,7 +161,8 @@ export class SeasonReportsController {
     if (!(KINDS as readonly string[]).includes(kind)) throw new BadRequestException('Rapport inconnu.');
     const k = kind as SeasonReportKind;
     const season = await this.reports.season(id);
-    const texts = Object.fromEntries(TEXT_KEYS[k].map((key) => [key, String(dto.texts?.[key] ?? '').slice(0, 6000)]));
+    // Champ absent = texte proposé gardé (repris à l'affichage) ; champ vide = retiré du rapport.
+    const texts = Object.fromEntries(TEXT_KEYS[k].filter((key) => dto.texts?.[key] !== undefined).map((key) => [key, String(dto.texts[key] ?? '').slice(0, 6000)]));
     const before = await this.prisma.seasonReportDraft.findUnique({ where: { seasonId_kind: { seasonId: id, kind: k } } });
     if (before) assertVersion(before, dto.version, 'Ce rapport');
     const row = await this.reports.saveDraft(id, k, texts, user.id);
