@@ -51,7 +51,7 @@ type MoneyRow = Result & { category: string; date: string | null; amount: number
 type Preview = { total: number; ok: number; warnings: number; errors: number; amount: number; found: number; categories: string[]; rows: (PlayerRow | MoneyRow)[] };
 
 const REGISTER: Record<Register, string> = { PLAYERS: 'Joueurs', INCOME: 'Recettes', EXPENSE: 'Dépenses' };
-export const INCOME_LABEL: Record<string, string> = { FEES: 'Cotisation', DONATION: 'Don', RENTAL: 'Location', TOURNAMENT: 'Tournoi', GRANT: 'Subvention', OTHER: 'Autre' };
+export const INCOME_LABEL: Record<string, string> = { FEES: 'Cotisation', MEMBERSHIP: 'Adhésion', DONATION: 'Don', RENTAL: 'Location', TOURNAMENT: 'Tournoi', GRANT: 'Subvention', OTHER: 'Autre' };
 export const EXPENSE_LABEL: Record<string, string> = {
   SALARY: 'Salaire d’entraîneur',
   UTILITIES: 'Factures (STEG, SONEDE…)',

@@ -163,7 +163,7 @@ export class SeasonReportsService {
     }
     const byCategory = [...cats.values()].sort((a, b) => b.amount - a.amount);
     // Autres recettes importées (dons, locations, subventions…), à part des cotisations.
-    const other = ['DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER']
+    const other = ['MEMBERSHIP', 'DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER']
       .map((category) => ({ category, count: histCount('INCOME', category), amount: hist('INCOME', category) }))
       .filter((x) => x.amount > 0);
     const incomeTotal = round3(fees + courts + tournaments + other.reduce((t, x) => t + x.amount, 0));

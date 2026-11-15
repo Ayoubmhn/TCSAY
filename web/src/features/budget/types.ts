@@ -95,6 +95,7 @@ export const PRIORITY: Record<number, string> = { 1: 'Priorité haute', 2: 'Prio
 
 export const POST_LABEL: Record<string, string> = {
   FEES: 'Cotisations des joueurs',
+  MEMBERSHIP: 'Adhésions',
   COURTS: 'Réservations de terrains',
   TOURNAMENTS: 'Inscriptions aux tournois',
   DONATION: 'Dons',

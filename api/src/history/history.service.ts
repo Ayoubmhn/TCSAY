@@ -26,7 +26,7 @@ export const COLUMNS: Record<Register, readonly string[]> = {
 };
 export type RawRow = Record<string, string>;
 
-export const INCOME_CATEGORIES = ['FEES', 'DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER'] as const;
+export const INCOME_CATEGORIES = ['FEES', 'MEMBERSHIP', 'DONATION', 'RENTAL', 'TOURNAMENT', 'GRANT', 'OTHER'] as const;
 export const EXPENSE_CATEGORIES = ['SALARY', 'UTILITIES', 'EQUIPMENT', 'MAINTENANCE', 'TAX', 'SOCIAL', 'INSURANCE', 'FEDERATION', 'TRAVEL', 'SERVICES', 'ADMIN', 'BANK', 'OTHER'] as const;
 const LABEL: Record<Register, string> = { PLAYERS: 'Joueurs', INCOME: 'Recettes', EXPENSE: 'Dépenses' };
 
@@ -70,7 +70,9 @@ const HEADERS: Record<Register, [string, RegExp][]> = {
 function incomeCategory(text: string, hasPerson: boolean): string {
   const t = norm(text);
   if (INCOME_CATEGORIES.includes(text.trim().toUpperCase() as never)) return text.trim().toUpperCase();
-  if (/cotis|inscri|abonn|اشتراك|معلوم|انخراط|تسجيل/.test(t)) return 'FEES';
+  // Adhésions (الانخراطات) à part des cotisations d'entraînement (اشتراكات), comme sur le rapport financier du club.
+  if (/adhesion|انخراط/.test(t)) return 'MEMBERSHIP';
+  if (/cotis|inscri|abonn|اشتراك|معلوم|تسجيل/.test(t)) return 'FEES';
   if (/\bdon\b|dons|تبرع|هبة|هبات/.test(t)) return 'DONATION';
   if (/locat|terrain|reserv|كراء|ملعب/.test(t)) return 'RENTAL';
   if (/tournoi|competition|دورة|بطولة/.test(t)) return 'TOURNAMENT';

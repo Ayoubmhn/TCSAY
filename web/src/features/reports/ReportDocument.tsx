@@ -226,10 +226,11 @@ export function financialSheet(data: SeasonReports, texts: Record<string, string
   const other = (cat: string) => f.income.other.find((o) => o.category === cat)?.amount ?? 0;
   const income: { label: string; amount: number }[] = [
     { label: 'اشتراكات اللاعبين', amount: f.income.fees },
-    ...MANUAL_INCOME.map((m) => ({ label: m.label, amount: (parseAmt(manual[m.key]) ?? 0) + (m.key === 'supporters' ? other('DONATION') : 0) })),
+    // Saisies du bureau + écritures importées (dons → amis du club, adhésions → الانخراطات).
+    ...MANUAL_INCOME.map((m) => ({ label: m.label, amount: (parseAmt(manual[m.key]) ?? 0) + (m.key === 'supporters' ? other('DONATION') : m.key === 'membership' ? other('MEMBERSHIP') : 0) })),
     ...(f.income.courts ? [{ label: 'كراء الملاعب (الحجوزات)', amount: f.income.courts }] : []),
     ...(f.income.tournaments ? [{ label: 'معاليم المشاركة في الدورات', amount: f.income.tournaments }] : []),
-    ...f.income.other.filter((o) => o.category !== 'DONATION').map((o) => ({ label: INCOME_AR[o.category] ?? o.category, amount: o.amount })),
+    ...f.income.other.filter((o) => o.category !== 'DONATION' && o.category !== 'MEMBERSHIP').map((o) => ({ label: INCOME_AR[o.category] ?? o.category, amount: o.amount })),
   ];
   const byCat = (c: string) => (c === 'SALARY' ? f.expenses.salaries : (f.expenses.categories.find((x) => x.category === c)?.amount ?? 0));
   const known = new Set(EXPENSE_LINES.flatMap((l) => l.cats));

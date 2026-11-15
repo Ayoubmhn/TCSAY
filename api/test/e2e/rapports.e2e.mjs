@@ -119,7 +119,11 @@ describe('Rapports de fin de saison', () => {
     const y = Number(s1.startDate.slice(0, 4));
     // « أعباء مالية » et « خلاص القباضة » reconnus dans le cahier : frais bancaires et taxes.
     ok(await admin('POST', `/history/${s1.id}/commit/EXPENSE`, { source: 'MANUAL', table: [{ date: `${y}-12-01`, label: 'أعباء مالية', amount: '9' }, { date: `${y}-12-02`, label: 'تنظيم الدورات', amount: '40' }] }));
+    // « الانخراطات » (adhésions) à part des cotisations, comme sur le rapport du club.
+    ok(await admin('POST', `/history/${s1.id}/commit/INCOME`, { source: 'MANUAL', table: [{ date: `${y}-12-03`, label: 'الانخراطات', amount: '75' }] }));
     const f = ok(await admin('GET', `/seasons/${s1.id}/reports`)).financial;
+    assert.equal(f.income.other.find((o) => o.category === 'MEMBERSHIP')?.amount, 75);
+    assert.equal(f.income.fees, 2000);
     assert.equal(f.expenses.categories.find((c) => c.category === 'BANK')?.amount, 9);
     assert.equal(f.expenses.categories.find((c) => c.category === 'ADMIN')?.amount, 40);
     // Montants, soldes et dettes saisis par le bureau, gardés tels quels.

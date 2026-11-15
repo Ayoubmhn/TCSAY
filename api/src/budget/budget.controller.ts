@@ -13,7 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SeasonReportsService } from '../reports/season-reports.service';
 
 /** Postes du budget : recettes et dépenses (les projets validés sont comptés à part, d'après leur devis). */
-export const INCOME_POSTS = ['FEES', 'COURTS', 'TOURNAMENTS', 'DONATION', 'GRANT', 'RENTAL', 'OTHER'] as const;
+export const INCOME_POSTS = ['FEES', 'MEMBERSHIP', 'COURTS', 'TOURNAMENTS', 'DONATION', 'GRANT', 'RENTAL', 'OTHER'] as const;
 export const EXPENSE_POSTS = ['SALARY', ...Object.keys(ExpenseCategory)] as string[];
 const BALANCE_KEY = 'budget.balance';
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
