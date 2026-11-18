@@ -34,6 +34,15 @@ export function slowNetwork(): boolean {
 /** Site ouvert dans l'application Android TCSAY (APK : user-agent « TCSAYApp »). */
 export const isInApp = (): boolean => /TCSAYApp\//.test(navigator.userAgent);
 
+/** Version de l'application Android (« TCSAYApp/0.7 » → 0.7) ; null hors de l'application. */
+export const appVersion = (): number | null => {
+  const m = /TCSAYApp\/(\d+)\.(\d+)/.exec(navigator.userAgent);
+  return m ? Number(m[1]) + Number(m[2]) / 100 : null;
+};
+
+/** L'application transmet la position au site depuis la version 0.7 (permission Android de localisation). */
+export const appCanLocate = (): boolean => (appVersion() ?? 1) >= 0.07;
+
 /** L'application tourne-t-elle installée (écran d'accueil ou APK) ? */
 export function isStandalone(): boolean {
   if (isInApp()) return true;

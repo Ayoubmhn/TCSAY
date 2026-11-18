@@ -496,6 +496,8 @@ const DICT: Record<string, [string, string]> = {
   'Voir la météo chez moi': ['See the weather where I am', 'عرض الطقس عندي'],
   'Pour comparer avec le club. Position arrondie à 10 km, jamais enregistrée.': ['To compare with the club. Location rounded to 10 km, never stored.', 'للمقارنة مع النادي. الموقع مقرّب إلى 10 كم ولا يُحفظ أبدًا.'],
   'Localisation…': ['Locating…', 'تحديد الموقع…'],
+  'Mettez à jour l’application TCSAY (version 0.7 ou plus) pour comparer avec la météo chez vous.': ['Update the TCSAY app (version 0.7 or later) to compare with the weather where you are.', 'حدّث تطبيق TCSAY (الإصدار 0.7 أو أحدث) للمقارنة مع الطقس عندك.'],
+  'Localisation refusée : Réglages du téléphone › Applications › TCSAY › Autorisations › Position, puis « Position précise ».': ['Location denied: phone Settings › Apps › TCSAY › Permissions › Location, then “Precise location”.', 'تم رفض الموقع: إعدادات الهاتف › التطبيقات › TCSAY › الأذونات › الموقع، ثم «موقع دقيق».'],
   'Localisation refusée : autorisez-la pour ce site dans les réglages du navigateur pour comparer avec le club.': ['Location denied: allow it for this site in the browser settings to compare with the club.', 'تم رفض تحديد الموقع: اسمح به لهذا الموقع في إعدادات المتصفح للمقارنة مع النادي.'],
   'Position indisponible sur cet appareil.': ['Location unavailable on this device.', 'الموقع غير متاح على هذا الجهاز.'],
   'Vous êtes près du club : même météo.': ['You are near the club: same weather.', 'أنت قريب من النادي: نفس الطقس.'],

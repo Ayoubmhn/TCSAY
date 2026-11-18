@@ -155,7 +155,7 @@ export default function SiteScreen() {
           ref={web}
           source={{ uri: start }}
           style={{ flex: 1, backgroundColor: bg }}
-          applicationNameForUserAgent="TCSAYApp/0.4"
+          applicationNameForUserAgent="TCSAYApp/0.7"
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled

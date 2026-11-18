@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { appCanLocate, isInApp } from '../lib/pwa';
 import { todayIso } from '../lib/format';
 import { useI18n } from '../lib/i18n';
 import { rainWindow, sky, windowText, type Weather } from '../lib/weather';
@@ -89,6 +90,9 @@ export function WeatherHere({ club }: { club: Weather & { lat?: number; lon?: nu
   if (!supported) return null;
   const box = 'mt-3 rounded-[16px] bg-fld px-3 py-2.5 text-[13px] leading-snug';
 
+  // Ancienne application Android (avant 0.7) : pas de permission de localisation, la WebView refuse sans rien demander.
+  if (isInApp() && !appCanLocate())
+    return <p className={`${box} m-0 text-mut`}>{t('Mettez à jour l’application TCSAY (version 0.7 ou plus) pour comparer avec la météo chez vous.')}</p>;
   if (state.kind === 'idle')
     return (
       <button type="button" onClick={locate} className="mt-3 flex w-full items-center gap-2 rounded-[16px] bg-fld px-3 py-2.5 text-start text-[13px] hover:bg-btn">
@@ -100,7 +104,17 @@ export function WeatherHere({ club }: { club: Weather & { lat?: number; lon?: nu
       </button>
     );
   if (state.kind === 'asking') return <p className={`${box} m-0 text-mut`}>{t('Localisation…')}</p>;
-  if (state.kind === 'denied') return <p className={`${box} m-0 text-mut`}>{t('Localisation refusée : autorisez-la pour ce site dans les réglages du navigateur pour comparer avec le club.')}</p>;
+  if (state.kind === 'denied')
+    return (
+      <p className={`${box} m-0 text-mut`}>
+        {isInApp()
+          ? t('Localisation refusée : Réglages du téléphone › Applications › TCSAY › Autorisations › Position, puis « Position précise ».')
+          : t('Localisation refusée : autorisez-la pour ce site dans les réglages du navigateur pour comparer avec le club.')}{' '}
+        <button type="button" className="font-semibold text-fg underline" onClick={locate}>
+          {t('Réessayer')}
+        </button>
+      </p>
+    );
   if (state.kind === 'unavailable')
     return (
       <p className={`${box} m-0 text-mut`}>
