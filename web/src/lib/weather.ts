@@ -13,6 +13,9 @@ export type Weather = {
   hours: WeatherHour[];
   /** Service qui a donné la prévision (Open-Meteo, MET Norway). */
   source?: string;
+  /** Coordonnées du club (météo du club seulement). */
+  lat?: number;
+  lon?: number;
 };
 
 /** À partir de cette probabilité, une heure est « pluie prévue ». */

@@ -36,22 +36,49 @@ const STALE = 24 * 3600_000; // dernière bonne prévision gardée 24 h
 @Injectable()
 export class WeatherService {
   private readonly log = new Logger('Météo');
-  private cache: { next: number; data: Weather; good?: Weather } | null = null;
-  private pending: Promise<Weather> | null = null;
+  /** Prévisions gardées par lieu (« lat,lon » arrondis) : le club et les positions demandées par les familles. */
+  private readonly cells = new Map<string, { next: number; data: Weather; good?: Weather }>();
+  private readonly pending = new Map<string, Promise<Weather>>();
 
   private get place() {
     return process.env.WEATHER_PLACE?.trim() || 'Sayada';
   }
 
-  private off(error?: string): Weather {
-    return { available: false, place: this.place, updatedAt: null, current: null, hours: [], ...(error ? { error } : {}) };
+  /** Coordonnées du club (publiques : c'est l'adresse du club). */
+  get club() {
+    return { lat: Number(process.env.WEATHER_LAT ?? 35.6717), lon: Number(process.env.WEATHER_LON ?? 10.8936) };
   }
 
-  async get(): Promise<Weather> {
-    if (process.env.WEATHER?.trim().toLowerCase() === 'off') return this.off('météo coupée (WEATHER=off)');
-    if (this.cache && Date.now() < this.cache.next) return this.trim(this.cache.data);
-    this.pending ??= this.refresh().finally(() => (this.pending = null));
-    return this.trim(await this.pending);
+  private off(place: string, error?: string): Weather {
+    return { available: false, place, updatedAt: null, current: null, hours: [], ...(error ? { error } : {}) };
+  }
+
+  /** Météo du club. */
+  async get(): Promise<Weather & { lat: number; lon: number }> {
+    const { lat, lon } = this.club;
+    return { ...(await this.at(lat, lon, this.place)), lat, lon };
+  }
+
+  /**
+   * Météo à la position d'une personne (bouton « Ma position »). Arrondie à 0,1° (environ 10 km) avant tout usage :
+   * la position exacte n'est jamais envoyée au service météo, jamais enregistrée ni écrite dans les journaux.
+   */
+  async here(lat: number, lon: number): Promise<Weather> {
+    const r = (x: number) => Math.round(x * 10) / 10;
+    return this.at(r(lat), r(lon), 'Votre position');
+  }
+
+  private async at(lat: number, lon: number, place: string): Promise<Weather> {
+    if (process.env.WEATHER?.trim().toLowerCase() === 'off') return this.off(place, 'météo coupée (WEATHER=off)');
+    const key = `${lat},${lon}`;
+    const cell = this.cells.get(key);
+    if (cell && Date.now() < cell.next) return this.trim(cell.data);
+    let p = this.pending.get(key);
+    if (!p) {
+      p = this.refresh(key, lat, lon, place).finally(() => this.pending.delete(key));
+      this.pending.set(key, p);
+    }
+    return this.trim(await p);
   }
 
   /** Retire les heures déjà passées (la prévision gardée peut dater de plusieurs heures). */
@@ -59,35 +86,41 @@ export class WeatherService {
     if (!w.available) return w;
     const now = localHour(new Date());
     const hours = w.hours.filter((h) => h.time >= now);
-    return hours.length ? { ...w, hours } : this.off(w.error ?? 'prévision trop ancienne');
+    return hours.length ? { ...w, hours } : this.off(w.place, w.error ?? 'prévision trop ancienne');
   }
 
   /**
    * Open-Meteo d'abord, MET Norway en secours (l'adresse IP de sortie d'un hébergeur gratuit est partagée :
    * Open-Meteo peut répondre 429). Les deux en échec : dernière bonne prévision gardée 24 h, nouvel essai dans 10 min.
    */
-  private async refresh(): Promise<Weather> {
-    const lat = Number(process.env.WEATHER_LAT ?? 35.6717);
-    const lon = Number(process.env.WEATHER_LON ?? 10.8936);
+  private async refresh(key: string, lat: number, lon: number, place: string): Promise<Weather> {
     const errors: string[] = [];
+    const old = this.cells.get(key);
     for (const [name, read] of [
       ['Open-Meteo', () => readOpenMeteo(lat, lon)],
       ['MET Norway', () => readMetNorway(lat, lon)],
     ] as const) {
       try {
-        const data = { ...(await read()), place: this.place };
-        this.cache = { next: Date.now() + TTL, data, good: data };
+        const data = { ...(await read()), place };
+        this.keep(key, { next: Date.now() + TTL, data, good: data });
         return data;
       } catch (e) {
         errors.push(`${name} : ${reasonOf(e)}`);
       }
     }
     const error = `prévision injoignable (${errors.join(' ; ')})`;
-    this.log.warn(error);
-    const good = this.cache?.good && Date.now() - new Date(this.cache.good.updatedAt ?? 0).getTime() < STALE ? this.cache.good : undefined;
-    const data = good ? { ...good, error } : this.off(error);
-    this.cache = { next: Date.now() + RETRY, data, good };
+    this.log.warn(place === this.place ? error : `${error} (position d'une personne)`);
+    const good = old?.good && Date.now() - new Date(old.good.updatedAt ?? 0).getTime() < STALE ? old.good : undefined;
+    const data = good ? { ...good, error } : this.off(place, error);
+    this.keep(key, { next: Date.now() + RETRY, data, good });
     return data;
+  }
+
+  /** 300 lieux au plus en mémoire (les plus anciens oubliés). */
+  private keep(key: string, cell: { next: number; data: Weather; good?: Weather }) {
+    this.cells.delete(key);
+    this.cells.set(key, cell);
+    while (this.cells.size > 300) this.cells.delete(this.cells.keys().next().value!);
   }
 }
 

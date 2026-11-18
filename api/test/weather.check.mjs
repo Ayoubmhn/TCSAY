@@ -114,6 +114,28 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     assert.equal(calls.filter((u) => u.startsWith('/v1/')).length, 1);
   });
 
+  test('ma position : connexion exigée, position arrondie à 0,1° avant d’être envoyée au service météo', async () => {
+    assert.equal((await ok.get('/weather/here?lat=35.7771&lon=10.8263', null)).status, 401);
+    assert.equal((await ok.get('/weather/here?lat=120&lon=10')).status, 400);
+    const r = await ok.get('/weather/here?lat=35.7771&lon=10.8263');
+    assert.equal(r.status, 200);
+    const w = await r.json();
+    assert.equal(w.available, true);
+    assert.equal(w.place, 'Votre position');
+    const last = calls.filter((u) => u.startsWith('/v1/')).at(-1);
+    assert.match(last, /latitude=35\.8&longitude=10\.8&/);
+    assert.doesNotMatch(last, /35\.777|10\.826/);
+    // Même zone de 10 km : prévision déjà en mémoire, pas de nouvel appel.
+    const before = calls.length;
+    await ok.get('/weather/here?lat=35.79&lon=10.84');
+    assert.equal(calls.length, before);
+  });
+
+  test('coordonnées du club données avec sa météo (distance calculée sur l’appareil)', async () => {
+    const w = await (await ok.get('/weather')).json();
+    assert.deepEqual({ lat: w.lat, lon: w.lon }, { lat: 35.6717, lon: 10.8936 });
+  });
+
   test('Open-Meteo saturé (429) : MET Norway prend le relais, à l’heure du club', async () => {
     const w = await (await backup.get('/weather')).json();
     assert.equal(w.available, true);

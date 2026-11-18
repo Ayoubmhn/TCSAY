@@ -357,3 +357,9 @@ export const IconWind = (p: IconProps) => (
     <path d="M3 9h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 17h8" />
   </Svg>
 );
+export const IconPin = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z" />
+    <circle cx="12" cy="10" r="2.4" />
+  </Svg>
+);

@@ -8,6 +8,7 @@ import { useI18n } from '../lib/i18n';
 import type { CoachSession, Planning, PlayerSession } from '../lib/types';
 import { hourText, rainDuring, rainWindow, sky, useWeather, windowText, type Weather } from '../lib/weather';
 import { IconWind } from './ui/Icons';
+import { WeatherHere } from './WeatherHere';
 
 type Concerned = { key: string; text: string };
 
@@ -86,7 +87,7 @@ function WeatherPanel({ id, w, me }: { id: string; w: Weather; me: ReturnType<ty
       id={id}
       role="dialog"
       aria-label={`${t('Météo à')} ${w.place}`}
-      className="fixed inset-x-4 top-[calc(66px+env(safe-area-inset-top,0px))] z-40 rounded-[24px] nav:absolute nav:inset-x-auto nav:end-0 nav:top-[50px] nav:w-[370px] border-[1.5px] border-line bg-card p-4 text-fg"
+      className="fixed inset-x-4 top-[calc(66px+env(safe-area-inset-top,0px))] z-40 max-h-[calc(100dvh-160px)] overflow-y-auto rounded-[24px] nav:max-h-[calc(100vh-90px)] nav:absolute nav:inset-x-auto nav:end-0 nav:top-[50px] nav:w-[370px] border-[1.5px] border-line bg-card p-4 text-fg"
     >
       <div className="flex items-center gap-3">
         <span className="grid h-[46px] w-[46px] flex-none place-items-center rounded-[15px] bg-fld">
@@ -155,6 +156,7 @@ function WeatherPanel({ id, w, me }: { id: string; w: Weather; me: ReturnType<ty
       ) : (
         <p className="m-0 mt-3 text-[12.5px] text-mut">{t('Pas de pluie prévue aujourd’hui.')}</p>
       )}
+      <WeatherHere club={w} />
       <p className="m-0 mt-2 text-[11.5px] text-mut">
         {t('Prévisions')} {w.source ?? 'Open-Meteo'}, {t('mises à jour toutes les 30 min.')}
       </p>
