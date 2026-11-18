@@ -17,6 +17,8 @@ export interface Weather {
   current: { time: string; temp: number; code: number; wind: number; rain: number } | null;
   /** De l'heure en cours à la fin du surlendemain. */
   hours: WeatherHour[];
+  /** Prévision absente : raison (ex. « réponse 429 », « délai dépassé »), pour vérifier l'installation. */
+  error?: string;
 }
 
 const TTL = 30 * 60_000; // relu toutes les 30 min
@@ -38,12 +40,12 @@ export class WeatherService {
     return process.env.WEATHER_PLACE?.trim() || 'Sayada';
   }
 
-  private off(): Weather {
-    return { available: false, place: this.place, updatedAt: null, current: null, hours: [] };
+  private off(error?: string): Weather {
+    return { available: false, place: this.place, updatedAt: null, current: null, hours: [], ...(error ? { error } : {}) };
   }
 
   async get(): Promise<Weather> {
-    if (process.env.WEATHER?.trim().toLowerCase() === 'off') return this.off();
+    if (process.env.WEATHER?.trim().toLowerCase() === 'off') return this.off('météo coupée (WEATHER=off)');
     if (this.cache && Date.now() - this.cache.at < TTL) return this.trim(this.cache.data);
     this.pending ??= this.fetch().finally(() => (this.pending = null));
     return this.trim(await this.pending);
@@ -70,10 +72,12 @@ export class WeatherService {
       this.cache = { at: Date.now(), data: { ...data, place: this.place } };
       return this.cache.data;
     } catch (e) {
-      this.log.warn(`Prévision indisponible : ${(e as Error).message}`);
+      const err = e as Error & { cause?: { code?: string } };
+      const reason = err.name === 'TimeoutError' ? 'délai dépassé (8 s)' : [err.message, err.cause?.code].filter(Boolean).join(' · ');
+      this.log.warn(`Prévision indisponible : ${reason}`);
       if (this.cache && Date.now() - this.cache.at < STALE) return this.cache.data;
       // Nouvel essai dans 5 min seulement (pas d'appel à chaque requête quand le service est injoignable).
-      this.cache = { at: Date.now() - TTL + 5 * 60_000, data: this.off() };
+      this.cache = { at: Date.now() - TTL + 5 * 60_000, data: this.off(`Open-Meteo injoignable : ${reason}`) };
       return this.cache.data;
     }
   }

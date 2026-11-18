@@ -65,8 +65,10 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     fake?.close();
   });
 
-  test('réservée aux comptes connectés', async () => {
-    assert.equal((await ok.get('/weather', null)).status, 401);
+  test('lisible sans connexion (aucune donnée personnelle)', async () => {
+    const r = await ok.get('/weather', null);
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).place, 'Sayada');
   });
 
   test('prévision de Sayada : heure en cours et suivantes, valeurs arrondies, coordonnées du club seulement', async () => {
@@ -93,5 +95,6 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     const w = await r.json();
     assert.equal(w.available, false);
     assert.deepEqual(w.hours, []);
+    assert.match(w.error, /^Open-Meteo injoignable/);
   });
 });
