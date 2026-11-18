@@ -12,7 +12,7 @@ import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { formatDateTime } from '../../lib/format';
+import { formatDateTime, pl } from '../../lib/format';
 import type { EmailLog, EmailStatus, MailConfig } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { ActionIcon } from '../../components/ui/ActionIcon';
@@ -89,9 +89,9 @@ function MailServerCard({ config }: { config: MailConfig }) {
         <CardSubtitle>File d’envoi</CardSubtitle>
         <Kpi>{config.sent}</Kpi>
         <Pills>
-          <Pill tone="g">{config.sent} envoyé(s)</Pill>
+          <Pill tone="g">{config.sent}{pl(config.sent, ` envoyé(s)`)}</Pill>
           <Pill tone="s">{config.pending} en attente</Pill>
-          <Pill tone={config.failed ? 'r' : 'g'}>{config.failed} échec(s)</Pill>
+          <Pill tone={config.failed ? 'r' : 'g'}>{config.failed}{pl(config.failed, ` échec(s)`)}</Pill>
         </Pills>
       </Card>
       <Card>
@@ -126,7 +126,7 @@ export function EmailsPage() {
   const resend = useAction((id: string) => api.post(`/emails/${id}/resend`), { invalidate: KEYS, success: 'Email remis dans la file d’envoi.' });
   const resendAll = useAction(() => api.post<{ queued: number }>('/emails/resend-failed'), {
     invalidate: KEYS,
-    success: (r) => `${r.queued} email(s) remis dans la file d’envoi.`,
+    success: (r) => `${r.queued}${pl(r.queued, ` email(s) remis dans la file d’envoi.`)}`,
   });
   const failed = config.data?.failed ?? 0;
 

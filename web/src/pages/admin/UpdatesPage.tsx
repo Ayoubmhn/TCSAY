@@ -10,7 +10,7 @@ import { Section } from '../../components/ui/Section';
 import { Segmented } from '../../components/ui/Segmented';
 import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
-import { DT, formatDate } from '../../lib/format';
+import { DT, formatDate, pl } from '../../lib/format';
 import { AiPhotoReader, PhotoPanel, type AiPages } from '../../features/ai/AiPhotoReader';
 import { EMPTY_PAYMENT, PaymentTable, type Doubts } from '../../features/players/ImportTable';
 import type { GroupUpdatePreview, PaymentPlan, PaymentRawRow, PaymentUpdatePreview } from '../../lib/types';
@@ -120,17 +120,17 @@ export function UpdatesPage() {
             .post<{ imported: unknown[]; total: number; failed: { name: string; messages: string[] }[] }>('/imports/payments/commit-table', { fileName: tableName, rows: table, plan })
             .then(
               (r) =>
-                `${r.imported.length} paiement(s) enregistré(s) (${DT(r.total)}).${r.failed.length ? ` Échec : ${r.failed.map((f) => `${f.name} (${f.messages.join(', ')})`).join(' ; ')}` : ''}`,
+                `${r.imported.length}${pl(r.imported.length, ` paiement(s) enregistré(s) (`)}${DT(r.total)}).${r.failed.length ? ` Échec : ${r.failed.map((f) => `${f.name} (${f.messages.join(', ')})`).join(' ; ')}` : ''}`,
             )
         : mode === 'groups'
         ? api
             .upload<{ moved: number; renamed: number }>('/imports/groups/commit', file!, { correctNames: String(correctNames) })
-            .then((r) => `${r.moved} affectation(s), ${r.renamed} nom(s) corrigé(s).`)
+            .then((r) => `${r.moved}${pl(r.moved, ` affectation(s), `)}${r.renamed}${pl(r.renamed, ` nom(s) corrigé(s).`)}`)
         : api
             .upload<{ imported: unknown[]; total: number; failed: { name: string; messages: string[] }[] }>('/imports/payments/commit', file!, { plan })
             .then(
               (r) =>
-                `${r.imported.length} paiement(s) enregistré(s) (${DT(r.total)}).${r.failed.length ? ` Échec : ${r.failed.map((f) => `${f.name} (${f.messages.join(', ')})`).join(' ; ')}` : ''}`,
+                `${r.imported.length}${pl(r.imported.length, ` paiement(s) enregistré(s) (`)}${DT(r.total)}).${r.failed.length ? ` Échec : ${r.failed.map((f) => `${f.name} (${f.messages.join(', ')})`).join(' ; ')}` : ''}`,
             ),
     {
       invalidate: [['groups'], ['players'], ['installments'], ['receipts'], ['memberships-missing'], ['dashboard']],
@@ -210,15 +210,15 @@ export function UpdatesPage() {
           <Section title="Aperçu">
             <Pills>
               <Pill tone="b">Saison {preview.season}</Pill>
-              <Pill tone="b">{preview.total} ligne(s)</Pill>
-              <Pill tone="g">{preview.ok} prête(s)</Pill>
+              <Pill tone="b">{preview.total}{pl(preview.total, ` ligne(s)`)}</Pill>
+              <Pill tone="g">{preview.ok}{pl(preview.ok, ` prête(s)`)}</Pill>
               <Pill tone="s">{preview.warnings} à vérifier</Pill>
-              <Pill tone="r">{preview.errors} ignorée(s)</Pill>
-              {groups && <Pill tone="b">{groups.moves} affectation(s)</Pill>}
-              {groups && <Pill tone="s">{groups.corrections} nom(s) à corriger</Pill>}
+              <Pill tone="r">{preview.errors}{pl(preview.errors, ` ignorée(s)`)}</Pill>
+              {groups && <Pill tone="b">{groups.moves}{pl(groups.moves, ` affectation(s)`)}</Pill>}
+              {groups && <Pill tone="s">{groups.corrections}{pl(groups.corrections, ` nom(s) à corriger`)}</Pill>}
               {payments && <Pill tone="g">{DT(payments.amount)} à enregistrer</Pill>}
               {table && checking && <Pill tone="s">Vérification…</Pill>}
-              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)} case(s) douteuse(s) lue(s) par l’IA</Pill>}
+              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)}{pl(([...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)), ` case(s) douteuse(s) lue(s) par l’IA`)}</Pill>}
             </Pills>
             <Filters>
               <FilterSelect label="Filtrer par état" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>

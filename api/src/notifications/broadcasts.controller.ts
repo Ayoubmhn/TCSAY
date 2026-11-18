@@ -8,6 +8,7 @@ import { AuthUser, CurrentUser, Perm, Roles } from '../auth/auth-user';
 import { isPlaceholderEmail } from '../common/placeholder';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { pl } from '../common/plural';
 
 const TARGETS = ['PARENTS', 'PLAYERS', 'COACHES', 'ALL', 'GROUP', 'USERS'] as const;
 type Target = (typeof TARGETS)[number];
@@ -201,7 +202,7 @@ export class BroadcastsController {
           entity: 'NotificationBroadcast',
           entityId: b.id,
           target: audience,
-          after: `${title} · ${ids.length} destinataire(s)${dto.byEmail ? ' · aussi par email' : ''}`,
+          after: `${title} · ${ids.length}${pl(ids.length, ` destinataire(s)`)}${dto.byEmail ? ' · aussi par email' : ''}`,
         },
         tx,
       );
@@ -226,7 +227,7 @@ export class BroadcastsController {
     if (dto.target === 'USERS') {
       const users = await this.prisma.user.findMany({ where: { id: { in: dto.userIds ?? [] }, isActive: true }, select: { id: true, firstName: true, lastName: true } });
       const names = users.map((u) => `${u.firstName} ${u.lastName}`.trim());
-      const audience = names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} et ${names.length - 3} autre(s)`;
+      const audience = names.length <= 3 ? names.join(', ') : `${names.slice(0, 3).join(', ')} et ${names.length - 3}${pl((names.length - 3), ` autre(s)`)}`;
       return { ids: users.map((u) => u.id), audience: audience || 'Personnes choisies' };
     }
     if (dto.target === 'GROUP') {
@@ -298,7 +299,7 @@ export class BroadcastsController {
     }
     if (dto.userIds?.length) {
       dto.userIds.forEach((id) => wanted.add(id));
-      parts.push(`${dto.userIds.length} personne(s) choisie(s)`);
+      parts.push(`${dto.userIds.length}${pl(dto.userIds.length, ` personne(s) choisie(s)`)}`);
     }
     const excluded = new Set<string>(dto.excludeUserIds ?? []);
     const except: string[] = [];
@@ -307,7 +308,7 @@ export class BroadcastsController {
       g.ids.forEach((id) => excluded.add(id));
       except.push(`${g.names.length > 1 ? 'groupes' : 'groupe'} ${g.names.join(', ')}`);
     }
-    if (dto.excludeUserIds?.length) except.push(`${dto.excludeUserIds.length} personne(s)`);
+    if (dto.excludeUserIds?.length) except.push(`${dto.excludeUserIds.length}${pl(dto.excludeUserIds.length, ` personne(s)`)}`);
     const candidates = [...wanted].filter((id) => !excluded.has(id));
     const active = candidates.length ? await this.prisma.user.findMany({ where: { id: { in: candidates }, isActive: true }, select: { id: true } }) : [];
     const text = parts.join(' + ') || 'Aucun destinataire';

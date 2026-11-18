@@ -9,6 +9,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
 import type { MemberCodePlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 /**
  * Identifiants TCSAY (président) : aperçu du recalcul des codes provisoires (première saison réelle de chaque joueur),
@@ -24,11 +25,11 @@ export function MemberCodesModal({ open, onClose }: { open: boolean; onClose: ()
   const done = { invalidate: [['players'], ['member-codes-plan'], ['player-profile']], onSuccess: () => setConfirm(undefined) };
   const recompute = useAction(() => api.post<{ updated: number; total: number }>('/players/member-codes/recompute'), {
     ...done,
-    success: (r) => `${r.updated} code(s) modifié(s) sur ${r.total}.`,
+    success: (r) => `${r.updated}${pl(r.updated, ` code(s) modifié(s) sur `)}${r.total}.`,
   });
   const finalize = useAction(() => api.post<{ finalized: number }>('/players/member-codes/finalize'), {
     ...done,
-    success: (r) => `${r.finalized} code(s) validé(s) définitivement.`,
+    success: (r) => `${r.finalized}${pl(r.finalized, ` code(s) validé(s) définitivement.`)}`,
   });
   const d = plan.data;
 
@@ -55,8 +56,8 @@ export function MemberCodesModal({ open, onClose }: { open: boolean; onClose: ()
           {d && (
             <>
               <Pills>
-                <Pill tone="s">{d.provisional} provisoire(s)</Pill>
-                <Pill tone="g">{d.definitive} définitif(s)</Pill>
+                <Pill tone="s">{d.provisional}{pl(d.provisional, ` provisoire(s)`)}</Pill>
+                <Pill tone="g">{d.definitive}{pl(d.definitive, ` définitif(s)`)}</Pill>
                 <Pill tone={d.changes.length ? 'r' : 'g'}>{d.changes.length} à modifier</Pill>
               </Pills>
               {d.changes.length ? (
@@ -84,7 +85,7 @@ export function MemberCodesModal({ open, onClose }: { open: boolean; onClose: ()
       <ConfirmModal
         open={confirm === 'recompute'}
         title="Recalculer les codes provisoires ?"
-        text={`${d?.changes.length ?? 0} code(s) vont changer. Les codes définitifs ne sont pas touchés.`}
+        text={`${d?.changes.length ?? 0}${pl((d?.changes.length ?? 0), ` code(s) vont changer. Les codes définitifs ne sont pas touchés.`)}`}
         cta="Recalculer"
         pending={recompute.isPending}
         onConfirm={() => recompute.mutate()}
@@ -93,7 +94,7 @@ export function MemberCodesModal({ open, onClose }: { open: boolean; onClose: ()
       <ConfirmModal
         open={confirm === 'finalize'}
         title="Valider définitivement les codes ?"
-        text={`${d?.provisional ?? 0} code(s) deviendront définitifs. Action irréversible : à faire seulement quand tout l’historique est importé.`}
+        text={`${d?.provisional ?? 0}${pl((d?.provisional ?? 0), ` code(s) deviendront définitifs. Action irréversible : à faire seulement quand tout l’historique est importé.`)}`}
         cta="Valider"
         pending={finalize.isPending}
         onConfirm={() => finalize.mutate()}

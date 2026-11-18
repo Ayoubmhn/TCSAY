@@ -40,7 +40,7 @@ export function StorageSettings() {
     <Card>
       <div className="flex flex-wrap items-center gap-2">
         <Pill tone="b">{used === null ? t('Place utilisée inconnue') : `${t('Place utilisée')} : ${size(used)}`}</Pill>
-        {waiting > 0 && <Pill tone="r">{`${waiting} ${t('pointage(s) en attente d’envoi')}`}</Pill>}
+        {waiting > 0 && <Pill tone="r">{`${waiting} ${t(waiting > 1 ? 'pointages en attente d’envoi' : 'pointage en attente d’envoi')}`}</Pill>}
       </div>
       <CardText keep>
         {t('Copies de l’application et des dernières pages consultées, gardées pour ouvrir le site plus vite et sans réseau. Les vider libère de la place ; elles se recréent au fil des visites. Votre session reste ouverte.')}

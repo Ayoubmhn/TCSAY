@@ -8,7 +8,7 @@ import { QueryState } from '../components/ui/Loading';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Pill, type PillTone } from '../components/ui/Pill';
 import { api } from '../lib/api';
-import { formatDateTime } from '../lib/format';
+import { formatDateTime, pl } from '../lib/format';
 import type { AppNotification } from '../lib/types';
 import { useAction } from '../lib/useAction';
 import { useViewMode, ViewToggle } from '../components/ui/ViewToggle';
@@ -30,7 +30,7 @@ export function NotificationsPage() {
   const read = useAction((id: string) => api.post(`/notifications/${id}/read`), { invalidate: [['notifications']] });
   const readAll = useAction(() => api.post<{ read: number }>('/notifications/read-all'), {
     invalidate: [['notifications']],
-    success: (r) => `${r.read} notification(s) marquée(s) comme lue(s).`,
+    success: (r) => `${r.read}${pl(r.read, ` notification(s) marquée(s) comme lue(s).`)}`,
   });
   const rows = q.data ?? [];
 

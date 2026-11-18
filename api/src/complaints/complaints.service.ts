@@ -3,6 +3,7 @@ import { ComplaintCategory, ComplaintKind, ComplaintStatus, EmailKind, Prisma, R
 import { AuthUser, can } from '../auth/auth-user';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { pl } from '../common/plural';
 
 /** Responsable de chaque catégorie (autorisation) ; « complaints.manage » voit tout, sauf le comportement. */
 export const CATEGORY_PERMS: Record<ComplaintCategory, string[]> = {
@@ -96,6 +97,6 @@ export class ComplaintsService implements OnApplicationBootstrap, OnModuleDestro
       await this.notify(to, `Réclamation n° ${c.number} sans réponse`, `« ${c.subject} » attend une réponse depuis plus de ${ANSWER_HOURS} h.`, `/admin/reclamations/${c.id}`);
       await this.prisma.complaint.update({ where: { id: c.id }, data: { remindedAt: new Date() } });
     }
-    if (late.length) this.logger.log(`${late.length} rappel(s) envoyé(s).`);
+    if (late.length) this.logger.log(`${late.length}${pl(late.length, ` rappel(s) envoyé(s).`)}`);
   }
 }

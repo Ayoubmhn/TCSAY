@@ -13,6 +13,7 @@ import { Segmented } from '../../components/ui/Segmented';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 type Row = { kind: 'player' | 'user'; id: string; name: string; detail: string; login: string | null; hasPassword: boolean; owner: string };
 
@@ -84,8 +85,8 @@ export function FederationAccountsPage() {
       </Filters>
       <QueryState isPending={list.isPending} error={list.error} refetch={list.refetch}>
         <Pills className="my-[18px]">
-          <Pill tone="b">{rows.length} personne(s)</Pill>
-          <Pill tone="g">{done} compte(s) saisi(s)</Pill>
+          <Pill tone="b">{rows.length}{pl(rows.length, ` personne(s)`)}</Pill>
+          <Pill tone="g">{done}{pl(done, ` compte(s) saisi(s)`)}</Pill>
           {rows.length > done && <Pill tone="s">{rows.length - done} à saisir</Pill>}
         </Pills>
         {rows.length ? (

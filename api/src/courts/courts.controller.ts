@@ -8,6 +8,7 @@ import { AuthUser, CurrentUser, Roles, Perm } from '../auth/auth-user';
 import { assertVersion, notFound, rule } from '../common/rules';
 import { DAY_LONG } from '../common/sessions';
 import { PrismaService } from '../prisma/prisma.service';
+import { pl } from '../common/plural';
 
 export const SURFACE_LABEL: Record<CourtSurface, string> = { CLAY: 'Terre battue', HARD: 'Dur', GRASS: 'Gazon' };
 
@@ -196,7 +197,7 @@ export class CourtsController {
       where: { courtId: id, activeKey: { not: null }, startTime: { gte: new Date() } },
     });
     if (future > 0) {
-      throw rule.conflict('R11', `${court.name} a ${future} réservation(s) à venir : désactivation impossible.`);
+      throw rule.conflict('R11', `${court.name} a ${future}${pl(future, ` réservation(s) à venir : désactivation impossible.`)}`);
     }
     return this.setActive(user, court, false);
   }

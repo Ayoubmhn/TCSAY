@@ -16,7 +16,7 @@ import { Segmented } from '../../components/ui/Segmented';
 import { PhotoPanel } from '../ai/AiPhotoReader';
 import { EditableTable, type Col, type Result } from '../players/ImportTable';
 import { api } from '../../lib/api';
-import { DT, fD } from '../../lib/format';
+import { DT, fD, pl } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
 
 type Register = 'PLAYERS' | 'INCOME' | 'EXPENSE';
@@ -339,8 +339,8 @@ function SeasonImport({ season, onBack }: { season: HistorySeason; onBack: () =>
       invalidate: [['history'], ['players'], ['season-reports']],
       success: (r) =>
         register === 'PLAYERS'
-          ? `${r.created} nouveau(x) joueur(s), ${r.linked} retrouvé(s) d’une autre saison.${r.skipped ? ` ${r.skipped} ligne(s) ignorée(s).` : ''}`
-          : `${r.rows} ligne(s) enregistrée(s) : ${DT(r.amount)}.${r.skipped ? ` ${r.skipped} ligne(s) ignorée(s).` : ''}`,
+          ? `${r.created}${pl(r.created, ` nouveau(x) joueur(s), `)}${r.linked}${pl(r.linked, ` retrouvé(s) d’une autre saison.`)}${r.skipped ? ` ${r.skipped}${pl(r.skipped, ` ligne(s) ignorée(s).`)}` : ''}`
+          : `${r.rows}${pl(r.rows, ` ligne(s) enregistrée(s) : `)}${DT(r.amount)}.${r.skipped ? ` ${r.skipped}${pl(r.skipped, ` ligne(s) ignorée(s).`)}` : ''}`,
       onSuccess: clear,
     },
   );

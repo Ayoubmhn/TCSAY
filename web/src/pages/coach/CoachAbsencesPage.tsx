@@ -12,7 +12,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { fD, formatDateTime, fullName, todayIso } from '../../lib/format';
+import { fD, formatDateTime, fullName, pl, todayIso } from '../../lib/format';
 import type { AbsenceResolution, Coach, CoachAbsence, CoachSession } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
@@ -217,7 +217,7 @@ export function CoachAbsencesPage({ admin = false }: { admin?: boolean }) {
     {
       invalidate: [...KEYS, ['emails'], ['audit']],
       success: (r) =>
-        r.status === 'APPROVED' ? `Absence validée.${r.notified ? ` ${r.notified} email(s) envoyé(s) aux groupes.` : ''}` : 'Absence refusée.',
+        r.status === 'APPROVED' ? `Absence validée.${r.notified ? ` ${r.notified}${pl(r.notified, ` email(s) envoyé(s) aux groupes.`)}` : ''}` : 'Absence refusée.',
       onSuccess: () => setDecision(undefined),
     },
   );

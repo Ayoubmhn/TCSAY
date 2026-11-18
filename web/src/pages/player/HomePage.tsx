@@ -67,8 +67,8 @@ export function HomePage() {
             <>
               {/* Grande carte d'accueil : seul dégradé autorisé */}
               <div className="relative mt-6 flex min-h-[200px] flex-col gap-3 rounded-[36px] bg-[linear-gradient(150deg,#14532d_0%,#2f7a4d_60%,#c2410c_100%)] px-7 pt-7 pb-[34px] text-white">
-                <span className="text-xs font-semibold tracking-[0.12em] opacity-85">
-                  PROCHAINE SÉANCE{isParent ? ` · ${o.player.firstName.toUpperCase()}` : ''}
+                <span className="text-[13.5px] font-semibold opacity-85">
+                  Prochaine séance{isParent ? ` · ${o.player.firstName}` : ''}
                 </span>
                 {o.nextSession ? (
                   <>
@@ -117,12 +117,10 @@ export function HomePage() {
                     <CardSubtitle>Paiements</CardSubtitle>
                     {o.dueCount ? (
                       <>
-                        <Pills>
-                          <Pill tone="r">
-                            {o.dueCount} tranche{o.dueCount > 1 ? 's' : ''} à payer
-                          </Pill>
-                        </Pills>
                         <Kpi>{DT(o.dueAmount)}</Kpi>
+                        <span className="text-[13.5px] font-medium text-[#c0392b]">
+                          {o.dueCount} tranche{o.dueCount > 1 ? 's' : ''} à payer
+                        </span>
                         <CardText>Restant sur la saison</CardText>
                       </>
                     ) : (

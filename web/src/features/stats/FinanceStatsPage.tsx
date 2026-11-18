@@ -11,7 +11,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { DT, fD } from '../../lib/format';
+import { DT, fD, pl } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
 import { useSeasons } from '../seasons/api';
 
@@ -197,7 +197,7 @@ export function FinanceStatsPage() {
                   <Kpi>{DT(d.discounts.total)}</Kpi>
                   <CardText>
                     {pct(d.discounts.total, d.discounts.base)} % des tarifs ·{' '}
-                    {d.discounts.byKind.SIBLING.count + d.discounts.byKind.SPECIAL.count + d.discounts.byKind.EXEMPT.count} joueur(s)
+                    {d.discounts.byKind.SIBLING.count + d.discounts.byKind.SPECIAL.count + d.discounts.byKind.EXEMPT.count}{pl((d.discounts.byKind.SIBLING.count + d.discounts.byKind.SPECIAL.count + d.discounts.byKind.EXEMPT.count), ` joueur(s)`)}
                   </CardText>
                 </Card>
                 <Card>
@@ -218,7 +218,7 @@ export function FinanceStatsPage() {
                   <Card>
                     <CardRow>
                       <h3>Retards par ancienneté</h3>
-                      <Pill tone="r">{d.aging.lt30.count + d.aging.d30to60.count + d.aging.gt60.count} tranche(s)</Pill>
+                      <Pill tone="r">{d.aging.lt30.count + d.aging.d30to60.count + d.aging.gt60.count}{pl((d.aging.lt30.count + d.aging.d30to60.count + d.aging.gt60.count), ` tranche(s)`)}</Pill>
                     </CardRow>
                     <div className="mt-3 flex flex-col gap-2.5">
                       <BarRow label="Moins de 30 jours" value={d.aging.lt30.amount} max={agingTotal} text={DT(d.aging.lt30.amount)} />
@@ -256,7 +256,7 @@ export function FinanceStatsPage() {
                         </CardRow>
                         <Pills>
                           {f.code && <Pill tone="s">{f.code}</Pill>}
-                          <Pill tone="b">{f.installments} tranche(s)</Pill>
+                          <Pill tone="b">{f.installments}{pl(f.installments, ` tranche(s)`)}</Pill>
                           <Pill tone={f.daysLate > 60 ? 'r' : 'b'}>{f.daysLate} j de retard</Pill>
                         </Pills>
                         <CardText>
@@ -301,7 +301,7 @@ export function FinanceStatsPage() {
                   <Card>
                     <CardRow>
                       <h3>Modes de paiement</h3>
-                      <Pill tone="b">{d.methods.CASH.count + d.methods.CHEQUE.count + d.methods.ONLINE.count} paiement(s)</Pill>
+                      <Pill tone="b">{d.methods.CASH.count + d.methods.CHEQUE.count + d.methods.ONLINE.count}{pl((d.methods.CASH.count + d.methods.CHEQUE.count + d.methods.ONLINE.count), ` paiement(s)`)}</Pill>
                     </CardRow>
                     <div className="mt-3 flex flex-col gap-2.5">
                       <BarRow label="Espèces" value={d.methods.CASH.amount} max={methodsTotal} text={`${pct(d.methods.CASH.amount, methodsTotal)} %`} />
@@ -313,7 +313,7 @@ export function FinanceStatsPage() {
                   <Card>
                     <CardRow>
                       <h3>Échéanciers</h3>
-                      <Pill tone="b">{d.summary.memberships} cotisation(s)</Pill>
+                      <Pill tone="b">{d.summary.memberships}{pl(d.summary.memberships, ` cotisation(s)`)}</Pill>
                     </CardRow>
                     <div className="mt-3 flex flex-col gap-2.5">
                       <BarRow label="Comptant" value={d.plans.FULL} max={plansTotal} text={String(d.plans.FULL)} />

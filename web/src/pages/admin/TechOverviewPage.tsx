@@ -9,7 +9,7 @@ import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 
 export type TechAlert = { playerId: string; name: string; group: string; kind: 'ABSENCES' | 'DROP' | 'EFFORT' | 'PAIN'; label: string; date: string };
 type Overview = {
@@ -79,7 +79,7 @@ export function TechOverviewPage() {
                           {g.average !== null ? <Pill tone="g">{nb(g.average)}/5</Pill> : <Pill tone="s">Pas de note ce mois</Pill>}
                         </CardRow>
                         <Pills>
-                          <Pill tone="b">{g.players} joueur(s)</Pill>
+                          <Pill tone="b">{g.players}{pl(g.players, ` joueur(s)`)}</Pill>
                           {diff !== null && (
                             <Pill tone={diff >= 0 ? 'g' : 'r'}>
                               {diff >= 0 ? '+' : '−'}

@@ -26,13 +26,13 @@ export function InstallmentCard({
 }) {
   const st = INSTALLMENT_STATUS[i.status];
   return (
-    <div className={`flex flex-col gap-3 rounded-[24px] border-[1.5px] border-line p-[18px] ${i.remaining ? 'bg-topay' : 'bg-paid'}`}>
+    <div className={`inst flex flex-col gap-3 rounded-[24px] border-[1.5px] border-line p-[18px] ${i.remaining ? 'bg-topay' : 'bg-paid'}`}>
       <div className="card-row flex items-center justify-between gap-2.5">
         <h3>{title}</h3>
         <Pill tone={st.tone}>{st.label}</Pill>
       </div>
       <Pills>{pills ?? <Pill tone="b">Échéance {fD(i.dueDate, { day: 'numeric', month: 'short', year: 'numeric' })}</Pill>}</Pills>
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="card-amounts grid grid-cols-2 gap-2.5">
         <div>
           <small className="block text-xs text-mut">Montant payé</small>
           <b className="text-xl font-semibold tabular-nums">{DT(i.paid)}</b>

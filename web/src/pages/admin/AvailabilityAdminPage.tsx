@@ -10,7 +10,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 import type { Group } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
@@ -56,7 +56,7 @@ export function AvailabilityAdminPage() {
                 ))}
               </FilterSelect>
               <Pill tone={coach.filled ? 'g' : 's'}>{coach.filled ? 'Semaine type renseignée' : 'Semaine type non renseignée'}</Pill>
-              <Pill tone="b">{coach.slots.length} créneau(x) cette saison</Pill>
+              <Pill tone="b">{coach.slots.length}{pl(coach.slots.length, ` créneau(x) cette saison`)}</Pill>
               {coach.exceptions.map((e) => (
                 <Pill key={e.id} tone="r">
                   {e.reason} : {fD(e.from, { day: 'numeric', month: 'short' })}
@@ -95,7 +95,7 @@ export function AvailabilityAdminPage() {
                     <Pill tone="b">{suggest.data.coach}</Pill>
                     {groupId && (
                       <Pill tone={suggest.data.players.known ? 'g' : 's'}>
-                        {suggest.data.players.known}/{suggest.data.players.total} joueur(s) ont donné leurs disponibilités
+                        {suggest.data.players.known}/{suggest.data.players.total}{pl(suggest.data.players.known, ` joueur(s) ont donné leurs disponibilités`)}
                       </Pill>
                     )}
                   </Pills>

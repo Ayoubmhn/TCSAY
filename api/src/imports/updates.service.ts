@@ -11,6 +11,7 @@ import { Cell, excelDate, readXlsx } from '../players/import/xlsx-reader';
 import { PrismaService } from '../prisma/prisma.service';
 import { amountInArabicWords } from '../receipts/arabic-amount';
 import { isArabic, nameScore, normalizeName, similarity, splitListName } from './name-match';
+import { pl } from '../common/plural';
 
 type Status = 'ok' | 'warning' | 'error';
 const str = (c: Cell | undefined) => (c === null || c === undefined ? null : String(c).trim() || null);
@@ -314,8 +315,8 @@ export class UpdatesService {
             action: 'Affectation aux groupes (fichier)',
             entity: 'GroupMember',
             target: fileName,
-            after: `${moved} affectation(s), ${renamed} nom(s) corrigé(s)`,
-            reason: preview.errors ? `${preview.errors} ligne(s) ignorée(s)` : null,
+            after: `${moved}${pl(moved, ` affectation(s), `)}${renamed}${pl(renamed, ` nom(s) corrigé(s)`)}`,
+            reason: preview.errors ? `${preview.errors}${pl(preview.errors, ` ligne(s) ignorée(s)`)}` : null,
           },
           tx,
         );

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@ne
 import { EmailStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { alert, alertsEnabled, describeError, takeErrorCount } from './telegram';
+import { pl } from '../common/plural';
 
 const EVERY_MS = 10 * 60_000;
 const SUMMARY_HOUR = 8; // résumé du jour à 8 h (heure de Tunis)
@@ -71,7 +72,7 @@ export class AlertsService implements OnApplicationBootstrap, OnModuleDestroy {
       const stuck = await this.prisma.emailLog.count({
         where: { status: EmailStatus.PENDING, createdAt: { lt: new Date(Date.now() - 30 * 60_000) } },
       });
-      if (stuck) void alert('warn', 'File d’emails bloquée', [`${stuck} email(s) en attente depuis plus de 30 minutes.`], 'mail-stuck');
+      if (stuck) void alert('warn', 'File d’emails bloquée', [`${stuck}${pl(stuck, ` email(s) en attente depuis plus de 30 minutes.`)}`], 'mail-stuck');
       if (this.tunisHour() >= SUMMARY_HOUR && this.lastSummary !== this.tunisDay()) {
         this.lastSummary = this.tunisDay();
         await this.summary();

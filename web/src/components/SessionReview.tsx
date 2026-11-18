@@ -10,6 +10,7 @@ import { QueryState } from './ui/Loading';
 import { Modal } from './ui/Modal';
 import { Pill, Pills } from './ui/Pill';
 import { Segmented } from './ui/Segmented';
+import { pl } from '../lib/format';
 
 /** Points travaillés proposés (choix rapide) ; l'entraîneur peut aussi écrire le sien. */
 export const OBJECTIVES = [
@@ -114,7 +115,7 @@ export function SessionReviewCard({ slotId, date }: { slotId: string; date: stri
         <div className="flex flex-col gap-2.5">
           <div className="flex flex-wrap items-center gap-1.5">
             {r.plan ? <Pill tone="b">Objectif : {r.plan.objective}</Pill> : <Pill tone="s">Objectif à fixer</Pill>}
-            {rateable.length > 0 && <Pill tone={done === rateable.length ? 'g' : 's'}>{done}/{rateable.length} évalué(s)</Pill>}
+            {rateable.length > 0 && <Pill tone={done === rateable.length ? 'g' : 's'}>{done}/{rateable.length}{pl(done, ` évalué(s)`)}</Pill>}
           </div>
           {!r.attendanceRecorded ? (
             <span className="text-[13px] text-mut">Pointez d’abord les présences : seuls les joueurs présents ou en retard sont évalués.</span>

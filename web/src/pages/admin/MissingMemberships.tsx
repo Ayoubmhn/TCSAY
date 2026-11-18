@@ -10,6 +10,7 @@ import { PlanOptions } from '../../lib/payment-config';
 import { api } from '../../lib/api';
 import type { PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 /**
  * Tout joueur inscrit paie sa cotisation : bandeau affiché quand des joueurs n'en ont pas encore (ex. importés du cahier),
@@ -22,7 +23,7 @@ export function MissingMemberships() {
   const [withoutFee, setWithoutFee] = useState<string[]>([]);
   const create = useAction(() => api.post<{ created: number; withoutFee: string[] }>('/memberships/missing', { paymentPlan: plan }), {
     invalidate: [['memberships-missing'], ['players'], ['installments'], ['dashboard']],
-    success: (r) => `${r.created} cotisation(s) créée(s).`,
+    success: (r) => `${r.created}${pl(r.created, ` cotisation(s) créée(s).`)}`,
     onSuccess: (r) => {
       setOpen(false);
       setWithoutFee(r.withoutFee);

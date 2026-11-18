@@ -14,7 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 import { TournamentForm } from './TournamentForm';
 import { STATUS, type History, type TournamentSummary } from './types';
 
@@ -51,7 +51,7 @@ function PlayerHistory() {
               <Card>
                 <CardSubtitle>Palmarès</CardSubtitle>
                 <Kpi>🏆 {d.totals.titles}</Kpi>
-                <Pills>{d.totals.finals > 0 && <Pill tone="s">{d.totals.finals} finale(s)</Pill>}</Pills>
+                <Pills>{d.totals.finals > 0 && <Pill tone="s">{d.totals.finals}{pl(d.totals.finals, ` finale(s)`)}</Pill>}</Pills>
               </Card>
             </CardGrid>
             {d.tournaments.length ? (

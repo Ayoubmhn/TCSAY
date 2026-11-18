@@ -5,6 +5,7 @@ import { dt, num } from '../common/money';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentConfigService } from './payment-config.service';
+import { pl } from '../common/plural';
 
 /** Vérification des rappels et des retards toutes les heures (et au démarrage). */
 const EVERY_MS = 60 * 60 * 1000;
@@ -148,7 +149,7 @@ export class LateInstallmentsService implements OnApplicationBootstrap, OnModule
           count++;
         }
       }
-      if (count) this.log.log(`${count} rappel(s) ou relance(s) envoyé(s) aux familles.`);
+      if (count) this.log.log(`${count}${pl(count, ` rappel(s) ou relance(s) envoyé(s) aux familles.`)}`);
       return count;
     } catch (e) {
       this.log.warn(`Vérification des retards impossible : ${e instanceof Error ? e.message : e}`);

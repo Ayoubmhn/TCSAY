@@ -13,6 +13,7 @@ import { AiPhotoReader, PhotoPanel, type AiPages } from '../../features/ai/AiPho
 import { EMPTY_RAW, ImportTable, type Doubts } from '../../features/players/ImportTable';
 import type { ImportPreview, ImportRawRow, ImportReport, ImportStatus, PaymentPlan } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 /** Rapport d'import en CSV (séparateur « ; », lisible par Excel) : codes attribués et lignes ignorées. */
 function downloadReport(report: ImportReport, fileName: string) {
@@ -72,7 +73,7 @@ export function PlayersImportPage() {
   const [plan, setPlan] = useState<PaymentPlan>('FULL');
   const commit = useAction(() => api.post<ImportReport>('/players/import/commit-table', { fileName, rows: table, plan }), {
     invalidate: [['players'], ['parents'], ['groups'], ['dashboard'], ['categories']],
-    success: (r) => `${r.imported.length} joueur(s) importé(s) avec leur cotisation, ${r.parentsCreated} parent(s) créé(s).`,
+    success: (r) => `${r.imported.length}${pl(r.imported.length, ` joueur(s) importé(s) avec leur cotisation, `)}${r.parentsCreated}${pl(r.parentsCreated, ` parent(s) créé(s).`)}`,
     onSuccess: (r) => {
       setReport(r);
       setPreview(undefined);
@@ -150,13 +151,13 @@ export function PlayersImportPage() {
           <Section title="Aperçu modifiable">
             <Pills>
               <Pill tone="b">Saison {preview.season}</Pill>
-              <Pill tone="b">{preview.total} ligne(s)</Pill>
-              <Pill tone="g">{preview.ok} prête(s)</Pill>
+              <Pill tone="b">{preview.total}{pl(preview.total, ` ligne(s)`)}</Pill>
+              <Pill tone="g">{preview.ok}{pl(preview.ok, ` prête(s)`)}</Pill>
               <Pill tone="s">{preview.warnings} à vérifier</Pill>
-              <Pill tone="r">{preview.errors} ignorée(s)</Pill>
-              <Pill tone="b">{preview.newParents} parent(s) à créer</Pill>
+              <Pill tone="r">{preview.errors}{pl(preview.errors, ` ignorée(s)`)}</Pill>
+              <Pill tone="b">{preview.newParents}{pl(preview.newParents, ` parent(s) à créer`)}</Pill>
               <Pill tone="b">{preview.withGroup} avec groupe</Pill>
-              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)} case(s) douteuse(s) lue(s) par l’IA</Pill>}
+              {doubts.size > 0 && <Pill tone="s">✦ {[...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)}{pl(([...doubts.values()].reduce((t, d) => t + Object.keys(d).length, 0)), ` case(s) douteuse(s) lue(s) par l’IA`)}</Pill>}
               {checking && <Pill tone="s">Vérification…</Pill>}
             </Pills>
             <Filters>
@@ -194,11 +195,11 @@ export function PlayersImportPage() {
       {report && (
         <Section title="Import terminé">
           <Pills>
-            <Pill tone="g">{report.imported.length} joueur(s) importé(s)</Pill>
-            <Pill tone="g">{report.imported.filter((r) => r.membership).length} cotisation(s) créée(s)</Pill>
+            <Pill tone="g">{report.imported.length}{pl(report.imported.length, ` joueur(s) importé(s)`)}</Pill>
+            <Pill tone="g">{report.imported.filter((r) => r.membership).length}{pl(report.imported.filter((r) => r.membership).length, ` cotisation(s) créée(s)`)}</Pill>
             {report.withoutFee > 0 && <Pill tone="r">{report.withoutFee} sans tarif (cotisation à créer)</Pill>}
-            <Pill tone="b">{report.parentsCreated} parent(s) créé(s)</Pill>
-            <Pill tone={report.skipped.length ? 'r' : 'g'}>{report.skipped.length} ignoré(s)</Pill>
+            <Pill tone="b">{report.parentsCreated}{pl(report.parentsCreated, ` parent(s) créé(s)`)}</Pill>
+            <Pill tone={report.skipped.length ? 'r' : 'g'}>{report.skipped.length}{pl(report.skipped.length, ` ignoré(s)`)}</Pill>
           </Pills>
           <Filters>
             <Button onClick={() => downloadReport(report, fileName ?? 'joueurs')}>Télécharger le rapport (CSV)</Button>

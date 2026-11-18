@@ -17,6 +17,7 @@ import { AlertList, useTechOverview } from '../admin/TechOverviewPage';
 import { api } from '../../lib/api';
 import type { Evaluation, EvaluationCriterion } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 type Criteria = { criteria: EvaluationCriterion[]; periods: { key: string; label: string }[] };
 type GroupRow = { id: string; name: string; members: number };
@@ -94,7 +95,7 @@ export function EvaluationsPage({ admin = false }: { admin?: boolean }) {
             </option>
           ))}
         </FilterSelect>
-        {sheet.data && <Pill tone={done === players.length && done > 0 ? 'g' : 's'}>{done}/{players.length} bilan(s)</Pill>}
+        {sheet.data && <Pill tone={done === players.length && done > 0 ? 'g' : 's'}>{done}/{players.length}{pl(done, ` bilan(s)`)}</Pill>}
       </Filters>
       <div className="mt-2.5">
         <QueryState isPending={groups.isPending || (Boolean(gid) && sheet.isPending)} error={groups.error ?? sheet.error} refetch={sheet.refetch}>
@@ -220,7 +221,7 @@ function EvaluationModal({
             </Pill>
           )}
           <Pill tone={rated ? 'g' : 's'}>
-            {rated}/{criteria.length} critère(s) notés
+            {rated}/{criteria.length}{pl(rated, ` critère(s) notés`)}
           </Pill>
         </Pills>
         <div className="grid grid-cols-1 gap-3.5 min-[761px]:grid-cols-2">

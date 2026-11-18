@@ -12,6 +12,7 @@ import { PaymentsService } from '../../payments/payments.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { nextMemberCode } from '../member-code';
 import { Cell, excelDate, readXlsx } from './xlsx-reader';
+import { pl } from '../../common/plural';
 
 
 type Status = 'ok' | 'warning' | 'error';
@@ -462,8 +463,8 @@ export class PlayersImportService {
             action: 'Import de joueurs',
             entity: 'Player',
             target: fileName,
-            after: `${out.length} joueur(s), ${parentIds.size} parent(s) créé(s), ${out.filter((o) => o.group).length} affecté(s) à un groupe`,
-            reason: preview.errors ? `${preview.errors} ligne(s) ignorée(s) (erreurs)` : null,
+            after: `${out.length}${pl(out.length, ` joueur(s), `)}${parentIds.size}${pl(parentIds.size, ` parent(s) créé(s), `)}${out.filter((o) => o.group).length}${pl(out.filter((o) => o.group).length, ` affecté(s) à un groupe`)}`,
+            reason: preview.errors ? `${preview.errors}${pl(preview.errors, ` ligne(s) ignorée(s) (erreurs)`)}` : null,
           },
           tx,
         );

@@ -3,12 +3,12 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { useMe } from '../../auth/AuthContext';
 import { Card, CardSubtitle, EmptyState, Kpi } from '../../components/ui/Card';
-import { IconBell, IconCalendar, IconCard, IconClipboard, IconCourt, IconPlus, IconSettings } from '../../components/ui/Icons';
+import { IconAlert, IconBell, IconCalendar, IconCard, IconClipboard, IconCourt, IconEdit, IconMail, IconPlus, IconSettings, IconSwap, IconTrophy, IconWallet } from '../../components/ui/Icons';
 import { ProgressBar } from '../../components/ui/InstallmentCard';
 import { QueryState } from '../../components/ui/Loading';
 import { Pill, Pills, type PillTone } from '../../components/ui/Pill';
 import { api } from '../../lib/api';
-import { DT, fD } from '../../lib/format';
+import { DT, fD, pl } from '../../lib/format';
 import type { Dashboard, Planning } from '../../lib/types';
 
 /** Blocs que chacun peut masquer (« Personnaliser », mémorisé sur l'appareil). */
@@ -61,12 +61,12 @@ function Action({ to, label, icon, primary = false }: { to: string; label: strin
   );
 }
 
-/** Ligne « À traiter » : pastille d'icône, texte, bouton d'action coloré. */
-function Todo({ tone, icon, text, cta, to }: { tone: PillTone; icon: string; text: string; cta: string; to: string }) {
+/** Ligne « À traiter » : icône discrète, texte, bouton d'action coloré (la couleur porte l'urgence). */
+function Todo({ tone, icon, text, cta, to }: { tone: PillTone; icon: ReactNode; text: string; cta: string; to: string }) {
   const bg = { r: 'bg-[#fdb3b0]', s: 'bg-[#f0d9a8]', b: 'bg-[#c9e9fb]', g: 'bg-[#dff3a8]' }[tone];
   return (
     <li className="flex items-center gap-3 border-t-[1.5px] border-line py-3 first:border-t-0">
-      <span className={`grid h-8 w-8 flex-none place-items-center rounded-[10px] text-[14px] text-[#111] ${bg}`} aria-hidden="true">
+      <span className="grid h-8 w-8 flex-none place-items-center rounded-[10px] bg-fld text-mut" aria-hidden="true">
         {icon}
       </span>
       <span className="min-w-0 flex-1 text-[14.5px]">{text}</span>
@@ -138,7 +138,9 @@ export function DashboardPage() {
           end: s.endTime,
           title: s.group.name,
           court: s.court?.name ?? null,
-          tag: s.absentCoachIds.length && !s.replacement ? { tone: 'r' as PillTone, label: s.resolution === 'CANCELLED' ? 'Annulée' : 'À remplacer' } : { tone: 's' as PillTone, label: (s.replacement ?? s.coaches[0])?.firstName ?? 'Sans entraîneur' },
+          tag: s.absentCoachIds.length && !s.replacement
+            ? { tone: 'r' as PillTone, label: s.resolution === 'CANCELLED' ? 'Annulée' : 'À remplacer', alert: true }
+            : { tone: 's' as PillTone, label: (s.replacement ?? s.coaches[0])?.firstName ?? 'Sans entraîneur', alert: !(s.replacement ?? s.coaches[0]) },
         })),
         ...plan.reservations.map((r) => ({
           key: `r-${r.id}`,
@@ -146,7 +148,7 @@ export function DashboardPage() {
           end: r.endTime,
           title: r.match ? (r.match.title ?? r.match.players) : `Réservation${r.player ? ` · ${r.player}` : r.coach ? ` · ${r.coach.name}` : ''}`,
           court: plan.courts.find((c) => c.id === r.courtId)?.name ?? null,
-          tag: { tone: 'b' as PillTone, label: r.type === 'PRIVATE' ? 'Séance privée' : r.type === 'LEISURE' ? 'Loisir' : 'Match' },
+          tag: { tone: 'b' as PillTone, label: r.type === 'PRIVATE' ? 'Séance privée' : r.type === 'LEISURE' ? 'Loisir' : 'Match', alert: false },
         })),
       ].sort((a, b) => a.start.localeCompare(b.start))
     : [];
@@ -154,19 +156,19 @@ export function DashboardPage() {
 
   const todo = d
     ? [
-        d.lateFamilies > 0 && can('payments.collect') && { tone: 'r' as PillTone, icon: '!', text: `${d.lateFamilies} famille(s) en retard de paiement`, cta: 'Relancer', to: '/admin/paiements' },
-        d.todo.pendingAbsences > 0 && can('absences.manage') && { tone: 's' as PillTone, icon: '⇄', text: `${d.todo.pendingAbsences} absence(s) d’entraîneur à décider`, cta: 'Remplacer', to: '/admin/absences' },
-        d.todo.newComplaints > 0 && can('complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage') && { tone: 's' as PillTone, icon: '✉', text: `${d.todo.newComplaints} réclamation(s) sans réponse`, cta: 'Ouvrir', to: '/admin/reclamations' },
-        d.todo.tournamentRequests > 0 && can('tournaments.manage') && { tone: 'b' as PillTone, icon: '🏆', text: `${d.todo.tournamentRequests} demande(s) d’inscription au tournoi`, cta: 'Valider', to: '/tournois' },
-        d.todo.reportsToPrepare && can('seasons.manage', 'stats.view') && { tone: 's' as PillTone, icon: '✎', text: `Saison ${d.todo.reportsToPrepare.label} clôturée : préparer le rapport moral et le rapport financier`, cta: 'Préparer', to: `/admin/rapports?saison=${d.todo.reportsToPrepare.seasonId}` },
-        d.todo.withoutMembership > 0 && can('payments.collect', 'players.manage') && { tone: 'b' as PillTone, icon: '€', text: `${d.todo.withoutMembership} joueur(s) sans cotisation`, cta: 'Créer', to: '/admin/joueurs' },
-      ].filter((x): x is { tone: PillTone; icon: string; text: string; cta: string; to: string } => Boolean(x))
+        d.lateFamilies > 0 && can('payments.collect') && { tone: 'r' as PillTone, icon: <IconAlert size={18} />, text: `${d.lateFamilies}${pl(d.lateFamilies, ` famille(s) en retard de paiement`)}`, cta: 'Relancer', to: '/admin/paiements' },
+        d.todo.pendingAbsences > 0 && can('absences.manage') && { tone: 's' as PillTone, icon: <IconSwap size={18} />, text: `${d.todo.pendingAbsences}${pl(d.todo.pendingAbsences, ` absence(s) d’entraîneur à décider`)}`, cta: 'Remplacer', to: '/admin/absences' },
+        d.todo.newComplaints > 0 && can('complaints.manage', 'payments.collect', 'reservations.manage', 'evaluations.manage', 'groups.manage', 'courts.manage') && { tone: 's' as PillTone, icon: <IconMail size={18} />, text: `${d.todo.newComplaints}${pl(d.todo.newComplaints, ` réclamation(s) sans réponse`)}`, cta: 'Ouvrir', to: '/admin/reclamations' },
+        d.todo.tournamentRequests > 0 && can('tournaments.manage') && { tone: 'b' as PillTone, icon: <IconTrophy size={18} />, text: `${d.todo.tournamentRequests}${pl(d.todo.tournamentRequests, ` demande(s) d’inscription au tournoi`)}`, cta: 'Valider', to: '/tournois' },
+        d.todo.reportsToPrepare && can('seasons.manage', 'stats.view') && { tone: 's' as PillTone, icon: <IconEdit size={18} />, text: `Saison ${d.todo.reportsToPrepare.label} clôturée : préparer le rapport moral et le rapport financier`, cta: 'Préparer', to: `/admin/rapports?saison=${d.todo.reportsToPrepare.seasonId}` },
+        d.todo.withoutMembership > 0 && can('payments.collect', 'players.manage') && { tone: 'b' as PillTone, icon: <IconWallet size={18} />, text: `${d.todo.withoutMembership}${pl(d.todo.withoutMembership, ` joueur(s) sans cotisation`)}`, cta: 'Créer', to: '/admin/joueurs' },
+      ].filter((x): x is { tone: PillTone; icon: React.JSX.Element; text: string; cta: string; to: string } => Boolean(x))
     : [];
 
   type QuickAction = { to: string; label: string; icon: ReactNode; primary?: boolean };
   const actions = ([
     can('players.manage') && { to: '/admin/joueurs?nouveau=1', label: 'Nouveau joueur', icon: <IconPlus />, primary: true },
-    can('payments.collect') && { to: '/admin/paiements', label: 'Encaisser', icon: <IconCard />, primary: true },
+    can('payments.collect') && { to: '/admin/paiements', label: 'Encaisser', icon: <IconCard /> },
     can('planning.view', 'groups.manage') && { to: '/admin/planning', label: 'Planning du jour', icon: <IconCalendar /> },
     can('reservations.manage') && { to: '/admin/reservations', label: 'Réserver un terrain', icon: <IconCourt /> },
     can('notifications.send') && { to: '/admin/notifications', label: 'Envoyer un message', icon: <IconBell /> },
@@ -246,7 +248,7 @@ export function DashboardPage() {
                     <CardSubtitle>En retard</CardSubtitle>
                     <span className={`text-[28px] font-semibold leading-[1.1] tabular-nums ${d.lateAmount > 0 ? 'text-[#c0392b]' : ''}`}>{DT(d.lateAmount)}</span>
                     <Pills>
-                      {d.lateFamilies ? <Pill tone="r">{d.lateFamilies} famille(s)</Pill> : <Pill tone="g">Aucun retard</Pill>}
+                      {d.lateFamilies ? <Pill tone="r">{d.lateFamilies}{pl(d.lateFamilies, ` famille(s)`)}</Pill> : <Pill tone="g">Aucun retard</Pill>}
                       {d.late30 > 0 && <Pill tone="s">&gt; 30 j : {d.late30}</Pill>}
                     </Pills>
                   </Card>
@@ -254,8 +256,8 @@ export function DashboardPage() {
                     <CardSubtitle>Aujourd’hui</CardSubtitle>
                     <Kpi>{sessionsToday !== null ? `${sessionsToday} séance${sessionsToday > 1 ? 's' : ''}` : `${d.reservationsToday} résa.`}</Kpi>
                     <Pills>
-                      <Pill tone="b">{d.reservationsToday} réservation(s)</Pill>
-                      <Pill tone="b">Demain : {d.reservationsTomorrow}</Pill>
+                      <Pill tone="b">{d.reservationsToday}{pl(d.reservationsToday, ` réservation(s)`)}</Pill>
+                      {d.reservationsTomorrow > 0 && <Pill tone="b">Demain : {d.reservationsTomorrow}</Pill>}
                     </Pills>
                   </Card>
                 </div>
@@ -304,14 +306,15 @@ export function DashboardPage() {
                                   {a.start}–{a.end}
                                 </b>
                                 <span className="min-w-[90px] flex-1 truncate text-[14.5px]">{a.title}</span>
-                                {a.court && <Pill tone="g">{a.court}</Pill>}
-                                <Pill tone={a.tag.tone}>{a.tag.label}</Pill>
+                                {/* Terrain et entraîneur en texte discret ; pastille seulement pour ce qui demande une action */}
+                                {a.court && <span className="text-[13.5px] text-mut">{a.court}</span>}
+                                {a.tag.alert ? <Pill tone={a.tag.tone}>{a.tag.label}</Pill> : <span className="text-[13.5px] text-mut">{a.tag.label}</span>}
                               </li>
                             ))}
                             {agenda.length > 6 && (
                               <li className="pt-2 text-center">
                                 <Link to="/admin/planning" className="text-[13.5px] font-medium text-pri">
-                                  + {agenda.length - 6} autre(s) · Voir le planning
+                                  + {agenda.length - 6}{pl((agenda.length - 6), ` autre(s) · Voir le planning`)}
                                 </Link>
                               </li>
                             )}
@@ -341,7 +344,7 @@ export function DashboardPage() {
                       <Head title="Groupes" link={`Voir les ${groups.length} groupes`} to="/admin/groupes" />
                       <Card>
                         <CardSubtitle>
-                          Remplissage moyen {fill} % · {full.length} groupe(s) complet(s)
+                          Remplissage moyen {fill} % · {full.length}{pl(full.length, ` groupe(s) complet(s)`)}
                         </CardSubtitle>
                         {groups.length ? (
                           <ul className="m-0 list-none p-0 text-[14.5px]">
@@ -357,7 +360,7 @@ export function DashboardPage() {
                               <li className="flex items-center justify-between gap-2 border-t-[1.5px] border-line py-2.5">
                                 <span>Places libres</span>
                                 <Pill tone="g">
-                                  {mostFree.name} · {mostFree.capacity - mostFree.members} place(s)
+                                  {mostFree.name} · {mostFree.capacity - mostFree.members}{pl((mostFree.capacity - mostFree.members), ` place(s)`)}
                                 </Pill>
                               </li>
                             )}

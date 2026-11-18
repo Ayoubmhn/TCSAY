@@ -13,7 +13,7 @@ export function NotificationBell() {
     refetchInterval: 60_000,
   });
   const unread = q.data?.unread ?? 0;
-  const label = unread ? `${t('Notifications')} (${unread} ${t('non lue(s)')})` : t('Notifications');
+  const label = unread ? `${t('Notifications')} (${unread} ${t(unread > 1 ? 'non lues' : 'non lue')})` : t('Notifications');
   return (
     <Link to="/notifications" data-guide="/notifications" aria-label={label} title={label} className="relative grid h-[42px] w-[42px] shrink-0 place-items-center rounded-[15px] bg-btn text-fg">
       <IconBell />

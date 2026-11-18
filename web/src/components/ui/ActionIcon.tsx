@@ -58,7 +58,7 @@ const CLS = 'act-ico grid h-[38px] w-[38px] shrink-0 place-items-center rounded-
 
 /**
  * Bouton d'action en icône ronde (voir, modifier, archiver…) : info-bulle et libellé accessible obligatoires.
- * Actions destructives sur fond rose ; `to` en fait un lien.
+ * Actions destructives grises, roses au survol et au focus (le rose n'est pas répété sur chaque ligne) ; `to` en fait un lien.
  */
 export function ActionIcon({
   kind,
@@ -78,7 +78,7 @@ export function ActionIcon({
   const { t } = useI18n();
   const { Icon, label: fallback, danger } = KINDS[kind];
   const text = t(label ?? fallback);
-  const tone = primary ? 'bg-pri text-white' : danger ? 'bg-pr text-ink' : 'bg-btn text-fg';
+  const tone = primary ? 'bg-pri text-white' : danger ? 'bg-btn text-fg hover:bg-pr hover:text-ink focus-visible:bg-pr focus-visible:text-ink' : 'bg-btn text-fg';
   if (to) {
     return (
       <Link to={to} aria-label={text} title={text} className={`${CLS} ${tone}`}>

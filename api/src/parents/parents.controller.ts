@@ -11,6 +11,7 @@ import { ageAtYearEnd } from '../common/dates';
 import { assertVersion, fullName, notFound, rule } from '../common/rules';
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PhotosService } from '../photos/photos.service';
+import { pl } from '../common/plural';
 import { PrismaService } from '../prisma/prisma.service';
 
 class CreateParentDto {
@@ -313,7 +314,7 @@ export class ParentsController {
       absenceDecisions: 'décision(s) d’absence',
       broadcastsSent: 'message(s) du club envoyé(s)',
     };
-    const history = (Object.keys(LABELS) as (keyof typeof LABELS)[]).filter((k) => u._count[k] > 0).map((k) => `${u._count[k]} ${LABELS[k]}`);
+    const history = (Object.keys(LABELS) as (keyof typeof LABELS)[]).filter((k) => u._count[k] > 0).map((k) => `${u._count[k]} ${pl(u._count[k], LABELS[k])}`);
     if (u.player) history.push('une fiche joueur');
     if (u.coach) history.push('une fiche entraîneur');
     if (history.length) {

@@ -8,6 +8,7 @@ import { fullName, notFound, rule } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
 import { amountInArabicWords } from './arabic-amount';
 import { normalizeLayout, RECEIPT_LAYOUT_KEY, type ReceiptLayout } from './receipt-layout';
+import { pl } from '../common/plural';
 
 /** Numéro du carnet tel qu'imprimé (7 chiffres : 0002313). */
 export const receiptNo = (n: number) => String(n).padStart(7, '0');
@@ -193,7 +194,7 @@ export class ReceiptsService {
         entity: 'Receipt',
         entityId: id,
         target: `Reçu n° ${receiptNo(r.number)} · ${r.payerName}`,
-        after: `${r.printCount + 1} impression(s)`,
+        after: `${r.printCount + 1}${pl((r.printCount + 1), ` impression(s)`)}`,
       });
     }
     return this.get(id);

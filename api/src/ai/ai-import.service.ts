@@ -3,6 +3,7 @@ import { AuditService } from '../audit/audit.service';
 import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { geminiJson, geminiKey, geminiModel, geminiModels, type GeminiImage, type GeminiSchema } from './gemini';
+import { pl } from '../common/plural';
 
 /** Réglage du président : lecture par IA désactivée tant qu'il n'a pas accepté l'avertissement sur les données. */
 const CONFIG_KEY = 'ai.import';
@@ -220,7 +221,7 @@ export class AiImportService {
       action: 'Photos du cahier lues par IA',
       entity: 'AiImport',
       target: kind === 'players' ? 'Joueurs' : 'Paiements du cahier',
-      after: `${read}/${images.length} page(s) lue(s), ${rows.length} ligne(s), ${doubts.length} case(s) à vérifier · ${geminiModel()}`,
+      after: `${read}/${images.length}${pl(images.length, ` page(s) lue(s), `)}${rows.length}${pl(rows.length, ` ligne(s), `)}${doubts.length}${pl(doubts.length, ` case(s) à vérifier · `)}${geminiModel()}`,
     });
     if (!rows.length) throw new BadRequestException(pages.find((p) => p.error)?.error ?? 'Aucune ligne lue sur ces photos : reprenez la photo bien à plat, nette et éclairée.');
     return { kind, rows, doubts, pages, model: geminiModel() };

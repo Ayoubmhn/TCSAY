@@ -13,7 +13,7 @@ import { ReceiptActions, ReceiptSummary, METHOD_LABEL } from '../../features/rec
 import { receiptTestUrl, saveLayoutDraft } from '../../features/receipts/receiptPrint';
 import { FIELD_LABEL, ReceiptSheet } from '../../features/receipts/ReceiptSheet';
 import { api } from '../../lib/api';
-import { DT, fullName, todayIso } from '../../lib/format';
+import { DT, fullName, pl, todayIso } from '../../lib/format';
 import type { Receipt, ReceiptField, ReceiptLayout } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 
@@ -160,9 +160,9 @@ export function ReceiptsPage() {
       </Filters>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         <Pills className="my-[18px]">
-          <Pill tone="b">{rows.length} reçu(s)</Pill>
+          <Pill tone="b">{rows.length}{pl(rows.length, ` reçu(s)`)}</Pill>
           <Pill tone="g">Valides {DT(valid.reduce((s, r) => s + r.amount, 0))}</Pill>
-          {rows.length > valid.length && <Pill tone="r">{rows.length - valid.length} annulé(s)</Pill>}
+          {rows.length > valid.length && <Pill tone="r">{rows.length - valid.length}{pl((rows.length - valid.length), ` annulé(s)`)}</Pill>}
         </Pills>
         {rows.length ? (
           <CardGrid list={view === 'list'}>

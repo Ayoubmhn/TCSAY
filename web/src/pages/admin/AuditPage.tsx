@@ -11,7 +11,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 import { ACTOR_LABEL } from '../../auth/AuthContext';
 import type { Actor, AuditEntry } from '../../lib/types';
 
@@ -68,7 +68,7 @@ export function AuditPage() {
               <CardSubtitle>Actions enregistrées</CardSubtitle>
               <Kpi>{rows.length}</Kpi>
               <CardText>
-                {days.size} jour(s) d’activité · {people.size} personne(s)
+                {days.size}{pl(days.size, ` jour(s) d’activité · `)}{people.size}{pl(people.size, ` personne(s)`)}
               </CardText>
             </Card>
             <Card className="min-[561px]:col-span-2">
@@ -90,7 +90,7 @@ export function AuditPage() {
           </CardGrid>
         </Section>
         {[...days.entries()].map(([day, entries]) => (
-          <Section key={day} title={`${fD(day, { weekday: 'long', day: 'numeric', month: 'long' })} · ${entries.length} action(s)`}>
+          <Section key={day} title={`${fD(day, { weekday: 'long', day: 'numeric', month: 'long' })} · ${entries.length}${pl(entries.length, ` action(s)`)}`}>
             <CardGrid list={view === 'list'}>
               {entries.map((a) => (
                 <Card key={a.id}>

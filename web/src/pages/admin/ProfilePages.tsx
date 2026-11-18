@@ -12,7 +12,7 @@ import { QueryState } from '../../components/ui/Loading';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { DT, fD, formatDate } from '../../lib/format';
+import { DT, fD, formatDate, pl } from '../../lib/format';
 import type { CoachProfile, Installment, ParentProfile, PlayerProfile, StaffProfile } from '../../lib/types';
 import { payText } from './CoachesPage';
 import { PLAN_LABEL } from './PlayerFormModal';
@@ -152,8 +152,8 @@ export function PlayerProfilePage() {
           </Section>
           <Section title="Absences">
             <Pills>
-              <Pill tone="b">{p.attendanceCount} séance(s) pointée(s)</Pill>
-              <Pill tone={p.absences.length ? 'r' : 'g'}>{p.absences.length} absence(s)</Pill>
+              <Pill tone="b">{p.attendanceCount}{pl(p.attendanceCount, ` séance(s) pointée(s)`)}</Pill>
+              <Pill tone={p.absences.length ? 'r' : 'g'}>{p.absences.length}{pl(p.absences.length, ` absence(s)`)}</Pill>
             </Pills>
             {p.absences.length ? (
               <CardGrid list>
@@ -204,7 +204,7 @@ export function CoachProfilePage() {
                   Couleur au planning
                 </span>
                 <Pill tone={c.isActive ? 'g' : 'r'}>{c.isActive ? 'Actif' : 'Désactivé'}</Pill>
-                <Pill tone="b">{c.slots.length} séance(s) / semaine</Pill>
+                <Pill tone="b">{c.slots.length}{pl(c.slots.length, ` séance(s) / semaine`)}</Pill>
               </>
             }
             actions={
@@ -291,7 +291,7 @@ export function ParentProfilePage() {
             pills={
               <>
                 <Pill tone={p.isActive ? 'g' : 'r'}>{p.isActive ? 'Actif' : 'Désactivé'}</Pill>
-                <Pill tone="b">{p.children.length} enfant(s)</Pill>
+                <Pill tone="b">{p.children.length}{pl(p.children.length, ` enfant(s)`)}</Pill>
               </>
             }
           />

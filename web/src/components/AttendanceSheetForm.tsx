@@ -11,6 +11,7 @@ import { TextField } from './ui/Field';
 import { QueryState } from './ui/Loading';
 import { Pill } from './ui/Pill';
 import { Segmented } from './ui/Segmented';
+import { pl } from '../lib/format';
 
 type Mark = { status: AttendanceStatus; reason: string };
 
@@ -81,9 +82,9 @@ export function AttendanceSheetForm({ slotId, date, onSaved }: { slotId: string;
             ) : (
               <Pill tone="r">Pointage fermé depuis {clock(d.closesAt)}</Pill>
             )}
-            <Pill tone="g">{count('PRESENT')} présent(s)</Pill>
+            <Pill tone="g">{count('PRESENT')}{pl(count('PRESENT'), ` présent(s)`)}</Pill>
             <Pill tone="b">{count('LATE')} en retard</Pill>
-            <Pill tone="r">{count('ABSENT')} absent(s)</Pill>
+            <Pill tone="r">{count('ABSENT')}{pl(count('ABSENT'), ` absent(s)`)}</Pill>
           </div>
           <div>
             {d.entries.map((e) => {

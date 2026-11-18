@@ -14,7 +14,7 @@ import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api, errorMessage, openFile } from '../../lib/api';
-import { DT, fD, todayIso } from '../../lib/format';
+import { DT, fD, pl, todayIso } from '../../lib/format';
 import { useAction } from '../../lib/useAction';
 
 type State = 'PAID' | 'DUE' | 'LATE' | 'ARCHIVED';
@@ -235,7 +235,7 @@ export function ExpensesPage() {
         {d && (
           <>
             <Pills className="my-[18px]">
-              <Pill tone="b">{d.rows.length} dépense(s) · {DT(d.totals.all)}</Pill>
+              <Pill tone="b">{d.rows.length}{pl(d.rows.length, ` dépense(s) · `)}{DT(d.totals.all)}</Pill>
               <Pill tone="g">Payé {DT(d.totals.paid)}</Pill>
               {d.totals.due > 0 && <Pill tone="r">À payer {DT(d.totals.due)}</Pill>}
               {d.totals.late > 0 && <Pill tone="r">{d.totals.late} en retard</Pill>}
@@ -288,7 +288,7 @@ export function ExpensesPage() {
                         <Pill tone="b">{DT(c.total)}</Pill>
                       </CardRow>
                       <Pills>
-                        <Pill tone="s">{c.count} dépense(s)</Pill>
+                        <Pill tone="s">{c.count}{pl(c.count, ` dépense(s)`)}</Pill>
                         <Pill tone="g">{d.totals.all ? Math.round((c.total / d.totals.all) * 100) : 0} %</Pill>
                       </Pills>
                     </Card>

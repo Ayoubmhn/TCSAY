@@ -10,7 +10,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { formatDateTime } from '../../lib/format';
+import { formatDateTime, pl } from '../../lib/format';
 import type { Broadcast, Group, Recipient } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
@@ -150,7 +150,7 @@ export function BroadcastsPage() {
       }),
     {
       invalidate: [['broadcasts'], ['notifications'], ['emails']],
-      success: (r) => `Notification envoyée à ${r.recipients} personne(s)${r.emails ? `, dont ${r.emails} par email` : ''}.`,
+      success: (r) => `Notification envoyée à ${r.recipients}${pl(r.recipients, ` personne(s)`)}${r.emails ? `, dont ${r.emails} par email` : ''}.`,
       onSuccess: () => {
         setTitle('');
         setBody('');
@@ -221,7 +221,7 @@ export function BroadcastsPage() {
             <RecipientPicker value={excluded} onChange={setExcluded} tone="r" label="Sauf ces personnes" />
             <div className="col-span-full">
               <Pills>
-                <Pill tone={preview.data?.recipients ? 'g' : 'r'}>{preview.data ? `${preview.data.recipients} destinataire(s)` : '…'}</Pill>
+                <Pill tone={preview.data?.recipients ? 'g' : 'r'}>{preview.data ? `${preview.data.recipients}${pl(preview.data.recipients, ` destinataire(s)`)}` : '…'}</Pill>
                 {preview.data && <Pill tone="s">{preview.data.audience}</Pill>}
               </Pills>
             </div>

@@ -9,6 +9,7 @@ import { api } from '../../lib/api';
 import { resizedPhoto } from '../../lib/photo';
 import type { AiReadResult, AiStatus } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
+import { pl } from '../../lib/format';
 
 /** Photos réduites à 2000 px (écriture lisible, envoi léger), JPEG sans métadonnées (ni position GPS). */
 const MAX_SIDE = 2000;
@@ -67,7 +68,7 @@ export function AiPhotoReader({ kind, onRead }: { kind: 'players' | 'payments'; 
       success: ({ result }) => {
         const failed = result.pages.filter((p) => p.error).length;
         const d = result.doubts.length;
-        return `${result.rows.length} ligne(s) lue(s)${d ? `, ${d} case(s) à vérifier` : ''}${failed ? ` · ${failed} page(s) non lue(s)` : ''}.`;
+        return `${result.rows.length}${pl(result.rows.length, ` ligne(s) lue(s)`)}${d ? `, ${d}${pl(d, ` case(s) à vérifier`)}` : ''}${failed ? ` · ${failed}${pl(failed, ` page(s) non lue(s)`)}` : ''}.`;
       },
       onSuccess: (pages) => {
         setFiles([]);
@@ -88,7 +89,7 @@ export function AiPhotoReader({ kind, onRead }: { kind: 'players' | 'payments'; 
         </div>
         <Pills>
           <Pill tone={s.enabled ? 'g' : 's'}>{s.enabled ? 'Activée' : 'Désactivée'}</Pill>
-          <Pill tone="b">{s.usage.pages} page(s) lue(s) ce mois</Pill>
+          <Pill tone="b">{s.usage.pages}{pl(s.usage.pages, ` page(s) lue(s) ce mois`)}</Pill>
         </Pills>
       </div>
 

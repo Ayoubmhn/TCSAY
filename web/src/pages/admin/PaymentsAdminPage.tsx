@@ -16,7 +16,7 @@ import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { usePaymentConfig } from '../../lib/payment-config';
 import { api } from '../../lib/api';
-import { DT, fD, fullName } from '../../lib/format';
+import { DT, fD, fullName, pl } from '../../lib/format';
 import { METHOD_LABEL, ReceiptModal } from '../../features/receipts/ReceiptModal';
 import type { Group, Installment, Parent } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -216,12 +216,14 @@ function CashModal({
 /** Encaissements d'une tranche avec leur reçu (n° du carnet) ou le bouton pour l'émettre. */
 function PaymentLines({ installment: i, onReceipt }: { installment: Installment; onReceipt: (paymentId: string) => void }) {
   const payments = (i.payments ?? []).filter((p) => p.kind === 'PAYMENT');
-  if (!payments.length) return null;
+  // Place gardée (vide) en liste pour que les colonnes restent alignées.
+  if (!payments.length) return <div className="card-pays hidden" />;
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="card-pays flex flex-col gap-1.5">
       {payments.map((p) => (
         <div key={p.id} className="flex flex-wrap items-center gap-1.5 text-[13px]">
-          <span className="tabular-nums">
+          {/* Détail du paiement : visible en cases et dans la fiche ; en liste, seul le reçu reste */}
+          <span className="card-text tabular-nums">
             {DT(p.amount)} · {fD(p.paidAt.slice(0, 10), { day: 'numeric', month: 'short' })} · {METHOD_LABEL[p.method]}
             {p.chequeNumber ? ` n° ${p.chequeNumber}` : ''}
           </span>
@@ -285,7 +287,7 @@ export function PaymentsAdminPage() {
       <Filters>
         <input
           className="fld w-[240px] text-fg"
-          placeholder="Rechercher un joueur ou un parent"
+          placeholder="Joueur ou parent"
           aria-label="Rechercher un joueur ou un parent"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
@@ -324,7 +326,7 @@ export function PaymentsAdminPage() {
       </Filters>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         <Pills className="my-[18px]">
-          <Pill tone="b">{list.length} tranche(s)</Pill>
+          <Pill tone="b">{list.length}{pl(list.length, ` tranche(s)`)}</Pill>
           <Pill tone="g">Encaissé {DT(list.reduce((s, i) => s + i.paid, 0))}</Pill>
           <Pill tone="r">Restant {DT(list.reduce((s, i) => s + i.remaining, 0))}</Pill>
         </Pills>
@@ -378,8 +380,8 @@ export function PaymentsAdminPage() {
             return (
               <Section key={g.key} title={g.title}>
                 <Pills className="mb-3">
-                  <Pill tone="b">{g.items.length} tranche(s)</Pill>
-                  <Pill tone="g">Payé {DT(g.items.reduce((t, i) => t + i.paid, 0))}</Pill>
+                  <Pill tone="b">{g.items.length}{pl(g.items.length, ` tranche(s)`)}</Pill>
+                  <Pill tone={g.items.some((i) => i.paid > 0) ? 'g' : 's'}>Payé {DT(g.items.reduce((t, i) => t + i.paid, 0))}</Pill>
                   {rest > 0 && <Pill tone="r">Restant {DT(rest)}</Pill>}
                   {late > 0 && <Pill tone="r">{late} en retard</Pill>}
                 </Pills>

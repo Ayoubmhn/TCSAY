@@ -28,6 +28,7 @@ import { num } from '../common/money';
 import { assertVersion, fullName } from '../common/rules';
 import { PrismaService } from '../prisma/prisma.service';
 import { Eligibility, roundLabel, TBD, TournamentsService } from './tournaments.service';
+import { pl } from '../common/plural';
 
 /** « 2026-10-24 » → « samedi 24 octobre ». */
 const frDate = (iso: string) => dayFromIso(iso).toLocaleDateString('fr-FR', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' });
@@ -552,7 +553,7 @@ export class TournamentsController {
         const first = list[0];
         await this.tournaments.notify(
           [userId],
-          `Arbitre : ${list.length} match(s) · ${t.name}`,
+          `Arbitre : ${list.length}${pl(list.length, ` match(s) · `)}${t.name}`,
           `Premier match ${this.tournaments.slot(first)} (${first.playerAName} – ${first.playerBName}). Vous saisissez les points depuis Matchs.`,
           list.length === 1 ? `/matchs/${first.id}` : `/tournois/${id}`,
         );

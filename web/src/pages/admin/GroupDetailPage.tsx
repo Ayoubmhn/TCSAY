@@ -12,7 +12,7 @@ import { Note } from '../../components/ui/Note';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { fD, fullName, isPlaceholderEmail } from '../../lib/format';
+import { fD, fullName, isPlaceholderEmail, pl } from '../../lib/format';
 import type { GroupDetail, Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { PlayerFormModal } from './PlayerFormModal';
@@ -132,7 +132,7 @@ export function GroupDetailPage() {
                       <Pill tone={rateTone(m.attendance.rate)}>
                         {m.attendance.rate === null ? 'Pas encore pointé' : `Présent ${m.attendance.present}/${m.attendance.sessions} · ${m.attendance.rate} %`}
                       </Pill>
-                      {m.attendance.absent > 0 && <Pill tone="r">{m.attendance.absent} absence(s)</Pill>}
+                      {m.attendance.absent > 0 && <Pill tone="r">{m.attendance.absent}{pl(m.attendance.absent, ` absence(s)`)}</Pill>}
                       {m.derogationReason && <Pill tone="s">Dérogation</Pill>}
                     </Pills>
                     <CardText>
@@ -171,9 +171,9 @@ export function GroupDetailPage() {
                   <Card key={s.date}>
                     <h3>{fD(s.date, { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
                     <Pills>
-                      <Pill tone="g">{s.present} présent(s)</Pill>
-                      {s.late > 0 && <Pill tone="s">{s.late} retard(s)</Pill>}
-                      <Pill tone={s.absent ? 'r' : 'g'}>{s.absent} absent(s)</Pill>
+                      <Pill tone="g">{s.present}{pl(s.present, ` présent(s)`)}</Pill>
+                      {s.late > 0 && <Pill tone="s">{s.late}{pl(s.late, ` retard(s)`)}</Pill>}
+                      <Pill tone={s.absent ? 'r' : 'g'}>{s.absent}{pl(s.absent, ` absent(s)`)}</Pill>
                     </Pills>
                   </Card>
                 ))}

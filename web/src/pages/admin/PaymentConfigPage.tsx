@@ -13,7 +13,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { DT, fD } from '../../lib/format';
+import { DT, fD, pl } from '../../lib/format';
 import { MONTHS, PLAN_LABEL, PLANS } from '../../lib/payment-config';
 import type { Fee, PaymentConfig, PaymentPlan, ScheduleLine } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
@@ -153,7 +153,7 @@ export function PaymentConfigPage() {
   const reschedule = useAction(() => api.post<{ rescheduled: number }>('/payments/config/reschedule', { reason: reason.trim() }), {
     invalidate: [['installments'], ['players'], ['membership-info']],
     onSuccess: (r) => {
-      toast(`${r.rescheduled} échéancier(s) refait(s) : tranches payées gardées.`);
+      toast(`${r.rescheduled}${pl(r.rescheduled, ` échéancier(s) refait(s) : tranches payées gardées.`)}`);
       setRedo(false);
       setReason('');
     },
@@ -461,7 +461,7 @@ export function PaymentConfigPage() {
               </Card>
               <Card>
                 <h3>Exemple de message</h3>
-                <CardSubtitle>{cfg.reminders.beforeDays ? `Rappel ${cfg.reminders.beforeDays} jour(s) avant` : 'Retard'}</CardSubtitle>
+                <CardSubtitle>{cfg.reminders.beforeDays ? `Rappel ${cfg.reminders.beforeDays}${pl(cfg.reminders.beforeDays, ` jour(s) avant`)}` : 'Retard'}</CardSubtitle>
                 <p className="m-0 rounded-[18px] bg-fld px-4 py-3 text-[13.5px]">
                   🔔{' '}
                   {cfg.reminders.beforeDays ? (

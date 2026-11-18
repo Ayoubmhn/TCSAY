@@ -13,6 +13,7 @@ import { periodSelect, sessionsBetween, slotRunsOn, tempSchedulesSelect, withPer
 import { slotInclude, slotView } from '../groups/groups.controller';
 import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { pl } from '../common/plural';
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -444,8 +445,8 @@ export class AttendanceController {
       entity: 'Attendance',
       entityId: slot.id,
       target: `${slot.group.name} · ${dto.date} ${slot.startTime}`,
-      after: `${count('PRESENT')} présent(s), ${count('LATE')} en retard, ${count('ABSENT')} absent(s)`,
-      reason: markedAt ? `Pointé le ${markedAt.toISOString()}, reçu le ${new Date().toISOString()}${kept ? ` ; ${kept} correction(s) de la direction gardée(s)` : ''}` : undefined,
+      after: `${count('PRESENT')}${pl(count('PRESENT'), ` présent(s), `)}${count('LATE')} en retard, ${count('ABSENT')}${pl(count('ABSENT'), ` absent(s)`)}`,
+      reason: markedAt ? `Pointé le ${markedAt.toISOString()}, reçu le ${new Date().toISOString()}${kept ? ` ; ${kept}${pl(kept, ` correction(s) de la direction gardée(s)`)}` : ''}` : undefined,
     });
     return { ok: true, kept };
   }

@@ -16,6 +16,7 @@ import { PhotosService } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { formatMemberCode, nextMemberCode } from './member-code';
 import { ChangeCategoryDto, CreatePlayerDto, ListPlayersQuery, UpdateContactDto, UpdatePlayerDto } from './players.dto';
+import { pl } from '../common/plural';
 
 @Injectable()
 export class PlayersService {
@@ -510,7 +511,7 @@ export class PlayersService {
       }
       await this.audit.log(
         actor.id,
-        { action: 'Identifiants joueurs recalculés', entity: 'Player', target: `${plan.length} codes provisoires`, after: `${changes.length} modifié(s)` },
+        { action: 'Identifiants joueurs recalculés', entity: 'Player', target: `${plan.length} codes provisoires`, after: `${changes.length}${pl(changes.length, ` modifié(s)`)}` },
         tx,
       );
     });
@@ -523,7 +524,7 @@ export class PlayersService {
       where: { memberCodeProvisional: true, memberCode: { not: null } },
       data: { memberCodeProvisional: false },
     });
-    await this.audit.log(actor.id, { action: 'Identifiants joueurs validés', entity: 'Player', target: `${count} code(s)`, before: 'Provisoires', after: 'Définitifs' });
+    await this.audit.log(actor.id, { action: 'Identifiants joueurs validés', entity: 'Player', target: `${count}${pl(count, ` code(s)`)}`, before: 'Provisoires', after: 'Définitifs' });
     return { finalized: count };
   }
 

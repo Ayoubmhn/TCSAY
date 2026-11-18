@@ -15,6 +15,7 @@ import { api } from '../../lib/api';
 import type { Actor } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
+import { pl } from '../../lib/format';
 
 type Overview = {
   catalog: { key: string; label: string; group: string }[];
@@ -65,7 +66,7 @@ function RoleCard({ role, label, catalog, current }: { role: Actor; label: strin
     <Card>
       <CardRow>
         <h3>{label}</h3>
-        <Pill tone="b">{perms.length} droit(s)</Pill>
+        <Pill tone="b">{perms.length}{pl(perms.length, ` droit(s)`)}</Pill>
       </CardRow>
       {groups.map((g) => (
         <div key={g} className="flex flex-col gap-1.5">

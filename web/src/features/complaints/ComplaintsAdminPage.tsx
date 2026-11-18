@@ -12,6 +12,7 @@ import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
 import { ComplaintCard } from './ComplaintsPage';
 import { CATEGORIES, type Complaint, type ComplaintStats } from './types';
+import { pl } from '../../lib/format';
 
 const LINK_BTN = 'inline-flex items-center justify-center rounded-full bg-btn px-4 py-[9px] text-sm font-medium text-fg';
 
@@ -42,7 +43,7 @@ export function ComplaintsAdminPage() {
           <Card>
             <CardSubtitle>Ouvertes</CardSubtitle>
             <Kpi>{s.open}</Kpi>
-            {s.urgent > 0 && <Pill tone="r">{s.urgent} urgente(s)</Pill>}
+            {s.urgent > 0 && <Pill tone="r">{s.urgent}{pl(s.urgent, ` urgente(s)`)}</Pill>}
           </Card>
           <Card>
             <CardSubtitle>Sans réponse &gt; 72 h</CardSubtitle>

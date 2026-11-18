@@ -12,6 +12,7 @@ import { Db, PrismaService } from '../prisma/prisma.service';
 import { normalizePaymentConfig, type PaymentConfig } from './payment-config';
 import { PaymentConfigService } from './payment-config.service';
 import { DISCOUNT_LABEL, PLAN_LABEL, planInstallments, templateInstallments, type TemplateLine } from './payment-plan';
+import { pl } from '../common/plural';
 
 const METHOD_TEXT: Record<PaymentMethod, string> = { CASH: 'espèces', CHEQUE: 'chèque', TRANSFER: 'virement', ONLINE: 'en ligne' };
 
@@ -299,7 +300,7 @@ export class PaymentsService {
         entity: 'Membership',
         entityId: m.id,
         target: `${fullName(enrollment.player)} · ${season.label}`,
-        after: `${dt(total)} · ${await this.planName(plan, tid)} · ${schedule.length} tranche(s)`,
+        after: `${dt(total)} · ${await this.planName(plan, tid)} · ${schedule.length}${pl(schedule.length, ` tranche(s)`)}`,
       },
       db,
     );
@@ -366,7 +367,7 @@ export class PaymentsService {
     const schedule = rest > 0 ? await this.scheduleFor(plan, tid, rest, deposit, period, todayIso(), config) : [];
     // Dates choisies pour ce joueur (motif obligatoire, vérifié par l'appelant).
     if (dueDates?.length) {
-      if (dueDates.length !== schedule.length) throw new BadRequestException(`Indiquez ${schedule.length} date(s), une par tranche.`);
+      if (dueDates.length !== schedule.length) throw new BadRequestException(`Indiquez ${schedule.length}${pl(schedule.length, ` date(s), une par tranche.`)}`);
       dueDates.forEach((d, i) => (schedule[i].dueDate = d));
     }
     const kept: string[] = [];
@@ -442,7 +443,7 @@ export class PaymentsService {
           entityId: m.id,
           target: `${fullName(enrollment.player)} · ${season.label}`,
           before: await this.planName(m.paymentPlan, m.templateId),
-          after: `${await this.planName(plan, tid)} · ${dt(r.rest)} restant en ${r.count} tranche(s)${custom ? ` · dates choisies : ${dueDates!.join(', ')}` : ''}`,
+          after: `${await this.planName(plan, tid)} · ${dt(r.rest)} restant en ${r.count}${pl(r.count, ` tranche(s)`)}${custom ? ` · dates choisies : ${dueDates!.join(', ')}` : ''}`,
           reason: motif,
         },
         tx,
@@ -673,7 +674,7 @@ export class PaymentsService {
       action: 'Échéanciers refaits (configuration des paiements)',
       entity: 'Membership',
       target: `Saison ${season.label}`,
-      after: `${done} cotisation(s) rééchelonnée(s)`,
+      after: `${done}${pl(done, ` cotisation(s) rééchelonnée(s)`)}`,
       reason,
     });
     return { rescheduled: done };

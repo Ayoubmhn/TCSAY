@@ -10,7 +10,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { fD, todayIso } from '../../lib/format';
+import { fD, pl, todayIso } from '../../lib/format';
 import type { ExerciseKind } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { KINDS } from './kinds';
@@ -52,7 +52,7 @@ export function ExercisesPage() {
       <PageHeader title="Exercices" subtitle="Découvrez les exercices donnés par l’entraîneur, avant la séance ou à la maison." action={<ViewToggle value={view} onChange={setView} />} />
       <Filters>
         <KidSelect />
-        {q.data && <Pill tone={done === list.length && list.length > 0 ? 'g' : 'b'}>{done}/{list.length} fait(s)</Pill>}
+        {q.data && <Pill tone={done === list.length && list.length > 0 ? 'g' : 'b'}>{done}/{list.length}{pl(done, ` fait(s)`)}</Pill>}
       </Filters>
       <QueryState isPending={q.isPending} error={q.error} refetch={q.refetch}>
         {list.length ? (

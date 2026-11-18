@@ -51,7 +51,11 @@ export function CardGrid({ children, className = '', list = false }: { children:
         // nom à gauche, largeur fixe pour aligner les colonnes
         '[&_.card-row]:w-[300px] [&_.card-row]:max-w-full [&_.card-row]:shrink-0',
         // pastilles et texte se partagent la place restante
-        '[&>*>div:not(.card-row):not(.card-actions)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions)]:max-w-full [&>*>div:not(.card-row):not(.card-actions)]:flex-[1_0_auto]',
+        '[&>*>div:not(.card-row):not(.card-actions):not(.card-amounts):not(.card-pays)]:min-w-[180px] [&>*>div:not(.card-row):not(.card-actions):not(.card-amounts):not(.card-pays)]:max-w-full [&>*>div:not(.card-row):not(.card-actions):not(.card-amounts):not(.card-pays)]:flex-[1_0_auto]',
+        // tranches : fond blanc (la pastille dit l'état), montants, paiements et boutons en colonnes alignées d'une ligne à l'autre
+        '[&>.inst]:bg-card [&_.card-amounts]:ms-auto [&_.card-amounts]:w-[230px] [&_.card-amounts]:flex-none [&_.card-amounts]:text-end',
+        '[&_.card-pays]:block [&_.card-pays]:w-[112px] [&_.card-pays]:flex-none [&_.card-pays]:text-[12.5px]',
+        '[&>.inst_.card-actions]:ms-0 [&>.inst_.card-actions]:w-[132px] [&>.inst_.card-actions]:flex-none [&>.inst_.card-actions]:justify-end',
         '[&>*>span]:min-w-[140px] [&>*>span]:flex-1 [&>*>span]:[overflow-wrap:anywhere]',
         // moins d'informations visibles : le texte secondaire reste en cases et dans la fiche
         '[&_.card-text]:hidden',

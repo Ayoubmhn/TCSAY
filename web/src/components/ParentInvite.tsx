@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../lib/api';
-import { formatDate } from '../lib/format';
+import { formatDate, pl } from '../lib/format';
 import { useAction } from '../lib/useAction';
 import { Button } from './ui/Button';
 import { Card, CardRow, CardText, EmptyState } from './ui/Card';
@@ -117,7 +117,7 @@ export function BulkInviteModal({ open, onClose }: { open: boolean; onClose: () 
   const [done, setDone] = useState<Set<string>>(new Set());
   const create = useAction(() => api.post<Invite[]>('/parents/invitations', {}), {
     invalidate: [['parents']],
-    success: (r) => (r.length ? `${r.length} lien(s) préparé(s).` : 'Tous les parents ont déjà un email et se sont connectés.'),
+    success: (r) => (r.length ? `${r.length}${pl(r.length, ` lien(s) préparé(s).`)}` : 'Tous les parents ont déjà un email et se sont connectés.'),
     onSuccess: setList,
   });
   const close = () => {
@@ -143,8 +143,8 @@ export function BulkInviteModal({ open, onClose }: { open: boolean; onClose: () 
         ) : (
           <>
             <Pills>
-              <Pill tone="b">{list.length} parent(s)</Pill>
-              <Pill tone="g">{done.size} envoyé(s)</Pill>
+              <Pill tone="b">{list.length}{pl(list.length, ` parent(s)`)}</Pill>
+              <Pill tone="g">{done.size}{pl(done.size, ` envoyé(s)`)}</Pill>
             </Pills>
             <div className="flex max-h-[55vh] flex-col gap-2 overflow-y-auto pe-1">
               {list.map((i) => (

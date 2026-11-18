@@ -30,6 +30,7 @@ import { fullName } from '../common/rules';
 import { imageType } from '../photos/photos.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlbumsService } from './albums.service';
+import { pl } from '../common/plural';
 
 const MAX_FULL = 1600 * 1024;
 const MAX_THUMB = 250 * 1024;
@@ -435,7 +436,7 @@ export class AlbumsController {
     const users = (await this.albums.audienceUsers(a)).filter((u) => u !== user.id);
     await this.albums.notify(users, `📷 ${count} nouvelle${count > 1 ? 's' : ''} photo${count > 1 ? 's' : ''} : ${a.title}`, (await this.contextLabel(a)) ?? KIND_LABEL[a.kind], `/photos/${id}`);
     await this.prisma.album.update({ where: { id }, data: { notifiedAt: new Date() } });
-    await this.audit.log(user.id, { action: 'Album photos publié', entity: 'Album', entityId: id, target: a.title, after: `${count} photo(s), ${users.length} personne(s) prévenue(s)` });
+    await this.audit.log(user.id, { action: 'Album photos publié', entity: 'Album', entityId: id, target: a.title, after: `${count}${pl(count, ` photo(s), `)}${users.length}${pl(users.length, ` personne(s) prévenue(s)`)}` });
     return { notified: users.length, photos: count };
   }
 

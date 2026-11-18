@@ -14,7 +14,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api } from '../../lib/api';
-import { fD, todayIso } from '../../lib/format';
+import { fD, pl, todayIso } from '../../lib/format';
 import type { Exercise, ExerciseKind } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { KINDS, kindOf } from './kinds';
@@ -75,7 +75,7 @@ export function ExercisesCoachPage() {
                     <Pill tone="b">{a.target}</Pill>
                     {a.dueDate && <Pill tone="s">Avant le {fD(a.dueDate, { day: 'numeric', month: 'short' })}</Pill>}
                     <Pill tone={a.done === a.total && a.total > 0 ? 'g' : 'b'}>
-                      {a.done}/{a.total} fait(s)
+                      {a.done}/{a.total}{pl(a.done, ` fait(s)`)}
                     </Pill>
                   </Pills>
                   {a.total > 0 && <ProgressBar value={a.done} max={a.total} />}
@@ -210,7 +210,7 @@ function AssignModal({ exercise, onClose }: { exercise: Exercise; onClose: () =>
         dueDate: dueDate || undefined,
         note: note.trim() || undefined,
       }),
-    { invalidate: [['exercise-assignments'], ['exercises']], success: (r) => `Exercice donné à ${r.players} joueur(s) : notification envoyée.`, onSuccess: onClose },
+    { invalidate: [['exercise-assignments'], ['exercises']], success: (r) => `Exercice donné à ${r.players}${pl(r.players, ` joueur(s) : notification envoyée.`)}`, onSuccess: onClose },
   );
   return (
     <Modal

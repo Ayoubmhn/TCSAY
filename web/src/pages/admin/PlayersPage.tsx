@@ -94,7 +94,7 @@ export function PlayersPage() {
       <Filters>
         <input
           className="fld w-[220px] text-fg"
-          placeholder="Nom, code TCSAY ou nom arabe"
+          placeholder="Nom ou code TCSAY"
           aria-label="Rechercher"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -118,9 +118,9 @@ export function PlayersPage() {
           ))}
         </FilterSelect>
         {list.data && (
-          <Pill tone="b">
+          <span className="self-center text-[13.5px] text-mut">
             {rows.length} joueur{rows.length > 1 ? 's' : ''}
-          </Pill>
+          </span>
         )}
       </Filters>
 
@@ -152,7 +152,7 @@ export function PlayersPage() {
                   </CardRow>
                   <Pills>
                     {p.category && <Pill tone="s">{p.category.name}</Pill>}
-                    {p.group ? <Pill tone="g">{p.group.name}</Pill> : !p.archivedAt && <Pill tone="r">Sans groupe</Pill>}
+                    {p.group ? <Pill tone="g">Groupe · {p.group.name}</Pill> : !p.archivedAt && <Pill tone="r">Sans groupe</Pill>}
                     {p.derogationReason && <Pill tone="s">Dérogation</Pill>}
                     {!p.archivedAt && !p.enrolled && <Pill tone="r">Non inscrit</Pill>}
                     {!p.archivedAt && p.enrolled && !p.membership && <Pill tone="r">Sans cotisation</Pill>}

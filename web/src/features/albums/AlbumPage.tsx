@@ -13,7 +13,7 @@ import { Pill, Pills } from '../../components/ui/Pill';
 import { useToast } from '../../components/ui/Toast';
 import { api, apiUrl, errorMessage } from '../../lib/api';
 import { isInApp } from '../../lib/pwa';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 import { uploadPhotos } from './upload';
 import { useAction } from '../../lib/useAction';
 import { AlbumForm } from './AlbumForm';
@@ -260,7 +260,7 @@ export function AlbumPage() {
     void queryClient.invalidateQueries({ queryKey: ['album', id] });
   };
 
-  const notify = useAction(() => api.post<{ notified: number; photos: number }>(`/albums/${id}/notify`), { invalidate: keys, success: (r) => `${r.notified} personne(s) prévenue(s) pour ${r.photos} photo(s).` });
+  const notify = useAction(() => api.post<{ notified: number; photos: number }>(`/albums/${id}/notify`), { invalidate: keys, success: (r) => `${r.notified}${pl(r.notified, ` personne(s) prévenue(s) pour `)}${r.photos}${pl(r.photos, ` photo(s).`)}` });
   const hide = useAction(() => api.post(`/albums/${id}/photos/${photo!.id}/hide`, {}), {
     invalidate: keys,
     success: 'Photo retirée : la direction est prévenue.',

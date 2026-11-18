@@ -129,7 +129,7 @@ function Group({
   );
 }
 
-/** Contenu du menu latéral : logo, « MAIN », catégories et modules du rôle, carte utilisateur. */
+/** Contenu du menu latéral : logo, catégories et modules du rôle, carte utilisateur. */
 function SideContent({ onNavigate }: { onNavigate?: () => void }) {
   const me = useMe();
   const { logout, switchSpace } = useAuth();
@@ -151,7 +151,6 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
       <Brand />
       {/* Seule la liste défile : la carte utilisateur reste visible en bas. */}
       <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-[18px] overflow-y-auto px-1 [scrollbar-width:thin]">
-      <div className="px-2.5 text-xs font-semibold tracking-[0.12em] text-mut">{t('MAIN')}</div>
 
       <nav className="flex flex-col gap-1" aria-label={t('Navigation')}>
         {menu.map((item) =>
@@ -193,10 +192,11 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
       )}
 
       {/* Carte utilisateur : avatar, nom, email, déconnexion */}
-      <div className="flex flex-none items-center gap-2.5 rounded-[24px] border-[1.5px] border-line bg-card p-3">
+      <div className="flex flex-none items-center gap-2 rounded-[24px] border-[1.5px] border-line bg-card p-3">
         <Avatar first={me.firstName} last={me.lastName} photo={me.photoUrl} />
         <div className="min-w-0 flex-1">
-          <b className="block truncate font-semibold">
+          {/* Nom en entier, sur deux lignes au besoin (jamais coupé) */}
+          <b className="line-clamp-2 block text-[14.5px] font-semibold leading-tight [overflow-wrap:normal]">
             {me.firstName} {me.lastName.toUpperCase()}
           </b>
           <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-mut">
@@ -204,24 +204,27 @@ function SideContent({ onNavigate }: { onNavigate?: () => void }) {
             <span className="truncate">{me.email ?? me.cin}</span>
           </span>
         </div>
-        <Link
-          to="/parametres"
-          onClick={onNavigate}
-          aria-label={t('Paramètres')}
-          title={t('Paramètres')}
-          className="grid h-10 w-10 flex-none place-items-center rounded-[14px] text-mut hover:bg-fld hover:text-fg"
-        >
-          <IconSettings />
-        </Link>
-        <button
-          type="button"
-          onClick={logout}
-          aria-label={t('Déconnexion')}
-          title={t('Déconnexion')}
-          className="grid h-10 w-10 flex-none place-items-center rounded-[14px] text-mut hover:bg-fld hover:text-fg"
-        >
-          <IconLogout />
-        </button>
+        {/* Boutons l'un sous l'autre : le nom garde la largeur pour s'afficher en entier */}
+        <div className="flex flex-none flex-col gap-0.5">
+          <Link
+            to="/parametres"
+            onClick={onNavigate}
+            aria-label={t('Paramètres')}
+            title={t('Paramètres')}
+            className="grid h-8 w-8 flex-none place-items-center rounded-[12px] text-mut hover:bg-fld hover:text-fg"
+          >
+            <IconSettings />
+          </Link>
+          <button
+            type="button"
+            onClick={logout}
+            aria-label={t('Déconnexion')}
+            title={t('Déconnexion')}
+            className="grid h-8 w-8 flex-none place-items-center rounded-[12px] text-mut hover:bg-fld hover:text-fg"
+          >
+            <IconLogout />
+          </button>
+        </div>
       </div>
     </>
   );

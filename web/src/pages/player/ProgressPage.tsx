@@ -12,7 +12,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { fD } from '../../lib/format';
+import { fD, pl } from '../../lib/format';
 import { useModule } from '../../lib/modules';
 import type { Evaluation, Mood, SessionRatingNotes } from '../../lib/types';
 
@@ -63,7 +63,7 @@ function ProgressChart({ months }: { months: Progress['months'] }) {
         {points.map((p, i) => (
           <g key={p.month}>
             <circle cx={x(i)} cy={y(p.average)} r={5} fill="var(--card)" stroke="var(--pri)" strokeWidth={3}>
-              <title>{`${monthLabel(p.month)} : ${nb(p.average)}/5 (${p.sessions} séance(s))`}</title>
+              <title>{`${monthLabel(p.month)} : ${nb(p.average)}/5 (${p.sessions}${pl(p.sessions, ` séance(s))`)}`}</title>
             </circle>
             <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={11} fill="var(--mut)">
               {monthLabel(p.month)}
@@ -143,9 +143,9 @@ export function ProgressPage() {
                 <Kpi>{d.attendance.rate !== null ? `${d.attendance.rate} %` : '—'}</Kpi>
                 {marks > 0 && <ProgressBar value={d.attendance.present + d.attendance.late} max={marks} />}
                 <Pills>
-                  <Pill tone="g">{d.attendance.present} présence(s)</Pill>
-                  <Pill tone="b">{d.attendance.late} retard(s)</Pill>
-                  <Pill tone="r">{d.attendance.absent} absence(s)</Pill>
+                  <Pill tone="g">{d.attendance.present}{pl(d.attendance.present, ` présence(s)`)}</Pill>
+                  <Pill tone="b">{d.attendance.late}{pl(d.attendance.late, ` retard(s)`)}</Pill>
+                  <Pill tone="r">{d.attendance.absent}{pl(d.attendance.absent, ` absence(s)`)}</Pill>
                 </Pills>
               </Card>
               <Card>
@@ -247,7 +247,7 @@ export function ProgressPage() {
                       {matches.data.wins} V · {matches.data.losses} D
                     </Kpi>
                     <Pills>
-                      <Pill tone="b">{matches.data.played} match(s)</Pill>
+                      <Pill tone="b">{matches.data.played}{pl(matches.data.played, ` match(s)`)}</Pill>
                       <Pill tone="g">{matches.data.totals.aces} aces</Pill>
                     </Pills>
                   </Card>

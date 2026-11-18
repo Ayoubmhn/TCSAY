@@ -7,7 +7,7 @@ import { PageHeader } from '../../components/ui/PageHeader';
 import { Pill, Pills } from '../../components/ui/Pill';
 import { Section } from '../../components/ui/Section';
 import { api } from '../../lib/api';
-import { DT, formatDate } from '../../lib/format';
+import { DT, formatDate, pl } from '../../lib/format';
 import { STATUS, type SeasonStatus } from './api';
 
 type SeasonStats = {
@@ -139,7 +139,7 @@ export function SeasonDetailPage() {
                     <Pills>
                       <Pill tone="s">{g.kind === 'LEISURE' ? 'Loisirs' : 'Compétitif'}</Pill>
                       {g.category && <Pill tone="s">{g.category}</Pill>}
-                      <Pill tone="b">{g.slots} séance(s) / semaine</Pill>
+                      <Pill tone="b">{g.slots}{pl(g.slots, ` séance(s) / semaine`)}</Pill>
                       {g.archived && <Pill tone="s">Archivé</Pill>}
                     </Pills>
                     <ProgressBar value={g.members} max={g.capacity} />

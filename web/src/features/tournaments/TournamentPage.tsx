@@ -17,7 +17,7 @@ import { Section } from '../../components/ui/Section';
 import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import { DT, fD } from '../../lib/format';
+import { DT, fD, pl } from '../../lib/format';
 import type { Player } from '../../lib/types';
 import { useAction } from '../../lib/useAction';
 import { RefereePicker, type Referee } from './RefereePicker';
@@ -273,7 +273,7 @@ export function TournamentPage() {
   const conflicts = useQuery({ queryKey: ['tournament', id, 'conflicts'], queryFn: () => api.get<Conflict[]>(`/tournaments/${id}/conflicts`), enabled: manage && tab === 'conflicts' });
   const draw = useAction(() => api.post<{ matches: number; unplaced: string[] }>(`/tournaments/${id}/draw`), {
     invalidate: KEYS,
-    success: (r) => `Tirage fait : ${r.matches} match(s) planifié(s)${r.unplaced.length ? ` · sans horaire : ${r.unplaced.join(', ')} (ajoutez des jours ou des terrains)` : ''}. Vérifiez puis publiez le tableau.`,
+    success: (r) => `Tirage fait : ${r.matches}${pl(r.matches, ` match(s) planifié(s)`)}${r.unplaced.length ? ` · sans horaire : ${r.unplaced.join(', ')} (ajoutez des jours ou des terrains)` : ''}. Vérifiez puis publiez le tableau.`,
     onSuccess: () => setTab('board'),
   });
   const publish = useAction((published: boolean) => api.post(`/tournaments/${id}/publish`, { published }), {

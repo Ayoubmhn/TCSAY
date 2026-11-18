@@ -308,3 +308,15 @@ export const IconFile = (p: IconProps) => (
     <path d="M14 3v5h5M8.5 13h7M8.5 17h5" />
   </Svg>
 );
+
+export const IconAlert = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7.5v5.5M12 16.5h.01" />
+  </Svg>
+);
+export const IconSwap = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 7h12l-3-3M17 17H5l3 3" />
+  </Svg>
+);

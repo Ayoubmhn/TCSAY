@@ -15,7 +15,7 @@ import { Segmented } from '../../components/ui/Segmented';
 import { useToast } from '../../components/ui/Toast';
 import { useViewMode, ViewToggle } from '../../components/ui/ViewToggle';
 import { api, errorMessage } from '../../lib/api';
-import { formatDateTime } from '../../lib/format';
+import { formatDateTime, pl } from '../../lib/format';
 import { resizedPhoto } from '../../lib/photo';
 import { CATEGORIES, KINDS, STATUS_TONE, type Complaint, type ComplaintCategory, type ComplaintKind } from './types';
 
@@ -38,7 +38,7 @@ export function ComplaintCard({ c, to }: { c: Complaint; to: string }) {
         {c.author && <Pill tone="g">{c.author.name}</Pill>}
         {c.player && <Pill tone="g" className="card-text">{c.player.name}</Pill>}
         {c.late && <Pill tone="r">Sans réponse depuis plus de 72 h</Pill>}
-        {c.messages > 0 && <Pill tone="b" className="card-text">{c.messages} message(s)</Pill>}
+        {c.messages > 0 && <Pill tone="b" className="card-text">{c.messages}{pl(c.messages, ` message(s)`)}</Pill>}
         {c.satisfied === true && <Pill tone="g">👍 Satisfait</Pill>}
         {c.satisfied === false && <Pill tone="r">👎 Non satisfait</Pill>}
       </Pills>

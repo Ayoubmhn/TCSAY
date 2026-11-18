@@ -12,6 +12,7 @@ import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
 import { useAction } from '../../lib/useAction';
 import type { Season } from '../../features/seasons/api';
+import { pl } from '../../lib/format';
 
 type Plan = 'FULL' | 'SEMESTER' | 'QUARTER' | 'MONTHLY';
 type Row = {
@@ -75,7 +76,7 @@ export function ReenrollmentPage() {
       }),
     {
       invalidate: [['reenrollments'], ['players'], ['installments'], ['groups']],
-      success: (r) => `${r.enrolled} joueur(s) réinscrit(s)${r.noFee.length ? ` · ${r.noFee.length} sans cotisation (aucun tarif pour cette saison : Tarifs d’entraînement)` : ''}${r.skipped.length ? ` · ${r.skipped.length} non traité(s) : ${r.skipped.map((s) => `${s.name} (${s.reason})`).join(' ; ')}` : ''}.`,
+      success: (r) => `${r.enrolled}${pl(r.enrolled, ` joueur(s) réinscrit(s)`)}${r.noFee.length ? ` · ${r.noFee.length} sans cotisation (aucun tarif pour cette saison : Tarifs d’entraînement)` : ''}${r.skipped.length ? ` · ${r.skipped.length}${pl(r.skipped.length, ` non traité(s) : `)}${r.skipped.map((s) => `${s.name} (${s.reason})`).join(' ; ')}` : ''}.`,
       onSuccess: () => setChoices({}),
     },
   );
@@ -127,7 +128,7 @@ export function ReenrollmentPage() {
             <Pills className="my-[18px]">
               <Pill tone="b">Saison {d.season.label}</Pill>
               {d.previous && <Pill tone="s">Saison précédente {d.previous.label}</Pill>}
-              <Pill tone="g">{d.players.filter((r) => r.enrolled).length} déjà inscrit(s)</Pill>
+              <Pill tone="g">{d.players.filter((r) => r.enrolled).length}{pl(d.players.filter((r) => r.enrolled).length, ` déjà inscrit(s)`)}</Pill>
               <Pill tone="r">{d.players.filter((r) => r.previous && !r.enrolled).length} à réinscrire</Pill>
               <button type="button" className="rounded-full bg-btn px-[13px] py-[5px] text-[13px] font-medium" onClick={() => rows.forEach((r) => !r.enrolled && set(r, { on: true, plan: choice(r).plan }))}>
                 Tout cocher
