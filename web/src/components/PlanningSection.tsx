@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
-import { addDays, fD, todayIso, weekdayOf } from '../lib/format';
+import { addDays, fD, pl, todayIso, weekdayOf } from '../lib/format';
 import type { Planning } from '../lib/types';
 import { PlanningBoard, PlanningLegend } from './PlanningBoard';
 import { PlanningDetail } from './PlanningDetail';
@@ -11,6 +11,8 @@ import { FilterSelect } from './ui/Field';
 import { QueryState } from './ui/Loading';
 import { Pill } from './ui/Pill';
 import { Segmented } from './ui/Segmented';
+import { IconRain } from './ui/Icons';
+import { rainDuring, rainWindow, useWeather, windowText } from '../lib/weather';
 
 type View = 'list' | 'grid' | 'week';
 const VIEW_KEY = 'tcsay.planning.view';
@@ -28,7 +30,7 @@ function initialView(): View {
 const chip = (on: boolean) => `flex-none rounded-full px-3.5 py-[7px] text-[13px] font-medium ${on ? 'bg-toggle text-bg' : 'bg-fld text-fg'}`;
 
 /** Une ligne de la liste : horaire, groupe ou réservation, entraîneur ; toucher ouvre la fiche. */
-function ListRow({ item, date, onSelect }: { item: PItem; date: string; onSelect: (i: PItem) => void }) {
+function ListRow({ item, date, onSelect, rain }: { item: PItem; date: string; onSelect: (i: PItem) => void; rain?: number | null }) {
   const start = item.kind === 'session' ? item.s.startTime : item.r.startTime;
   const end = item.kind === 'session' ? item.s.endTime : item.r.endTime;
   const now = nowTunis();
@@ -52,6 +54,11 @@ function ListRow({ item, date, onSelect }: { item: PItem; date: string; onSelect
               : (item.r.player ?? item.r.coach?.name ?? '—')}
         </span>
       </span>
+      {rain != null && !cancelled && (
+        <span className="flex flex-none items-center gap-1 self-center text-[12px] font-semibold" title={`Pluie prévue (${rain} %)`}>
+          <IconRain size={17} /> {rain} %
+        </span>
+      )}
       {live && !cancelled && <span className="self-center text-[11.5px] font-bold text-[#e5484d]">EN COURS</span>}
     </button>
   );
@@ -90,6 +97,10 @@ export function PlanningSection() {
   };
 
   const p = q.data;
+  const weather = useWeather();
+  // Pluie prévue pendant une séance (prévision des 3 prochains jours) : information, l'annulation reste une décision.
+  const rainOf = (s: { startTime: string; endTime: string; resolution?: string | null }) =>
+    p && s.resolution !== 'CANCELLED' ? rainDuring(weather.data, p.date, s.startTime, s.endTime) : null;
   const visible = (i: PItem) => {
     if (!coachId) return true;
     if (i.kind === 'reservation') return false;
@@ -104,6 +115,8 @@ export function PlanningSection() {
         ...p.sessions.filter((s) => s.resolution === 'REPLACED').map((s) => ({ tone: 's' as const, text: `${s.group.name} ${s.startTime} : ${coachLine(s)}`, item: { kind: 'session' as const, s } })),
       ]
     : [];
+  const rainy = p ? p.sessions.filter((s) => rainOf(s) !== null) : [];
+  const rainSpan = p ? rainWindow(weather.data, p.date) : null;
   const coachesToday = p ? p.legend.filter((c) => p.sessions.some((s) => s.coaches.some((x) => x.id === c.id) || s.replacement?.id === c.id)) : [];
 
   return (
@@ -179,9 +192,17 @@ export function PlanningSection() {
                     </div>
                   ))}
                 </div>
+                {rainSpan && (
+                  <div className="flex items-center gap-2 rounded-[14px] bg-pb px-3 py-2 text-[13px] text-ink">
+                    <IconRain size={17} />
+                    <span>
+                      Pluie prévue {windowText(rainSpan)} ({rainSpan.max} %) : {rainy.length ? rainy.length + pl(rainy.length, ' séance(s) concernée(s), entourée(s) en pointillés') : 'aucune séance concernée'}. L’annulation reste votre décision (fiche de la séance).
+                    </span>
+                  </div>
+                )}
                 {alerts.slice(0, 4).map((a, i) => (
                   <button key={i} type="button" onClick={() => setSelected(a.item)} className={`flex items-center gap-2 rounded-[14px] px-3 py-2 text-start text-[13px] ${a.tone === 'r' ? 'bg-topay' : 'bg-fld'}`}>
-                    <span aria-hidden="true">{a.tone === 'r' ? '⚠️' : '⇄'}</span>
+                    <span aria-hidden="true" className="flex">{a.tone === 'r' ? '⚠️' : '⇄'}</span>
                     {a.text}
                   </button>
                 ))}
@@ -237,7 +258,7 @@ export function PlanningSection() {
                             </div>
                           ))
                         ) : items.length ? (
-                          items.map((i) => <ListRow key={i.kind === 'session' ? i.s.id : i.r.id} item={i} date={p.date} onSelect={setSelected} />)
+                          items.map((i) => <ListRow key={i.kind === 'session' ? i.s.id : i.r.id} item={i} date={p.date} onSelect={setSelected} rain={i.kind === 'session' ? rainOf(i.s) : null} />)
                         ) : (
                           <div className="rounded-[16px] border-[1.5px] border-dashed border-line px-3 py-2.5 text-[13.5px] text-mut">
                             {c.maintenance || !c.active ? 'Terrain indisponible' : 'Libre toute la journée'}
@@ -250,7 +271,7 @@ export function PlanningSection() {
                 </div>
               ) : (
                 <>
-                  <PlanningBoard planning={{ ...p, courts }} onSelect={setSelected} isVisible={visible} />
+                  <PlanningBoard planning={{ ...p, courts }} onSelect={setSelected} isVisible={visible} rainOf={rainOf} />
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[12.5px] text-mut">Glissez ← → pour les autres heures · touchez une case pour sa fiche</span>
                     <button type="button" aria-expanded={legend} className={chip(legend)} onClick={() => setLegend((v) => !v)}>

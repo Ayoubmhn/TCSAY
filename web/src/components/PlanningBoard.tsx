@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { pad } from '../lib/format';
 import type { Planning } from '../lib/types';
+import { IconRain } from './ui/Icons';
 import { coachNames, leadCoach, nowTunis, reservationLabel, toMin, type PItem } from './planningUtils';
 
 /**
@@ -8,7 +9,18 @@ import { coachNames, leadCoach, nowTunis, reservationLabel, toMin, type PItem } 
  * Terrains fixes à gauche pendant le défilement, trait « maintenant », heures de nuit grisées (hachurées sur un terrain
  * sans éclairage), groupe et entraîneur écrits sur chaque case ; toucher une case ouvre sa fiche. Grille CSS.
  */
-export function PlanningBoard({ planning, onSelect, isVisible = () => true }: { planning: Planning; onSelect?: (i: PItem) => void; isVisible?: (i: PItem) => boolean }) {
+export function PlanningBoard({
+  planning,
+  onSelect,
+  isVisible = () => true,
+  rainOf,
+}: {
+  planning: Planning;
+  onSelect?: (i: PItem) => void;
+  isVisible?: (i: PItem) => boolean;
+  /** Pluie prévue pendant la séance (%), ou null : séance entourée en pointillés. */
+  rainOf?: (s: Planning['sessions'][number]) => number | null;
+}) {
   const start = planning.openingHour * 60;
   const end = planning.closingHour * 60;
   const cols = (end - start) / 30;
@@ -81,6 +93,7 @@ export function PlanningBoard({ planning, onSelect, isVisible = () => true }: { 
                 if (!isVisible({ kind: 'session', s })) return null;
                 const lead = leadCoach(s);
                 const cancelled = s.resolution === 'CANCELLED';
+                const rain = rainOf?.(s) ?? null;
                 const who = s.resolution === 'REPLACED' && s.replacement ? `⇄ ${s.replacement.firstName}` : s.resolution === 'PHYSICAL' ? '◆ Physique' : coachNames(s) || 'À affecter';
                 return (
                   <button
@@ -88,8 +101,9 @@ export function PlanningBoard({ planning, onSelect, isVisible = () => true }: { 
                     type="button"
                     role="gridcell"
                     onClick={() => onSelect?.({ kind: 'session', s })}
-                    aria-label={`${s.group.name}, ${s.startTime} à ${s.endTime}, ${who}`}
-                    className={`${cell} ${cancelled ? 'opacity-50 line-through' : ''}`}
+                    aria-label={`${s.group.name}, ${s.startTime} à ${s.endTime}, ${who}${rain !== null ? `, pluie prévue ${rain} %` : ''}`}
+                    title={rain !== null ? `Pluie prévue (${rain} %)` : undefined}
+                    className={`${cell} ${cancelled ? 'opacity-50 line-through' : ''} ${rain !== null ? 'outline-2 -outline-offset-[3px] outline-dashed outline-fg/70' : ''}`}
                     style={{
                       gridRow: row,
                       gridColumn: `${col(s.startTime)} / ${col(s.endTime)}`,
@@ -98,6 +112,7 @@ export function PlanningBoard({ planning, onSelect, isVisible = () => true }: { 
                   >
                     <b className="truncate text-[13px] font-semibold leading-tight">{s.group.name}</b>
                     <span className="truncate text-[11.5px] leading-tight">
+                      {rain !== null && <IconRain size={12} className="me-0.5 inline align-[-2px]" />}
                       {who} · <span dir="ltr">{s.startTime}</span>
                     </span>
                   </button>

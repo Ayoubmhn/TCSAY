@@ -320,3 +320,40 @@ export const IconSwap = (p: IconProps) => (
     <path d="M7 7h12l-3-3M17 17H5l3 3" />
   </Svg>
 );
+
+/* Météo */
+export const IconSun = (p: IconProps) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="4.2" />
+    <path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" />
+  </Svg>
+);
+export const IconCloudSun = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M8.5 4.5v1.4M3.6 9.5H5M5 6l1 1M13 6l-1 1" />
+    <path d="M6.2 11.2a3.2 3.2 0 0 1 5.6-2.6" />
+    <path d="M9 19h8.5a3.3 3.3 0 0 0 .3-6.6 4.6 4.6 0 0 0-8.8 1.2A2.7 2.7 0 0 0 9 19z" />
+  </Svg>
+);
+export const IconCloud = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 18h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 18z" />
+  </Svg>
+);
+export const IconRain = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 15h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z" />
+    <path d="M8.5 18l-1 2.5M12.5 18l-1 2.5M16.5 18l-1 2.5" />
+  </Svg>
+);
+export const IconStorm = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M7 15h10a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.6 1.5A3.3 3.3 0 0 0 7 15z" />
+    <path d="M12.5 15l-2 3.2h3l-2 3.3" />
+  </Svg>
+);
+export const IconWind = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M3 9h11a2.5 2.5 0 1 0-2.5-2.5M3 13h15a2.5 2.5 0 1 1-2.5 2.5M3 17h8" />
+  </Svg>
+);

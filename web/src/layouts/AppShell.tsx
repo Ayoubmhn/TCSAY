@@ -3,6 +3,7 @@ import { EmptyState } from '../components/ui/Card';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { SPACE_LABEL, useAuth, useMe } from '../auth/AuthContext';
 import { NotificationBell } from '../components/NotificationBell';
+import { WeatherButton } from '../components/WeatherButton';
 import { Avatar } from '../components/ui/Avatar';
 import { Brand, Logo } from '../components/ui/Brand';
 import { IconChevron, IconLogout, IconMail, IconSettings } from '../components/ui/Icons';
@@ -295,6 +296,7 @@ export function AppShell() {
               <Logo size={52} />
             </Link>
           </span>
+          <WeatherButton />
           <NotificationBell />
         </div>
         <OfflineBanner />

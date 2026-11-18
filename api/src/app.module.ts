@@ -87,11 +87,14 @@ import { SalariesService } from './salaries/salaries.service';
 import { SeasonsModule } from './seasons/seasons.module';
 import { SettingsController } from './settings/settings.controller';
 import { StaffController } from './staff/staff.controller';
+import { WeatherController } from './weather/weather.controller';
+import { WeatherService } from './weather/weather.service';
 
 @Module({
   imports: [PrismaModule, CoreModule, SeasonsModule],
   controllers: [
     AlertsController,
+    WeatherController,
     AiImportController,
     SeasonReportsController,
     ReportLetterheadController,
@@ -157,6 +160,7 @@ import { StaffController } from './staff/staff.controller';
   ],
   providers: [
     AlertsService,
+    WeatherService,
     AiImportService,
     SeasonReportsService,
     HistoryService,
