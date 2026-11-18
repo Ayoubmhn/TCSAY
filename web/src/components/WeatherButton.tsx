@@ -155,7 +155,9 @@ function WeatherPanel({ id, w, me }: { id: string; w: Weather; me: ReturnType<ty
       ) : (
         <p className="m-0 mt-3 text-[12.5px] text-mut">{t('Pas de pluie prévue aujourd’hui.')}</p>
       )}
-      <p className="m-0 mt-2 text-[11.5px] text-mut">{t('Prévisions Open-Meteo, mises à jour toutes les 30 min.')}</p>
+      <p className="m-0 mt-2 text-[11.5px] text-mut">
+        {t('Prévisions')} {w.source ?? 'Open-Meteo'}, {t('mises à jour toutes les 30 min.')}
+      </p>
     </div>
   );
 }

@@ -28,8 +28,9 @@ async function start(port, env) {
 }
 
 describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL manquant (base de démo)' }, () => {
-  let fake, ok, down;
+  let fake, ok, down, backup;
   const calls = [];
+  const metCalls = [];
 
   before(async () => {
     process.env.TZ = 'Africa/Tunis';
@@ -42,6 +43,26 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     fake = createServer((req, res) => {
       calls.push(req.url);
       res.setHeader('content-type', 'application/json');
+      // Open-Meteo saturé (adresse IP partagée de l'hébergeur) : 429.
+      if (req.url.startsWith('/sature/')) return void ((res.statusCode = 429), res.end('{"error":true,"reason":"Too many requests"}'));
+      // MET Norway : heures en UTC, vent en m/s, pluie en mm.
+      if (req.url.startsWith('/met/')) {
+        metCalls.push(req);
+        const start = new Date();
+        start.setMinutes(0, 0, 0);
+        const timeseries = Array.from({ length: 30 }, (_, i) => {
+          const t = new Date(start.getTime() + i * 3600_000);
+          const wet = t.getHours() >= 17 && t.getHours() <= 19;
+          return {
+            time: t.toISOString().replace('.000', ''),
+            data: {
+              instant: { details: { air_temperature: 19.6, wind_speed: 5 } },
+              next_1_hours: { summary: { symbol_code: wet ? 'rainshowers_day' : 'partlycloudy_day' }, details: { precipitation_amount: wet ? 1.2 : 0 } },
+            },
+          };
+        });
+        return void res.end(JSON.stringify({ properties: { timeseries } }));
+      }
       res.end(
         JSON.stringify({
           current: { time: hourOf(new Date()), temperature_2m: 18.4, weather_code: 61, wind_speed_10m: 21.6 },
@@ -56,12 +77,15 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     });
     await new Promise((r) => fake.listen(0, r));
     ok = await start(3191, { WEATHER_BASE_URL: `http://localhost:${fake.address().port}` });
-    down = await start(3192, { WEATHER_BASE_URL: 'http://localhost:9' });
+    down = await start(3192, { WEATHER_BASE_URL: 'http://localhost:9', WEATHER_MET_URL: 'http://localhost:9' });
+    const url = `http://localhost:${fake.address().port}`;
+    backup = await start(3193, { WEATHER_BASE_URL: `${url}/sature`, WEATHER_MET_URL: `${url}/met` });
   });
 
   after(() => {
     ok?.proc.kill();
     down?.proc.kill();
+    backup?.proc.kill();
     fake?.close();
   });
 
@@ -74,6 +98,7 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
   test('prévision de Sayada : heure en cours et suivantes, valeurs arrondies, coordonnées du club seulement', async () => {
     const w = await (await ok.get('/weather')).json();
     assert.equal(w.available, true);
+    assert.equal(w.source, 'Open-Meteo');
     assert.equal(w.place, 'Sayada');
     assert.deepEqual({ temp: w.current.temp, code: w.current.code, wind: w.current.wind }, { temp: 18, code: 61, wind: 22 });
     assert.equal(w.hours[0].time, hourOf(new Date()));
@@ -86,7 +111,19 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
 
   test('une seule lecture chez Open-Meteo pour tous les comptes (cache de 30 min)', async () => {
     await Promise.all([ok.get('/weather'), ok.get('/weather'), ok.get('/weather')]);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.filter((u) => u.startsWith('/v1/')).length, 1);
+  });
+
+  test('Open-Meteo saturé (429) : MET Norway prend le relais, à l’heure du club', async () => {
+    const w = await (await backup.get('/weather')).json();
+    assert.equal(w.available, true);
+    assert.equal(w.source, 'MET Norway');
+    assert.equal(w.hours[0].time, hourOf(new Date()));
+    assert.deepEqual({ temp: w.current.temp, wind: w.current.wind }, { temp: 20, wind: 18 });
+    const rainy = w.hours.find((h) => h.time.endsWith('T18:00'));
+    assert.deepEqual({ code: rainy.code, rain: rainy.rain }, { code: 80, rain: 80 });
+    assert.match(metCalls[0].url, /lat=35\.6717&lon=10\.8936/);
+    assert.match(metCalls[0].headers['user-agent'], /^TCSAY/);
   });
 
   test('service injoignable : pas de météo, jamais d’erreur', async () => {
@@ -95,6 +132,6 @@ describe('Météo (faux serveur Open-Meteo)', { skip: !DB && 'E2E_DATABASE_URL m
     const w = await r.json();
     assert.equal(w.available, false);
     assert.deepEqual(w.hours, []);
-    assert.match(w.error, /^Open-Meteo injoignable/);
+    assert.match(w.error, /Open-Meteo : .*MET Norway : /);
   });
 });

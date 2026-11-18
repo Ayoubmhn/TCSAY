@@ -11,6 +11,8 @@ export type Weather = {
   updatedAt: string | null;
   current: { time: string; temp: number; code: number; wind: number; rain: number } | null;
   hours: WeatherHour[];
+  /** Service qui a donné la prévision (Open-Meteo, MET Norway). */
+  source?: string;
 };
 
 /** À partir de cette probabilité, une heure est « pluie prévue ». */
