@@ -3,7 +3,7 @@
     "name": "TCSAY",
     "slug": "tcsay",
     "scheme": "tcsay",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -13,7 +13,8 @@
     },
     "android": {
       "package": "tn.tcsay.app",
-      "versionCode": 7,
+      "versionCode": 8,
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",

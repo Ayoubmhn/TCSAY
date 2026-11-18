@@ -56,6 +56,17 @@ mais affiche « Notifications indisponibles ».
 
 L'API (Render) n'a besoin d'aucune clé : elle envoie au service push d'Expo (`EXPO_ACCESS_TOKEN` facultatif).
 
+## Localisation pour la météo « chez moi » (version 0.7)
+
+- `app.json` : permissions `ACCESS_COARSE_LOCATION` et `ACCESS_FINE_LOCATION` ; WebView `geolocationEnabled`.
+- Android demande l'autorisation au premier toucher de « Voir la météo chez moi ». Choisir **« Position précise »** :
+  `react-native-webview` 13 ne transmet la position au site qu'avec la localisation précise (le site l'arrondit
+  ensuite à 10 km avant tout envoi, rien n'est enregistré).
+- Refusée ou retirée plus tard (Paramètres du téléphone › Applications › TCSAY › Autorisations) : le site affiche
+  « Localisation refusée », la météo du club reste affichée.
+- Version 0.7.0 / versionCode 8 : nouvel APK à construire (`npx eas-cli@latest build -p android --profile demo`
+  pour « TCSAY Démo », `--profile preview` pour le club).
+
 ## 1. Préparer (une fois)
 
 ```bash

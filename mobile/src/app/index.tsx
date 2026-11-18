@@ -159,6 +159,8 @@ export default function SiteScreen() {
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled
+          // Météo « chez moi » : la WebView transmet la position au site après l'autorisation Android (demandée au premier usage).
+          geolocationEnabled
           sharedCookiesEnabled
           allowFileAccess
           setSupportMultipleWindows={false}
